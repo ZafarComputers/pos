@@ -138,7 +138,7 @@ class _DataTableWidgetState<T> extends State<DataTableWidget<T>> {
         child: ListView.separated(
           shrinkWrap: true,
           itemCount: widget.filteredItems.length,
-          separatorBuilder: (_, _) => Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+          separatorBuilder: (_, __) => Divider(height: 1, thickness: 1, color: Colors.grey[300]),
           itemBuilder: (context, index) {
             if (index >= widget.filteredItems.length || index >= widget.selectedItems.length) {
               return const SizedBox.shrink();

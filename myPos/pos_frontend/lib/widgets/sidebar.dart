@@ -19,11 +19,10 @@ class Sidebar extends StatelessWidget {
         'Low Stock',
         'Category',
         'Sub-Category',
-        'Brands',
+        // 'Brands',
         'Variants',
-        'Attributes',
+        'Vendor',
         'Barcode',
-        'QR Code',
       ],
     },
     {

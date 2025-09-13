@@ -1,8 +1,9 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
-import '../widgets/header.dart';
-import '../widgets/footer.dart';
-import '../widgets/sidebar.dart';
+
+import 'package:pos_frontend/widgets/header.dart';
+import 'package:pos_frontend/widgets/footer.dart';
+import 'package:pos_frontend/widgets/sidebar.dart';
 
 // Import all your pages (same as before)
 import 'dashboard_page.dart';
@@ -11,11 +12,12 @@ import 'inventory/expired_products_page.dart';
 import 'inventory/low_stock_page.dart';
 import 'inventory/category_page.dart';
 import 'inventory/sub_category_page.dart';
-import 'inventory/brands_page.dart';
+// import 'inventory/brands_page.dart';
 import 'inventory/variants_page.dart';
-import 'inventory/attributes_page.dart';
+import 'inventory/vendors_page.dart';
 import 'inventory/barcode_page.dart';
-import 'inventory/qr_code_page.dart';
+// import 'inventory/attributes_page.dart';
+// import 'inventory/qr_code_page.dart';
 import 'sales/pos_sales_page.dart';
 import 'sales/invoice_page.dart';
 import 'sales/sales_return_page.dart';
@@ -62,11 +64,12 @@ class _HomePageState extends State<HomePage> {
     'Low Stock': const LowStockPage(),
     'Category': const CategoryPage(),
     'Sub-Category': const SubCategoryPage(),
-    'Brands': const BrandsPage(),
+    // 'Brands': const BrandsPage(),
     'Variants': const VariantsPage(),
-    'Attributes': const AttributesPage(),
     'Barcode': const BarcodePage(),
-    'QR Code': const QRCodePage(),
+    'Vendor': const VendorsPage(),
+    // 'Attributes': const AttributesPage(),
+    // 'QR Code': const QRCodePage(),
     'POS Sales': const POSalesPage(),
     'Invoice': const InvoicePage(),
     'Sales Return': const SalesReturnPage(),

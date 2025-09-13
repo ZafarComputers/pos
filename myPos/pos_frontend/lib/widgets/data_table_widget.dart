@@ -73,7 +73,7 @@ class DataTableWidgetState<T> extends State<DataTableWidget<T>> {
     }
     return ListView.separated(
       itemCount: widget.filteredItems.length,
-      separatorBuilder: (_, _) =>
+      separatorBuilder: (_, __) =>
           Divider(height: 1, thickness: 1, color: Colors.grey[300]),
       itemBuilder: (context, index) {
         if (index >= widget.filteredItems.length ||
