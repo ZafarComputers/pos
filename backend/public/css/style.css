@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2&family=Roboto&family=Varela+Round&display=swap');
+
+/*
+font-family: 'Baloo 2', cursive;
+font-family: 'Roboto', sans-serif;
+font-family: 'Varela Round', sans-serif;
+*/
+
+body{
+	background-color: antiquewhite;
+}
+
+*{
+	margin: 0;
+	padding: 0;
+}
+
+nav{
+	font-family: 'Ubuntu', sans-serif;
+}
+
+nav ul{
+	display: flex;
+	align-items: center;
+	list-style-type: none;
+	height: 60px;
+	background-color: #72087e;
+	color: white;
+}
+
+nav ul li{
+	padding: 0 12px;
+}
+
+nav ul li a{
+	padding: 0 12px;
+}
+
+nav ul li a{
+	color: white;
+}
+
+.category{
+	border: solid 1px;
+}
+
+.item{
+	border: solid 1px;
+
+}
