@@ -1,0 +1,31 @@
+Admin Dashboard
+
+
+Inventory: products, Create Product, expired products, category, sub category, Vendor, Variants(size, Color,Season, Material), Print Barcode(Generate BarCode)
+
+Sales: Quotation omitted.
+
+
+Purchase Listing, Purchases, Purchase Create, Purchase Return
+
+Finance & Accounts: Expenses, INcome, Bank Accounts, Trail Balance,Account Statement
+
+
+peoples: Customer, Suppliers, Employees(HRM)
+
+
+Reports(All)
+
+
+Users(All)
+
+Settings: Website setings, App settings omitted.
+
+
+Addnew BUttppn same as inventory
+
+
+POS: Select payment: Cash, Card, Bank
+
+
+
