@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'inventory/product_list_page.dart';
+import 'inventory/add_product_page.dart';
+import 'inventory/category_list_page.dart';
+import 'inventory/sub_category_list_page.dart';
+import 'inventory/expired_products_page.dart';
+import 'inventory/vendors_page.dart';
+import 'inventory/print_barcode_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -15,6 +22,8 @@ class _DashboardPageState extends State<DashboardPage>
   late Animation<double> _fadeAnimation;
   bool _isSidebarOpen = true;
   Map<String, AnimationController> _animationControllers = {};
+  String selectedTimeRange = '1M'; // Default time range
+  String selectedTopSellingPeriod = 'Today'; // Default period for top selling
 
   @override
   void initState() {
@@ -50,6 +59,317 @@ class _DashboardPageState extends State<DashboardPage>
     setState(() {
       _isSidebarOpen = !_isSidebarOpen;
     });
+  }
+
+  void updateTimeRange(String range) {
+    setState(() {
+      selectedTimeRange = range;
+    });
+    // Here you would typically fetch new data based on the selected time range
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Time range updated to $range'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void updateTopSellingPeriod(String period) {
+    setState(() {
+      selectedTopSellingPeriod = period;
+    });
+    // Here you would typically fetch new data for the selected period
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Top selling period updated to $period'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    switch (currentContent) {
+      case 'Products':
+        return ProductListPage();
+      case 'Create Product':
+        return AddProductPage();
+      case 'Expired Products':
+        return ExpiredProductsPage();
+      case 'Category':
+        return CategoryListPage();
+      case 'Sub Category':
+        return SubCategoryListPage();
+      case 'Vendor':
+        return VendorsPage();
+      case 'Print Barcode':
+        return PrintBarcodePage();
+      default:
+        return _buildDashboardContent();
+    }
+  }
+
+  Widget _buildDashboardContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Metrics Cards
+          Row(
+            children: [
+              _buildMetricCard(
+                'Total Sales',
+                '\$48,988,078',
+                Icons.trending_up,
+                Colors.green,
+                '+22%',
+              ),
+              _buildMetricCard(
+                'Total Purchase',
+                '\$16,478,145',
+                Icons.trending_down,
+                Colors.red,
+                '-22%',
+              ),
+              _buildMetricCard(
+                'Total Purchase Return',
+                '\$24,145,789',
+                Icons.undo,
+                Colors.green,
+                '+22%',
+              ),
+              _buildMetricCard(
+                'Profit',
+                '\$8,458,798',
+                Icons.attach_money,
+                Colors.blue,
+                '+35%',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildMetricCard(
+                'Invoice Due',
+                '\$48,988,78',
+                Icons.receipt,
+                Colors.orange,
+                '+35%',
+              ),
+              _buildMetricCard(
+                'Total Expenses',
+                '\$8,980,097',
+                Icons.money_off,
+                Colors.red,
+                '+41%',
+              ),
+              _buildMetricCard(
+                'Total Payment Returns',
+                '\$78,458,798',
+                Icons.refresh,
+                Colors.red,
+                '-20%',
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          // Chart
+          Card(
+            elevation: 8,
+            shadowColor: Colors.black26,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.white, Color(0xFFF1F5F9)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Sales & Purchase',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      _buildTimeButton('1D'),
+                      _buildTimeButton('1W'),
+                      _buildTimeButton('1M'),
+                      _buildTimeButton('3M'),
+                      _buildTimeButton('6M'),
+                      _buildTimeButton('1Y'),
+                    ],
+                  ),
+                  SizedBox(
+                    height: 250,
+                    child: LineChart(
+                      LineChartData(
+                        gridData: FlGridData(show: false),
+                        titlesData: FlTitlesData(show: false),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: [
+                              const FlSpot(0, 3),
+                              const FlSpot(1, 1),
+                              const FlSpot(2, 4),
+                              const FlSpot(3, 2),
+                              const FlSpot(4, 5),
+                            ],
+                            isCurved: true,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                            ),
+                            barWidth: 4,
+                            belowBarData: BarAreaData(
+                              show: true,
+                              gradient: LinearGradient(
+                                colors: [
+                                  const Color(0xFF007BFF).withOpacity(0.3),
+                                  const Color(0xFF0056B3).withOpacity(0.1),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildChartSummary(
+                        Icons.shopping_cart,
+                        'Total Purchase',
+                        '3K',
+                      ),
+                      _buildChartSummary(Icons.sell, 'Total Sales', '1K'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Overall Information
+          Row(
+            children: [
+              _buildInfoCard('Suppliers', '6987', Icons.business),
+              _buildInfoCard('Customers', '4896', Icons.people),
+              _buildInfoCard('Orders', '487', Icons.shopping_bag),
+            ],
+          ),
+          const SizedBox(height: 32),
+          // Top Selling Products
+          Card(
+            elevation: 8,
+            shadowColor: Colors.black26,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.white, Color(0xFFF1F5F9)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Top Selling Products',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                  Row(children: [_buildDropdownButton('Today')]),
+                  _buildProductItem(
+                    'Charger Cable - Lighting',
+                    '\$187',
+                    '247+ Sales',
+                    Colors.green,
+                  ),
+                  _buildProductItem(
+                    'Yves Saint Eau De Parfum',
+                    '\$145',
+                    '289+ Sales',
+                    Colors.green,
+                  ),
+                  _buildProductItem(
+                    'Apple Airpods 2',
+                    '\$458',
+                    '300+ Sales',
+                    Colors.green,
+                  ),
+                  _buildProductItem(
+                    'Vacuum Cleaner',
+                    '\$139',
+                    '225+ Sales',
+                    Colors.orange,
+                  ),
+                  _buildProductItem(
+                    'Samsung Galaxy S21 Fe 5g',
+                    '\$898',
+                    '365+ Sales',
+                    Colors.green,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Low Stock Products
+          Card(
+            elevation: 8,
+            shadowColor: Colors.black26,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.white, Color(0xFFF1F5F9)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Low Stock Products',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                  _buildLowStockItem('Dell XPS 13', '#665814', '08'),
+                  _buildLowStockItem('Vacuum Cleaner Robot', '#940004', '14'),
+                  _buildLowStockItem('KitchenAid Stand Mixer', '#325569', '21'),
+                  _buildLowStockItem('Levi\'s Trucker Jacket', '#124588', '12'),
+                  _buildLowStockItem('Lay\'s Classic', '#365586', '10'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -155,11 +475,16 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     // Header - Always visible
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
                       margin: const EdgeInsets.only(bottom: 8),
                       child: AnimatedCrossFade(
                         duration: const Duration(milliseconds: 300),
-                        crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        crossFadeState: _isSidebarOpen
+                            ? CrossFadeState.showSecond
+                            : CrossFadeState.showFirst,
                         firstChild: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -218,12 +543,21 @@ class _DashboardPageState extends State<DashboardPage>
                     _buildMainSectionTile(Icons.inventory_2, 'Inventory', [
                       _buildPrimarySubTile('Products', Icons.inventory),
                       _buildPrimarySubTile('Create Product', Icons.add_circle),
-                      _buildPrimarySubTile('Expired Products', Icons.warning_amber),
+                      _buildPrimarySubTile(
+                        'Expired Products',
+                        Icons.warning_amber,
+                      ),
                       _buildSectionDivider(isSubDivider: true),
                       _buildPrimarySubTile('Category', Icons.category),
-                      _buildPrimarySubTile('Sub Category', Icons.subdirectory_arrow_right),
+                      _buildPrimarySubTile(
+                        'Sub Category',
+                        Icons.subdirectory_arrow_right,
+                      ),
                       _buildPrimarySubTile('Vendor', Icons.business_center),
-                      _buildPrimarySubTile('Print Barcode', Icons.qr_code_scanner),
+                      _buildPrimarySubTile(
+                        'Print Barcode',
+                        Icons.qr_code_scanner,
+                      ),
                     ]),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
@@ -242,21 +576,40 @@ class _DashboardPageState extends State<DashboardPage>
                     _buildMainSectionTile(Icons.shopping_bag, 'Purchase', [
                       _buildPrimarySubTile('Purchase Listing', Icons.list_alt),
                       _buildPrimarySubTile('Purchases', Icons.shopping_bag),
-                      _buildPrimarySubTile('Purchase Create', Icons.add_shopping_cart),
-                      _buildPrimarySubTile('Purchase Return', Icons.assignment_return),
+                      _buildPrimarySubTile(
+                        'Purchase Create',
+                        Icons.add_shopping_cart,
+                      ),
+                      _buildPrimarySubTile(
+                        'Purchase Return',
+                        Icons.assignment_return,
+                      ),
                     ]),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
 
                     // Finance Section
-                    _buildMainSectionTile(Icons.account_balance_wallet, 'Finance & Accounts', [
-                      _buildPrimarySubTile('Expenses', Icons.money_off),
-                      _buildPrimarySubTile('Income', Icons.trending_up),
-                      _buildPrimarySubTile('Bank Accounts', Icons.account_balance),
-                      _buildPrimarySubTile('Trial Balance', Icons.balance),
-                      _buildPrimarySubTile('Account Statement', Icons.description),
-                      _buildPrimarySubTile('Cashflow', Icons.account_balance_wallet),
-                    ]),
+                    _buildMainSectionTile(
+                      Icons.account_balance_wallet,
+                      'Finance & Accounts',
+                      [
+                        _buildPrimarySubTile('Expenses', Icons.money_off),
+                        _buildPrimarySubTile('Income', Icons.trending_up),
+                        _buildPrimarySubTile(
+                          'Bank Accounts',
+                          Icons.account_balance,
+                        ),
+                        _buildPrimarySubTile('Trial Balance', Icons.balance),
+                        _buildPrimarySubTile(
+                          'Account Statement',
+                          Icons.description,
+                        ),
+                        _buildPrimarySubTile(
+                          'Cashflow',
+                          Icons.account_balance_wallet,
+                        ),
+                      ],
+                    ),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
 
@@ -274,17 +627,32 @@ class _DashboardPageState extends State<DashboardPage>
                       _buildBulletPointTile('Sales Report'),
                       _buildBulletPointTile('Best Seller'),
                       _buildSectionDivider(isSubDivider: true),
-                      _buildSecondarySubTile('Purchase Report', Icons.bar_chart),
-                      _buildSecondarySubTile('Inventory Report', Icons.inventory_2),
+                      _buildSecondarySubTile(
+                        'Purchase Report',
+                        Icons.bar_chart,
+                      ),
+                      _buildSecondarySubTile(
+                        'Inventory Report',
+                        Icons.inventory_2,
+                      ),
                       _buildSecondarySubTile('Invoice Report', Icons.receipt),
                       _buildSecondarySubTile('Supplier Report', Icons.business),
                       _buildSecondarySubTile('Customer Report', Icons.people),
                       _buildSecondarySubTile('Product Report', Icons.inventory),
                       _buildSecondarySubTile('Expense Report', Icons.money_off),
-                      _buildSecondarySubTile('Income Report', Icons.trending_up),
-                      _buildSecondarySubTile('Tax Report', Icons.account_balance),
+                      _buildSecondarySubTile(
+                        'Income Report',
+                        Icons.trending_up,
+                      ),
+                      _buildSecondarySubTile(
+                        'Tax Report',
+                        Icons.account_balance,
+                      ),
                       _buildSecondarySubTile('Profit & Loss', Icons.show_chart),
-                      _buildSecondarySubTile('Annual Report', Icons.calendar_today),
+                      _buildSecondarySubTile(
+                        'Annual Report',
+                        Icons.calendar_today,
+                      ),
                     ]),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
@@ -292,8 +660,14 @@ class _DashboardPageState extends State<DashboardPage>
                     // Users Section
                     _buildMainSectionTile(Icons.admin_panel_settings, 'Users', [
                       _buildPrimarySubTile('Users', Icons.group),
-                      _buildPrimarySubTile('Roles & Permissions', Icons.security),
-                      _buildPrimarySubTile('Delete Account Request', Icons.delete_forever),
+                      _buildPrimarySubTile(
+                        'Roles & Permissions',
+                        Icons.security,
+                      ),
+                      _buildPrimarySubTile(
+                        'Delete Account Request',
+                        Icons.delete_forever,
+                      ),
                     ]),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
@@ -302,7 +676,10 @@ class _DashboardPageState extends State<DashboardPage>
                     _buildMainSectionTile(Icons.settings, 'Settings', [
                       _buildPrimarySubTile('General Settings', Icons.settings),
                       _buildPrimarySubTile('System Settings', Icons.computer),
-                      _buildPrimarySubTile('Financial Settings', Icons.account_balance_wallet),
+                      _buildPrimarySubTile(
+                        'Financial Settings',
+                        Icons.account_balance_wallet,
+                      ),
                       _buildPrimarySubTile('Other Settings', Icons.more_horiz),
                       _buildSectionDivider(isSubDivider: true),
                       _buildLogoutTile('Logout', Icons.logout),
@@ -324,294 +701,7 @@ class _DashboardPageState extends State<DashboardPage>
               Expanded(
                 child: FadeTransition(
                   opacity: _fadeAnimation,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Metrics Cards
-                        Row(
-                          children: [
-                            _buildMetricCard(
-                              'Total Sales',
-                              '\$48,988,078',
-                              Icons.trending_up,
-                              Colors.green,
-                              '+22%',
-                            ),
-                            _buildMetricCard(
-                              'Total Purchase',
-                              '\$16,478,145',
-                              Icons.trending_down,
-                              Colors.red,
-                              '-22%',
-                            ),
-                            _buildMetricCard(
-                              'Total Purchase Return',
-                              '\$24,145,789',
-                              Icons.undo,
-                              Colors.green,
-                              '+22%',
-                            ),
-                            _buildMetricCard(
-                              'Profit',
-                              '\$8,458,798',
-                              Icons.attach_money,
-                              Colors.blue,
-                              '+35%',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            _buildMetricCard(
-                              'Invoice Due',
-                              '\$48,988,78',
-                              Icons.receipt,
-                              Colors.orange,
-                              '+35%',
-                            ),
-                            _buildMetricCard(
-                              'Total Expenses',
-                              '\$8,980,097',
-                              Icons.money_off,
-                              Colors.red,
-                              '+41%',
-                            ),
-                            _buildMetricCard(
-                              'Total Payment Returns',
-                              '\$78,458,798',
-                              Icons.refresh,
-                              Colors.red,
-                              '-20%',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                        // Chart
-                        Card(
-                          elevation: 8,
-                          shadowColor: Colors.black26,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.white, Color(0xFFF1F5F9)],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Sales & Purchase',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    _buildTimeButton('1D'),
-                                    _buildTimeButton('1W'),
-                                    _buildTimeButton('1M'),
-                                    _buildTimeButton('3M'),
-                                    _buildTimeButton('6M'),
-                                    _buildTimeButton('1Y'),
-                                  ],
-                                ),
-                                SizedBox(
-                                  height: 250,
-                                  child: LineChart(
-                                    LineChartData(
-                                      gridData: FlGridData(show: false),
-                                      titlesData: FlTitlesData(show: false),
-                                      borderData: FlBorderData(show: false),
-                                      lineBarsData: [
-                                        LineChartBarData(
-                                          spots: [
-                                            const FlSpot(0, 3),
-                                            const FlSpot(1, 1),
-                                            const FlSpot(2, 4),
-                                            const FlSpot(3, 2),
-                                            const FlSpot(4, 5),
-                                          ],
-                                          isCurved: true,
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFF0D1845),
-                                              Color(0xFF0A1238),
-                                            ],
-                                          ),
-                                          barWidth: 4,
-                                          belowBarData: BarAreaData(
-                                            show: true,
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                const Color(
-                                                  0xFF007BFF,
-                                                ).withOpacity(0.3),
-                                                const Color(
-                                                  0xFF0056B3,
-                                                ).withOpacity(0.1),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    _buildChartSummary(
-                                      Icons.shopping_cart,
-                                      'Total Purchase',
-                                      '3K',
-                                    ),
-                                    _buildChartSummary(
-                                      Icons.sell,
-                                      'Total Sales',
-                                      '1K',
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        // Overall Information
-                        Row(
-                          children: [
-                            _buildInfoCard('Suppliers', '6987', Icons.business),
-                            _buildInfoCard('Customers', '4896', Icons.people),
-                            _buildInfoCard('Orders', '487', Icons.shopping_bag),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                        // Top Selling Products
-                        Card(
-                          elevation: 8,
-                          shadowColor: Colors.black26,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.white, Color(0xFFF1F5F9)],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Top Selling Products',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                Row(children: [_buildDropdownButton('Today')]),
-                                _buildProductItem(
-                                  'Charger Cable - Lighting',
-                                  '\$187',
-                                  '247+ Sales',
-                                  Colors.green,
-                                ),
-                                _buildProductItem(
-                                  'Yves Saint Eau De Parfum',
-                                  '\$145',
-                                  '289+ Sales',
-                                  Colors.green,
-                                ),
-                                _buildProductItem(
-                                  'Apple Airpods 2',
-                                  '\$458',
-                                  '300+ Sales',
-                                  Colors.green,
-                                ),
-                                _buildProductItem(
-                                  'Vacuum Cleaner',
-                                  '\$139',
-                                  '225+ Sales',
-                                  Colors.orange,
-                                ),
-                                _buildProductItem(
-                                  'Samsung Galaxy S21 Fe 5g',
-                                  '\$898',
-                                  '365+ Sales',
-                                  Colors.green,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        // Low Stock Products
-                        Card(
-                          elevation: 8,
-                          shadowColor: Colors.black26,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.white, Color(0xFFF1F5F9)],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Low Stock Products',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                _buildLowStockItem('Dell XPS 13', '#665814', '08'),
-                                _buildLowStockItem(
-                                  'Vacuum Cleaner Robot',
-                                  '#940004',
-                                  '14',
-                                ),
-                                _buildLowStockItem(
-                                  'KitchenAid Stand Mixer',
-                                  '#325569',
-                                  '21',
-                                ),
-                                _buildLowStockItem(
-                                  'Levi\'s Trucker Jacket',
-                                  '#124588',
-                                  '12',
-                                ),
-                                _buildLowStockItem(
-                                  'Lay\'s Classic',
-                                  '#365586',
-                                  '10',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: _buildMainContent(),
                 ),
               ),
             ],
@@ -656,33 +746,60 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildTimeButton(String text) {
+    bool isSelected = selectedTimeRange == text;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: () => updateTimeRange(text),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
+          backgroundColor: isSelected
+              ? const Color(0xFF0D1845)
+              : Colors.transparent,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          side: isSelected
+              ? null
+              : const BorderSide(color: Color(0xFFDEE2E6), width: 1),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF6C757D))),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFF6C757D),
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildDropdownButton(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFDEE2E6)),
       ),
-      child: Row(
-        children: [
-          Text(text, style: const TextStyle(color: Color(0xFF6C757D))),
-          const Icon(Icons.arrow_drop_down, color: Color(0xFF6C757D)),
-        ],
+      child: DropdownButton<String>(
+        value: selectedTopSellingPeriod,
+        underline: const SizedBox(),
+        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF6C757D)),
+        items: ['Today', 'This Week', 'This Month', 'This Year']
+            .map(
+              (period) => DropdownMenuItem(
+                value: period,
+                child: Text(
+                  period,
+                  style: const TextStyle(color: Color(0xFF6C757D)),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            updateTopSellingPeriod(value);
+          }
+        },
       ),
     );
   }
@@ -696,14 +813,20 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildMainSectionTile(IconData icon, String title, List<Widget> children) {
+  Widget _buildMainSectionTile(
+    IconData icon,
+    String title,
+    List<Widget> children,
+  ) {
     return Column(
       children: [
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -772,25 +895,19 @@ class _DashboardPageState extends State<DashboardPage>
           ),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.white.withOpacity(0.8),
-                  size: 12,
-                ),
+                Icon(icon, color: Colors.white.withOpacity(0.8), size: 12),
               ],
             ),
             secondChild: Row(
               mainAxisSize: MainAxisSize.max,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.white.withOpacity(0.8),
-                  size: 16,
-                ),
+                Icon(icon, color: Colors.white.withOpacity(0.8), size: 16),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -822,25 +939,19 @@ class _DashboardPageState extends State<DashboardPage>
               : const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 10,
-                ),
+                Icon(icon, color: Colors.white.withOpacity(0.7), size: 10),
               ],
             ),
             secondChild: Row(
               mainAxisSize: MainAxisSize.max,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 14,
-                ),
+                Icon(icon, color: Colors.white.withOpacity(0.7), size: 14),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -872,7 +983,9 @@ class _DashboardPageState extends State<DashboardPage>
               : const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -916,14 +1029,20 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildQuickActionTile(IconData icon, String title, List<Widget> children) {
+  Widget _buildQuickActionTile(
+    IconData icon,
+    String title,
+    List<Widget> children,
+  ) {
     return Column(
       children: [
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -993,25 +1112,19 @@ class _DashboardPageState extends State<DashboardPage>
           ),
           child: AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isSidebarOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isSidebarOpen
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             firstChild: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.red.withOpacity(0.8),
-                  size: 12,
-                ),
+                Icon(icon, color: Colors.red.withOpacity(0.8), size: 12),
               ],
             ),
             secondChild: Row(
               mainAxisSize: MainAxisSize.max,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.red.withOpacity(0.8),
-                  size: 16,
-                ),
+                Icon(icon, color: Colors.red.withOpacity(0.8), size: 16),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
