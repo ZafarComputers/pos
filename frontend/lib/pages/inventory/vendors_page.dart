@@ -743,86 +743,46 @@ class _VendorsPageState extends State<VendorsPage> {
                               ),
                             ),
                             DataCell(
-                              Container(
-                                width: 32,
-                                height: 32,
-                                child: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        viewVendor(vendor);
-                                        break;
-                                      case 'edit':
-                                        editVendor(vendor);
-                                        break;
-                                      case 'delete':
-                                        deleteVendor(vendor);
-                                        break;
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'view',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'View Details',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => viewVendor(vendor),
+                                    icon: Icon(
+                                      Icons.visibility,
+                                      color: Color(0xFF17A2B8),
+                                      size: 16,
                                     ),
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Edit Vendor',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Delete Vendor',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
+                                    tooltip: 'View Details',
                                     padding: EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFF8F9FA),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Icon(
-                                      Icons.more_vert,
-                                      color: Color(0xFF6C757D),
-                                      size: 14,
-                                    ),
+                                    constraints: BoxConstraints(),
                                   ),
-                                ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => editVendor(vendor),
+                                    icon: Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF28A745),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Edit Vendor',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => deleteVendor(vendor),
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFDC3545),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Delete Vendor',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

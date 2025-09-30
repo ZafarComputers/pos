@@ -688,7 +688,6 @@ class _DashboardPageState extends State<DashboardPage>
                     if (_isSidebarOpen) _buildSectionDivider(),
 
                     // Quick Actions
-                    _buildQuickActionTile(Icons.add_circle, 'Add New', []),
                     _buildQuickActionTile(Icons.point_of_sale, 'POS', [
                       _buildPrimarySubTile('Cash', Icons.payments),
                       _buildPrimarySubTile('Card', Icons.credit_card),

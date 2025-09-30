@@ -797,74 +797,49 @@ class _ExpiredProductsPageState extends State<ExpiredProductsPage> {
                               ),
                             ),
                             DataCell(
-                              Container(
-                                child: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        viewExpiredProduct(product);
-                                        break;
-                                      case 'edit':
-                                        editExpiredProduct(product);
-                                        break;
-                                      case 'delete':
-                                        deleteExpiredProduct(product);
-                                        break;
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'view',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('View Details'),
-                                        ],
-                                      ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        viewExpiredProduct(product),
+                                    icon: Icon(
+                                      Icons.visibility,
+                                      color: Color(0xFF17A2B8),
+                                      size: 16,
                                     ),
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Edit Product'),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Delete Product'),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFF8F9FA),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(
-                                      Icons.more_vert,
-                                      color: Color(0xFF6C757D),
-                                    ),
+                                    tooltip: 'View Details',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
                                   ),
-                                ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () =>
+                                        editExpiredProduct(product),
+                                    icon: Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF28A745),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Edit Product',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () =>
+                                        deleteExpiredProduct(product),
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFDC3545),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Delete Product',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

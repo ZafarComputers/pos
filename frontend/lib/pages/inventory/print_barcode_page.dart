@@ -14,7 +14,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       'code': 'PT001',
       'name': 'Lenovo IdeaPad 3',
       'category': 'Computers',
-      'brand': 'Lenovo',
+      'vendor': 'Lenovo',
       'price': '\$600',
       'unit': 'Pc',
       'qty': 100,
@@ -25,7 +25,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       'code': 'PT002',
       'name': 'Beats Pro',
       'category': 'Electronics',
-      'brand': 'Beats',
+      'vendor': 'Beats',
       'price': '\$160',
       'unit': 'Pc',
       'qty': 140,
@@ -36,7 +36,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       'code': 'PT003',
       'name': 'Nike Jordan',
       'category': 'Shoe',
-      'brand': 'Nike',
+      'vendor': 'Nike',
       'price': '\$110',
       'unit': 'Pc',
       'qty': 300,
@@ -47,7 +47,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       'code': 'PT004',
       'name': 'Dell XPS 13',
       'category': 'Computers',
-      'brand': 'Dell',
+      'vendor': 'Dell',
       'price': '\$1200',
       'unit': 'Pc',
       'qty': 50,
@@ -58,7 +58,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       'code': 'PT005',
       'name': 'Apple AirPods',
       'category': 'Electronics',
-      'brand': 'Apple',
+      'vendor': 'Apple',
       'price': '\$199',
       'unit': 'Pc',
       'qty': 200,
@@ -68,7 +68,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   ];
 
   String selectedCategory = 'All';
-  String selectedBrand = 'All';
+  String selectedVendor = 'All';
   bool selectAll = false;
 
   void toggleSelectAll() {
@@ -255,10 +255,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFF8F9FA),
-          ],
+          colors: [Colors.white, Color(0xFFF8F9FA)],
         ),
       ),
       child: SingleChildScrollView(
@@ -328,7 +325,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Color(0xFF0D1845),
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -358,7 +358,11 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.filter_list, color: Color(0xFF6C757D), size: 18),
+                      Icon(
+                        Icons.filter_list,
+                        color: Color(0xFF6C757D),
+                        size: 18,
+                      ),
                       SizedBox(width: 6),
                       Text(
                         'Search & Filter',
@@ -390,20 +394,33 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               filled: true,
                               fillColor: Colors.white,
                               hintText: 'Search products...',
-                              prefixIcon: Icon(Icons.search, color: Color(0xFF6C757D)),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: Color(0xFF6C757D),
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                borderSide: BorderSide(
+                                  color: Color(0xFFDEE2E6),
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                borderSide: BorderSide(
+                                  color: Color(0xFFDEE2E6),
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: Color(0xFF17A2B8), width: 2),
+                                borderSide: BorderSide(
+                                  color: Color(0xFF17A2B8),
+                                  width: 2,
+                                ),
                               ),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -415,7 +432,11 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.category, size: 14, color: Color(0xFF6C757D)),
+                                Icon(
+                                  Icons.category,
+                                  size: 14,
+                                  color: Color(0xFF6C757D),
+                                ),
                                 SizedBox(width: 6),
                                 Text(
                                   'Category',
@@ -445,28 +466,44 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                   fillColor: Colors.white,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFF17A2B8), width: 2),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF17A2B8),
+                                      width: 2,
+                                    ),
                                   ),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
                                   isDense: true,
                                 ),
-                                items: ['All', 'Computers', 'Electronics', 'Shoe']
-                                    .map((category) => DropdownMenuItem(
-                                          value: category,
-                                          child: Text(
-                                            category,
-                                            style: TextStyle(color: Color(0xFF343A40), fontSize: 13),
+                                items:
+                                    ['All', 'Computers', 'Electronics', 'Shoe']
+                                        .map(
+                                          (category) => DropdownMenuItem(
+                                            value: category,
+                                            child: Text(
+                                              category,
+                                              style: TextStyle(
+                                                color: Color(0xFF343A40),
+                                                fontSize: 13,
+                                              ),
+                                            ),
                                           ),
-                                        ))
-                                    .toList(),
+                                        )
+                                        .toList(),
                                 onChanged: (value) {
                                   if (value != null) {
                                     setState(() {
@@ -486,10 +523,14 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.branding_watermark, size: 14, color: Color(0xFF6C757D)),
+                                Icon(
+                                  Icons.business,
+                                  size: 14,
+                                  color: Color(0xFF6C757D),
+                                ),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Brand',
+                                  'Vendor',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -510,38 +551,61 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                value: selectedBrand,
+                                value: selectedVendor,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFFDEE2E6)),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: Color(0xFF17A2B8), width: 2),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF17A2B8),
+                                      width: 2,
+                                    ),
                                   ),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
                                   isDense: true,
                                 ),
-                                items: ['All', 'Lenovo', 'Beats', 'Nike', 'Dell', 'Apple']
-                                    .map((brand) => DropdownMenuItem(
-                                          value: brand,
-                                          child: Text(
-                                            brand,
-                                            style: TextStyle(color: Color(0xFF343A40), fontSize: 13),
+                                items:
+                                    [
+                                          'All',
+                                          'Lenovo',
+                                          'Beats',
+                                          'Nike',
+                                          'Dell',
+                                          'Apple',
+                                        ]
+                                        .map(
+                                          (brand) => DropdownMenuItem(
+                                            value: brand,
+                                            child: Text(
+                                              brand,
+                                              style: TextStyle(
+                                                color: Color(0xFF343A40),
+                                                fontSize: 13,
+                                              ),
+                                            ),
                                           ),
-                                        ))
-                                    .toList(),
+                                        )
+                                        .toList(),
                                 onChanged: (value) {
                                   if (value != null) {
                                     setState(() {
-                                      selectedBrand = value;
+                                      selectedVendor = value;
                                     });
                                   }
                                 },
@@ -594,7 +658,11 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Color(0xFF1976D2), size: 12),
+                        Icon(
+                          Icons.check_circle,
+                          color: Color(0xFF1976D2),
+                          size: 12,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           '${getSelectedProducts().length} product(s) selected',
@@ -632,7 +700,11 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        Icon(Icons.table_chart, color: Color(0xFF17A2B8), size: 18),
+                        Icon(
+                          Icons.table_chart,
+                          color: Color(0xFF17A2B8),
+                          size: 18,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'Products List',
@@ -644,14 +716,21 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                         ),
                         Spacer(),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Color(0xFFE3F2FD),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.inventory_2, color: Color(0xFF1976D2), size: 12),
+                              Icon(
+                                Icons.inventory_2,
+                                color: Color(0xFF1976D2),
+                                size: 12,
+                              ),
                               SizedBox(width: 3),
                               Text(
                                 '${products.length} Products',
@@ -670,21 +749,23 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(Color(0xFFF8F9FA)),
-                      dataRowColor: MaterialStateProperty.resolveWith<Color>(
-                        (Set<MaterialState> states) {
-                          if (states.contains(MaterialState.selected)) {
-                            return Color(0xFF17A2B8).withOpacity(0.1);
-                          }
-                          return Colors.white;
-                        },
+                      headingRowColor: MaterialStateProperty.all(
+                        Color(0xFFF8F9FA),
                       ),
+                      dataRowColor: MaterialStateProperty.resolveWith<Color>((
+                        Set<MaterialState> states,
+                      ) {
+                        if (states.contains(MaterialState.selected)) {
+                          return Color(0xFF17A2B8).withOpacity(0.1);
+                        }
+                        return Colors.white;
+                      }),
                       columns: const [
                         DataColumn(label: Text('Select')),
                         DataColumn(label: Text('Product Code')),
                         DataColumn(label: Text('Product Name')),
                         DataColumn(label: Text('Category')),
-                        DataColumn(label: Text('Brand')),
+                        DataColumn(label: Text('Vendor')),
                         DataColumn(label: Text('Price')),
                         DataColumn(label: Text('Unit')),
                         DataColumn(label: Text('Qty')),
@@ -697,13 +778,17 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             DataCell(
                               Checkbox(
                                 value: product['selected'],
-                                onChanged: (value) => toggleProductSelection(index),
+                                onChanged: (value) =>
+                                    toggleProductSelection(index),
                                 activeColor: Color(0xFF17A2B8),
                               ),
                             ),
                             DataCell(
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Color(0xFFF8F9FA),
                                   borderRadius: BorderRadius.circular(3),
@@ -730,7 +815,9 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                       decoration: BoxDecoration(
                                         color: Color(0xFFF8F9FA),
                                         borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Color(0xFFDEE2E6)),
+                                        border: Border.all(
+                                          color: Color(0xFFDEE2E6),
+                                        ),
                                       ),
                                       child: Icon(
                                         Icons.inventory_2,
@@ -741,8 +828,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           Text(
                                             product['name'],
@@ -770,7 +859,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             ),
                             DataCell(
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _getCategoryColor(product['category']),
                                   borderRadius: BorderRadius.circular(3),
@@ -787,7 +879,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             ),
                             DataCell(
                               Text(
-                                product['brand'],
+                                product['vendor'],
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF343A40),
@@ -807,7 +899,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             ),
                             DataCell(
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Color(0xFFF8F9FA),
                                   borderRadius: BorderRadius.circular(3),
@@ -824,7 +919,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             ),
                             DataCell(
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: product['qty'] < 50
                                       ? Color(0xFFFFF3CD)
@@ -877,7 +975,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     backgroundColor: Color(0xFF28A745),
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    textStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    textStyle: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

@@ -16,7 +16,6 @@ class _AddProductPageState extends State<AddProductPage> {
 
   // Form controllers
   final TextEditingController _productNameController = TextEditingController();
-  final TextEditingController _slugController = TextEditingController();
   final TextEditingController _skuController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
@@ -26,14 +25,9 @@ class _AddProductPageState extends State<AddProductPage> {
       TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  String _selectedStore = 'Store 1';
-  String _selectedWarehouse = 'Warehouse 1';
-  String _selectedSellingType = 'Single';
   String _selectedCategory = 'Computers';
   String _selectedSubCategory = 'Laptop';
-  String _selectedBrand = 'Lenovo';
-  String _selectedUnit = 'Pc';
-  String _selectedBarcodeSymbology = 'CODE128';
+  String _selectedVendor = 'Lenovo';
   String _selectedProductType = 'Single Product';
   String _selectedTaxType = 'Inclusive';
   String _selectedDiscountType = 'Percentage';
@@ -128,62 +122,11 @@ class _AddProductPageState extends State<AddProductPage> {
                       });
                     },
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Store',
-                              value: _selectedStore,
-                              items: ['Store 1', 'Store 2', 'Store 3'],
-                              icon: Icons.store,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedStore = value!;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Warehouse',
-                              value: _selectedWarehouse,
-                              items: [
-                                'Warehouse 1',
-                                'Warehouse 2',
-                                'Warehouse 3',
-                              ],
-                              icon: Icons.warehouse,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedWarehouse = value!;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEnhancedTextField(
-                              label: 'Product Name',
-                              controller: _productNameController,
-                              icon: Icons.inventory_2,
-                              hintText: 'Enter product name',
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEnhancedTextField(
-                              label: 'Slug',
-                              controller: _slugController,
-                              icon: Icons.link,
-                              hintText: 'product-slug-url',
-                            ),
-                          ),
-                        ],
+                      _buildEnhancedTextField(
+                        label: 'Product Name',
+                        controller: _productNameController,
+                        icon: Icons.inventory_2,
+                        hintText: 'Enter product name',
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -217,16 +160,30 @@ class _AddProductPageState extends State<AddProductPage> {
                           ),
                           const SizedBox(width: 20),
                           Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Selling Type',
-                              value: _selectedSellingType,
-                              items: ['Single', 'Variable'],
-                              icon: Icons.sell,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedSellingType = value!;
-                                });
-                              },
+                            child: _buildEnhancedTextField(
+                              label: 'Barcode',
+                              controller: TextEditingController(),
+                              icon: Icons.qr_code_scanner,
+                              hintText: 'Barcode value',
+                              suffix: Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                child: ElevatedButton.icon(
+                                  onPressed: () {},
+                                  icon: Icon(Icons.qr_code, size: 16),
+                                  label: Text('Generate'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Color(0xFF17A2B8),
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -274,82 +231,16 @@ class _AddProductPageState extends State<AddProductPage> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Brand',
-                              value: _selectedBrand,
-                              items: ['Lenovo', 'Beats', 'Nike', 'Apple'],
-                              icon: Icons.branding_watermark,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedBrand = value!;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Unit',
-                              value: _selectedUnit,
-                              items: ['Pc', 'Kg', 'Liter', 'Box'],
-                              icon: Icons.scale,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedUnit = value!;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildEnhancedDropdownField(
-                              label: 'Barcode Symbology',
-                              value: _selectedBarcodeSymbology,
-                              items: ['CODE128', 'CODE39', 'EAN13', 'UPC'],
-                              icon: Icons.qr_code,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedBarcodeSymbology = value!;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildEnhancedTextField(
-                              label: 'Barcode',
-                              controller: TextEditingController(),
-                              icon: Icons.qr_code_scanner,
-                              hintText: 'Barcode value',
-                              suffix: Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                child: ElevatedButton.icon(
-                                  onPressed: () {},
-                                  icon: Icon(Icons.qr_code, size: 16),
-                                  label: Text('Generate'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Color(0xFF17A2B8),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      _buildEnhancedDropdownField(
+                        label: 'Vendor',
+                        value: _selectedVendor,
+                        items: ['Lenovo', 'Beats', 'Nike', 'Apple'],
+                        icon: Icons.business,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedVendor = value!;
+                          });
+                        },
                       ),
                       const SizedBox(height: 20),
                       _buildEnhancedTextField(

@@ -753,75 +753,47 @@ class _CategoryListPageState extends State<CategoryListPage> {
                               ),
                             ),
                             DataCell(
-                              Container(
-                                child: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        viewCategoryDetails(category);
-                                        break;
-                                      case 'edit':
-                                        editCategory(category);
-                                        break;
-                                      case 'delete':
-                                        deleteCategory(category);
-                                        break;
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'view',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('View Details'),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Edit Category'),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Delete Category'),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
-                                    padding: EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFF8F9FA),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Icon(
-                                      Icons.more_vert,
-                                      color: Color(0xFF6C757D),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        viewCategoryDetails(category),
+                                    icon: Icon(
+                                      Icons.visibility,
+                                      color: Color(0xFF17A2B8),
                                       size: 16,
                                     ),
+                                    tooltip: 'View Details',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
                                   ),
-                                ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => editCategory(category),
+                                    icon: Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF28A745),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Edit Category',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => deleteCategory(category),
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFDC3545),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Delete Category',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

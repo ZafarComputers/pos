@@ -13,7 +13,7 @@ class _ProductListPageState extends State<ProductListPage> {
       'code': 'PT001',
       'name': 'Lenovo IdeaPad 3',
       'category': 'Computers',
-      'brand': 'Lenovo',
+      'vendor': 'Lenovo',
       'price': '\$600',
       'unit': 'Pc',
       'qty': 100,
@@ -23,7 +23,7 @@ class _ProductListPageState extends State<ProductListPage> {
       'code': 'PT002',
       'name': 'Beats Pro',
       'category': 'Electronics',
-      'brand': 'Beats',
+      'vendor': 'Beats',
       'price': '\$160',
       'unit': 'Pc',
       'qty': 140,
@@ -33,7 +33,7 @@ class _ProductListPageState extends State<ProductListPage> {
       'code': 'PT003',
       'name': 'Nike Jordan',
       'category': 'Shoe',
-      'brand': 'Nike',
+      'vendor': 'Nike',
       'price': '\$110',
       'unit': 'Pc',
       'qty': 300,
@@ -43,7 +43,7 @@ class _ProductListPageState extends State<ProductListPage> {
   ];
 
   String selectedCategory = 'All';
-  String selectedBrand = 'All';
+  String selectedVendor = 'All';
 
   void exportToPDF() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -417,7 +417,7 @@ class _ProductListPageState extends State<ProductListPage> {
                           child: TextField(
                             decoration: InputDecoration(
                               hintText:
-                                  'Search products by name, code, or brand...',
+                                  'Search products by name, code, or vendor...',
                               hintStyle: TextStyle(color: Color(0xFFADB5BD)),
                               prefixIcon: Icon(
                                 Icons.search,
@@ -547,13 +547,13 @@ class _ProductListPageState extends State<ProductListPage> {
                             Row(
                               children: [
                                 Icon(
-                                  Icons.branding_watermark,
+                                  Icons.business,
                                   size: 16,
                                   color: Color(0xFF6C757D),
                                 ),
                                 SizedBox(width: 8),
                                 Text(
-                                  'Brand',
+                                  'Vendor',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -574,7 +574,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                value: selectedBrand,
+                                value: selectedVendor,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
@@ -617,7 +617,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                     .toList(),
                                 onChanged: (value) {
                                   setState(() {
-                                    selectedBrand = value!;
+                                    selectedVendor = value!;
                                   });
                                 },
                               ),
@@ -701,7 +701,7 @@ class _ProductListPageState extends State<ProductListPage> {
                         DataColumn(label: Text('Product Code')),
                         DataColumn(label: Text('Product Name')),
                         DataColumn(label: Text('Category')),
-                        DataColumn(label: Text('Brand')),
+                        DataColumn(label: Text('Vendor')),
                         DataColumn(label: Text('Price')),
                         DataColumn(label: Text('Unit')),
                         DataColumn(label: Text('Qty')),
@@ -803,7 +803,7 @@ class _ProductListPageState extends State<ProductListPage> {
                             ),
                             DataCell(
                               Text(
-                                product['brand'],
+                                product['vendor'],
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF343A40),
@@ -869,74 +869,46 @@ class _ProductListPageState extends State<ProductListPage> {
                               ),
                             ),
                             DataCell(
-                              Container(
-                                child: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        viewProduct(product);
-                                        break;
-                                      case 'edit':
-                                        editProduct(product);
-                                        break;
-                                      case 'delete':
-                                        deleteProduct(product);
-                                        break;
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'view',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('View Details'),
-                                        ],
-                                      ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => viewProduct(product),
+                                    icon: Icon(
+                                      Icons.visibility,
+                                      color: Color(0xFF17A2B8),
+                                      size: 16,
                                     ),
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Edit Product'),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Text('Delete Product'),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFF8F9FA),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(
-                                      Icons.more_vert,
-                                      color: Color(0xFF6C757D),
-                                    ),
+                                    tooltip: 'View Details',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
                                   ),
-                                ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => editProduct(product),
+                                    icon: Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF28A745),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Edit Product',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => deleteProduct(product),
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFDC3545),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Delete Product',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

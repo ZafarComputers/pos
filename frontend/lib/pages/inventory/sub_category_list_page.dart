@@ -885,89 +885,49 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                               ),
                             ),
                             DataCell(
-                              Container(
-                                width: 32,
-                                height: 32,
-                                child: PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        viewSubCategoryDetails(subCategory);
-                                        break;
-                                      case 'edit':
-                                        editSubCategory(subCategory);
-                                        break;
-                                      case 'delete':
-                                        deleteSubCategory(subCategory);
-                                        break;
-                                    }
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(
-                                      value: 'view',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'View Details',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () =>
+                                        viewSubCategoryDetails(subCategory),
+                                    icon: Icon(
+                                      Icons.visibility,
+                                      color: Color(0xFF17A2B8),
+                                      size: 16,
                                     ),
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Edit Sub Category',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Delete Sub Category',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
+                                    tooltip: 'View Details',
                                     padding: EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFFF8F9FA),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Icon(
-                                      Icons.more_vert,
-                                      color: Color(0xFF6C757D),
-                                      size: 14,
-                                    ),
+                                    constraints: BoxConstraints(),
                                   ),
-                                ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () =>
+                                        editSubCategory(subCategory),
+                                    icon: Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF28A745),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Edit Sub Category',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () =>
+                                        deleteSubCategory(subCategory),
+                                    icon: Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFDC3545),
+                                      size: 16,
+                                    ),
+                                    tooltip: 'Delete Sub Category',
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
