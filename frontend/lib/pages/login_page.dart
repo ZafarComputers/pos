@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/providers.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,9 +13,12 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+
     return Scaffold(
       body: Row(
         children: [
@@ -23,9 +29,10 @@ class _LoginPageState extends State<LoginPage> {
               color: Colors.white,
               padding: const EdgeInsets.all(40),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 60), // Add top spacing
                   const Text(
                     'Welcome Back',
                     style: TextStyle(
@@ -64,21 +71,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 30),
                   ElevatedButton(
-                    onPressed: () {
-                      // Simple login check: any non-empty email and password
-                      if (_emailController.text.isNotEmpty &&
-                          _passwordController.text.isNotEmpty) {
-                        // Navigate to dashboard
-                        Navigator.pushReplacementNamed(context, '/dashboard');
-                      } else {
-                        // Show error
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter email and password'),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () => _handleLogin(authProvider),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0D1845),
                       foregroundColor: Colors.white,
@@ -92,26 +87,63 @@ class _LoginPageState extends State<LoginPage> {
                       elevation: 4,
                       shadowColor: const Color(0xFF0D1845).withOpacity(0.3),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Login',
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.arrow_forward,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                  ),
+                  const Spacer(), // Push register link up from bottom
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Don't have an account?",
+                        style: TextStyle(color: Color(0xFF6C757D)),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterPage(),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'Register here',
                           style: TextStyle(
-                            fontSize: 18,
+                            color: Color(0xFF0D1845),
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.arrow_forward,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 40), // Add bottom spacing
                 ],
               ),
             ),
@@ -147,5 +179,70 @@ class _LoginPageState extends State<LoginPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogin(AuthProvider authProvider) async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter email and password'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    print('🔄 LoginPage: Starting login attempt for $email');
+
+    try {
+      final success = await authProvider.login(email, password);
+
+      if (success && mounted) {
+        print('✅ LoginPage: Login successful, navigating to dashboard');
+        // Navigate to dashboard
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        print('❌ LoginPage: Login failed');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login failed. Please check your credentials.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('💥 LoginPage: Exception during login: $e');
+      if (mounted) {
+        // Show the actual error message from the API
+        String errorMessage = 'Login failed';
+        if (e.toString().contains('Invalid credentials')) {
+          errorMessage = 'Invalid email or password';
+        } else if (e.toString().contains('Network error')) {
+          errorMessage =
+              'Network connection error. Please check your internet.';
+        } else {
+          errorMessage = e.toString().replaceAll('Exception: ', '');
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }

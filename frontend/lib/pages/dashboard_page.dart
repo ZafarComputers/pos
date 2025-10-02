@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import '../providers/providers.dart';
 import 'inventory/product_list_page.dart';
 import 'inventory/add_product_page.dart';
 import 'inventory/category_list_page.dart';
@@ -7,6 +11,8 @@ import 'inventory/sub_category_list_page.dart';
 import 'inventory/expired_products_page.dart';
 import 'inventory/vendors_page.dart';
 import 'inventory/print_barcode_page.dart';
+import 'profile/user_profile_page.dart';
+import '../services/services.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -25,6 +31,14 @@ class _DashboardPageState extends State<DashboardPage>
   String selectedTimeRange = '1M'; // Default time range
   String selectedTopSellingPeriod = 'Today'; // Default period for top selling
 
+  Future<Uint8List?> _loadImageBytes(String path) async {
+    try {
+      return await File('${Directory.current.path}/$path').readAsBytes();
+    } catch (e) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +50,14 @@ class _DashboardPageState extends State<DashboardPage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
     _animationController.forward();
+
+    // Load user profile if not already loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.userProfile == null) {
+        authProvider.getUserProfile();
+      }
+    });
   }
 
   @override
@@ -109,11 +131,75 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildDashboardContent() {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.user;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Welcome message with user name
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back, ${user?.fullName ?? 'User'}!',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Role: ${user?.roleId == '1' ? 'Admin' : 'User'} | Status: ${user?.status ?? 'Unknown'}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
           // Metrics Cards
           Row(
             children: [
@@ -446,12 +532,166 @@ class _DashboardPageState extends State<DashboardPage>
             icon: const Icon(Icons.notifications, color: Color(0xFF6C757D)),
             onPressed: () {},
           ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: const CircleAvatar(
-              backgroundColor: Color(0xFF0D1845),
-              child: Text('A', style: TextStyle(color: Colors.white)),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              switch (value) {
+                case 'profile':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UserProfilePage(),
+                    ),
+                  );
+                  break;
+                case 'logout':
+                  // Call logout API and then logout locally
+                  try {
+                    await ApiService.logoutUser();
+                    // Also clear provider state
+                    final authProvider = Provider.of<AuthProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await authProvider.logout();
+                    if (mounted) {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    }
+                  } catch (e) {
+                    // Even if API fails, show error and redirect
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Logout completed with warning: $e'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      // Still clear provider state and redirect
+                      final authProvider = Provider.of<AuthProvider>(
+                        context,
+                        listen: false,
+                      );
+                      await authProvider.logout();
+                      Navigator.pushReplacementNamed(context, '/login');
+                    }
+                  }
+                  break;
+              }
+            },
+            offset: const Offset(20, 50),
+            constraints: const BoxConstraints(minWidth: 200, maxWidth: 200),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    String? imageUrl;
+                    String initial = 'A'; // Default
+
+                    if (authProvider.user != null) {
+                      if (authProvider.user!.firstName.isNotEmpty) {
+                        initial = authProvider.user!.firstName[0].toUpperCase();
+                      }
+                      // Check for profile picture in userProfile first, then user imgPath
+                      imageUrl =
+                          authProvider.userProfile?.profilePicture ??
+                          authProvider.user!.imgPath;
+                    }
+
+                    return FutureBuilder<Uint8List?>(
+                      future: imageUrl != null && !imageUrl.startsWith('http')
+                          ? _loadImageBytes(imageUrl)
+                          : Future.value(null),
+                      builder: (context, snapshot) {
+                        Uint8List? bytes = snapshot.data;
+                        return CircleAvatar(
+                          key: ValueKey(
+                            '${imageUrl ?? 'default'}_${authProvider.imageVersion}',
+                          ),
+                          backgroundColor: const Color(0xFF0D1845),
+                          backgroundImage: bytes != null
+                              ? MemoryImage(bytes)
+                              : null,
+                          child: (imageUrl == null || imageUrl.isEmpty)
+                              ? Text(
+                                  initial,
+                                  style: const TextStyle(color: Colors.white),
+                                )
+                              : null,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'profile',
+                height: 48,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D1845).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Color(0xFF0D1845),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'User Profile',
+                        style: TextStyle(
+                          color: Color(0xFF343A40),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const PopupMenuDivider(height: 1),
+              PopupMenuItem<String>(
+                value: 'logout',
+                height: 48,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.logout,
+                          color: Colors.red,
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Color(0xFF343A40),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1099,7 +1339,16 @@ class _DashboardPageState extends State<DashboardPage>
     return Container(
       margin: const EdgeInsets.only(left: 16, right: 16, bottom: 6),
       child: InkWell(
-        onTap: () => updateContent(title),
+        onTap: () async {
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
+          await authProvider.logout();
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/login');
+          }
+        },
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: _isSidebarOpen

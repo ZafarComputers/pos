@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'providers/providers.dart';
 import 'routes/app_routes.dart';
 
 void main() async {
@@ -33,17 +35,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'POS Dashboard',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF0D1845),
-        scaffoldBackgroundColor: Colors.white,
-        cardColor: Colors.white,
-        fontFamily: GoogleFonts.poppins().fontFamily,
-        textTheme: GoogleFonts.poppinsTextTheme(),
+    return MultiProvider(
+      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
+      child: MaterialApp(
+        title: 'POS Dashboard',
+        theme: ThemeData(
+          primaryColor: const Color(0xFF0D1845),
+          scaffoldBackgroundColor: Colors.white,
+          cardColor: Colors.white,
+          fontFamily: GoogleFonts.poppins().fontFamily,
+          textTheme: GoogleFonts.poppinsTextTheme(),
+        ),
+        initialRoute: AppRoutes.login,
+        routes: AppRoutes.getRoutes(),
       ),
-      initialRoute: AppRoutes.login,
-      routes: AppRoutes.getRoutes(),
     );
   }
 }
