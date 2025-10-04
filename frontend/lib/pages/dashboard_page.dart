@@ -8,7 +8,11 @@ import 'inventory/product_list_page.dart';
 import 'inventory/add_product_page.dart';
 import 'inventory/category_list_page.dart';
 import 'inventory/sub_category_list_page.dart';
-import 'inventory/expired_products_page.dart';
+import 'inventory/color_list_page.dart';
+import 'inventory/size_list_page.dart';
+import 'inventory/season_list_page.dart';
+import 'inventory/material_list_page.dart';
+import 'inventory/low_stock_products_page.dart';
 import 'inventory/vendors_page.dart';
 import 'inventory/print_barcode_page.dart';
 import 'profile/user_profile_page.dart';
@@ -115,12 +119,20 @@ class _DashboardPageState extends State<DashboardPage>
         return ProductListPage();
       case 'Create Product':
         return AddProductPage();
-      case 'Expired Products':
-        return ExpiredProductsPage();
+      case 'Low Stock Products':
+        return LowStockProductsPage();
       case 'Category':
         return CategoryListPage();
       case 'Sub Category':
         return SubCategoryListPage();
+      case 'Color':
+        return ColorListPage();
+      case 'Sizes':
+        return SizeListPage();
+      case 'Seasons':
+        return SeasonListPage();
+      case 'Material':
+        return MaterialListPage();
       case 'Vendor':
         return VendorsPage();
       case 'Print Barcode':
@@ -784,7 +796,7 @@ class _DashboardPageState extends State<DashboardPage>
                       _buildPrimarySubTile('Products', Icons.inventory),
                       _buildPrimarySubTile('Create Product', Icons.add_circle),
                       _buildPrimarySubTile(
-                        'Expired Products',
+                        'Low Stock Products',
                         Icons.warning_amber,
                       ),
                       _buildSectionDivider(isSubDivider: true),
@@ -798,6 +810,13 @@ class _DashboardPageState extends State<DashboardPage>
                         'Print Barcode',
                         Icons.qr_code_scanner,
                       ),
+                      _buildSectionDivider(isSubDivider: true),
+                      // Variants Subsection
+                      _buildSubHeaderTile('Variants', Icons.palette),
+                      _buildSecondarySubTile('Color', Icons.color_lens),
+                      _buildSecondarySubTile('Sizes', Icons.straighten),
+                      _buildSecondarySubTile('Seasons', Icons.wb_sunny),
+                      _buildSecondarySubTile('Material', Icons.texture),
                     ]),
 
                     if (_isSidebarOpen) _buildSectionDivider(),
@@ -1204,6 +1223,50 @@ class _DashboardPageState extends State<DashboardPage>
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubHeaderTile(String title, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16, right: 16, bottom: 6, top: 6),
+      child: Container(
+        padding: _isSidebarOpen
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+            : const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          color: Colors.white.withOpacity(0.08),
+        ),
+        child: AnimatedCrossFade(
+          duration: const Duration(milliseconds: 300),
+          crossFadeState: _isSidebarOpen
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white.withOpacity(0.9), size: 12),
+            ],
+          ),
+          secondChild: Row(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Icon(icon, color: Colors.white.withOpacity(0.9), size: 16),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.95),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

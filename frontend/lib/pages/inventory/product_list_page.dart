@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../services/inventory_service.dart';
+import '../../models/product.dart';
+import '../../models/vendor.dart' as vendor;
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:typed_data';
 
 class ProductListPage extends StatefulWidget {
   const ProductListPage({super.key});
@@ -8,39 +14,57 @@ class ProductListPage extends StatefulWidget {
 }
 
 class _ProductListPageState extends State<ProductListPage> {
-  final List<Map<String, dynamic>> products = [
-    {
-      'code': 'PT001',
-      'name': 'Lenovo IdeaPad 3',
-      'category': 'Computers',
-      'vendor': 'Lenovo',
-      'price': '\$600',
-      'unit': 'Pc',
-      'qty': 100,
-      'createdBy': 'James Kirwin',
-    },
-    {
-      'code': 'PT002',
-      'name': 'Beats Pro',
-      'category': 'Electronics',
-      'vendor': 'Beats',
-      'price': '\$160',
-      'unit': 'Pc',
-      'qty': 140,
-      'createdBy': 'Francis Chang',
-    },
-    {
-      'code': 'PT003',
-      'name': 'Nike Jordan',
-      'category': 'Shoe',
-      'vendor': 'Nike',
-      'price': '\$110',
-      'unit': 'Pc',
-      'qty': 300,
-      'createdBy': 'Antonio Engle',
-    },
-    // Add more sample data as needed
-  ];
+  ProductResponse? productResponse;
+  bool isLoading = true;
+  String? errorMessage;
+  int currentPage = 1;
+  final int itemsPerPage = 10;
+
+  // Form controllers for add product dialog
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _designCodeController = TextEditingController();
+  final _subCategoryIdController = TextEditingController();
+  final _salePriceController = TextEditingController();
+  final _openingStockQuantityController = TextEditingController();
+  final _barcodeController = TextEditingController();
+  String _selectedStatus = 'Active';
+  int? _selectedVendorId;
+  List<vendor.Vendor> vendors = [];
+  bool isSubmitting = false;
+  File? _selectedImage;
+  String? _imagePath;
+  String? _localImagePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  Future<void> _fetchProducts({int page = 1}) async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final response = await InventoryService.getProducts(
+        page: page,
+        limit: itemsPerPage,
+      );
+      setState(() {
+        productResponse = response;
+        currentPage = page;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
 
   String selectedCategory = 'All';
   String selectedVendor = 'All';
@@ -99,61 +123,1260 @@ class _ProductListPageState extends State<ProductListPage> {
     );
   }
 
-  void addNewProduct() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.add_circle, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Add Product feature coming soon!'),
-          ],
-        ),
-        backgroundColor: Color(0xFF0D1845),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
+  void addNewProduct() async {
+    // Reset form
+    _titleController.clear();
+    _designCodeController.clear();
+    _subCategoryIdController.clear();
+    _salePriceController.clear();
+    _openingStockQuantityController.clear();
+    _barcodeController.clear();
+    _selectedStatus = 'Active';
+    _selectedVendorId = null;
+    _selectedImage = null;
+    _imagePath = null;
+    _localImagePath = null;
+
+    // Fetch vendors for dropdown
+    try {
+      final vendorResponse = await InventoryService.getVendors();
+      vendors = vendorResponse.data;
+    } catch (e) {
+      vendors = [];
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.add_circle, color: Color(0xFF0D1845)),
+                  SizedBox(width: 8),
+                  Text('Add New Product'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Product Title',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter product title';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _designCodeController,
+                        decoration: InputDecoration(
+                          labelText: 'Design Code',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter design code';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Product Image (optional)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF343A40),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          if (_selectedImage != null)
+                            Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  _selectedImage!,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Color(0xFFF8F9FA),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image,
+                                    color: Color(0xFF6C757D),
+                                    size: 48,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No image selected',
+                                    style: TextStyle(color: Color(0xFF6C757D)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              final picker = ImagePicker();
+                              final pickedFile = await picker.pickImage(
+                                source: ImageSource.gallery,
+                              );
+                              if (pickedFile != null) {
+                                final imageFile = File(pickedFile.path);
+                                // Save to local storage
+                                try {
+                                  final directory = Directory(
+                                    '${Directory.current.path}/assets/images/products',
+                                  );
+                                  if (!await directory.exists()) {
+                                    await directory.create(recursive: true);
+                                  }
+                                  final fileName =
+                                      'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                  final savedImage = await imageFile.copy(
+                                    '${directory.path}/$fileName',
+                                  );
+                                  setState(() {
+                                    _selectedImage = savedImage;
+                                    _localImagePath =
+                                        'assets/images/products/$fileName';
+                                    _imagePath =
+                                        'https://zafarcomputers.com/assets/images/products/$fileName';
+                                  });
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to save image: $e'),
+                                      backgroundColor: Color(0xFFDC3545),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: Icon(Icons.photo_library),
+                            label: Text(
+                              _selectedImage == null
+                                  ? 'Select Image'
+                                  : 'Change Image',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF0D1845),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _subCategoryIdController,
+                        decoration: InputDecoration(
+                          labelText: 'Sub Category ID',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter sub category ID';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _salePriceController,
+                        decoration: InputDecoration(
+                          labelText: 'Sale Price',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter sale price';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _openingStockQuantityController,
+                        decoration: InputDecoration(
+                          labelText: 'Opening Stock Quantity',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter opening stock quantity';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        value: _selectedVendorId,
+                        decoration: InputDecoration(
+                          labelText: 'Vendor',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        items: vendors.map((v) {
+                          return DropdownMenuItem<int>(
+                            value: v.id,
+                            child: Text('${v.fullName} (${v.vendorCode})'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedVendorId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select a vendor';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _barcodeController,
+                        decoration: InputDecoration(
+                          labelText: 'Barcode',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter barcode';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        items: ['Active', 'Inactive'].map((status) {
+                          return DropdownMenuItem<String>(
+                            value: status,
+                            child: Text(status),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedStatus = value!;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF6C757D)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (_formKey.currentState!.validate()) {
+                            setState(() {
+                              isSubmitting = true;
+                            });
+
+                            try {
+                              final productData = {
+                                'title': _titleController.text,
+                                'design_code': _designCodeController.text,
+                                'image_path': _imagePath,
+                                'sub_category_id': int.parse(
+                                  _subCategoryIdController.text,
+                                ),
+                                'sale_price': double.parse(
+                                  _salePriceController.text,
+                                ),
+                                'opening_stock_quantity': int.parse(
+                                  _openingStockQuantityController.text,
+                                ),
+                                'vendor_id': _selectedVendorId,
+                                'user_id': 1, // Hardcoded for now
+                                'barcode': _barcodeController.text,
+                                'status': _selectedStatus,
+                              };
+
+                              await InventoryService.createProduct(productData);
+
+                              Navigator.of(context).pop();
+                              _fetchProducts(); // Refresh the list
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Product added successfully!'),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFF28A745),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.error, color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Failed to add product: ${e.toString()}',
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFFDC3545),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            } finally {
+                              setState(() {
+                                isSubmitting = false;
+                              });
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF0D1845),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text('Add Product'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void viewProduct(Map<String, dynamic> product) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.visibility, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Viewing product: ${product['name']}'),
+  void viewProduct(Product product) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.inventory_2, color: Color(0xFF0D1845), size: 24),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Product Details',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF343A40),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            height: 100,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Fetching product details...',
+                  style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Color(0xFF0D1845),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ],
-        ),
-        backgroundColor: Color(0xFF17A2B8),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: EdgeInsets.all(24),
+        );
+      },
+    );
+
+    // Fetch product details asynchronously
+    try {
+      final productDetails = await InventoryService.getProduct(product.id);
+
+      // Close loading dialog and show success dialog
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.inventory_2, color: Color(0xFF0D1845), size: 24),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Product Details',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF343A40),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Basic Information
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Basic Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0D1845),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          _buildDetailRow(
+                            'Product ID',
+                            productDetails.id.toString(),
+                          ),
+                          _buildDetailRow('Title', productDetails.title),
+                          _buildDetailRow(
+                            'Design Code',
+                            productDetails.designCode,
+                          ),
+                          _buildDetailRow('Barcode', productDetails.barcode),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+
+                    // Pricing & Stock Information
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pricing & Stock',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0D1845),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          _buildDetailRow(
+                            'Sale Price',
+                            'PKR ${productDetails.salePrice}',
+                          ),
+                          _buildDetailRow(
+                            'Opening Stock',
+                            productDetails.openingStockQuantity,
+                          ),
+                          _buildDetailRow(
+                            'Sub Category ID',
+                            productDetails.subCategoryId,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+
+                    // Vendor Information
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Vendor Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0D1845),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          _buildDetailRow(
+                            'Vendor ID',
+                            productDetails.vendor.id.toString(),
+                          ),
+                          _buildDetailRow(
+                            'Vendor Name',
+                            productDetails.vendor.name ?? 'N/A',
+                          ),
+                          _buildDetailRow(
+                            'Vendor Email',
+                            productDetails.vendor.email ?? 'N/A',
+                          ),
+                          _buildDetailRow(
+                            'Vendor Phone',
+                            productDetails.vendor.phone ?? 'N/A',
+                          ),
+                          _buildDetailRow(
+                            'Vendor Address',
+                            productDetails.vendor.address ?? 'N/A',
+                            isMultiline: true,
+                          ),
+                          _buildDetailRow(
+                            'Vendor Status',
+                            productDetails.vendor.status,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+
+                    // Image Information
+                    if (productDetails.imagePath != null &&
+                        productDetails.imagePath!.isNotEmpty)
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Image Information',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0D1845),
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            _buildDetailRow(
+                              'Image Path',
+                              productDetails.imagePath!,
+                              isMultiline: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (productDetails.imagePath != null &&
+                        productDetails.imagePath!.isNotEmpty)
+                      SizedBox(height: 16),
+
+                    // Status & Timestamps
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Status & Timestamps',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0D1845),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          _buildDetailRow('Status', productDetails.status),
+                          _buildDetailRow(
+                            'Created At',
+                            _formatDateTime(productDetails.createdAt),
+                          ),
+                          _buildDetailRow(
+                            'Updated At',
+                            _formatDateTime(productDetails.updatedAt),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(
+                      color: Color(0xFF0D1845),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              contentPadding: EdgeInsets.all(24),
+            );
+          },
+        );
+      }
+    } catch (e) {
+      // Close loading dialog and show error dialog
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Color(0xFFDC3545), size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'Error',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                ],
+              ),
+              content: Text(
+                'Failed to load product details: $e',
+                style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(
+                      color: Color(0xFF0D1845),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              contentPadding: EdgeInsets.all(24),
+            );
+          },
+        );
+      }
+    }
+  }
+
+  void editProduct(Product product) async {
+    // Reset form controllers
+    _titleController.text = product.title;
+    _designCodeController.text = product.designCode;
+    _subCategoryIdController.text = product.subCategoryId;
+    _salePriceController.text = product.salePrice;
+    _openingStockQuantityController.text = product.openingStockQuantity;
+    _barcodeController.text = product.barcode;
+    _selectedStatus = product.status;
+    _selectedVendorId = int.tryParse(product.vendorId);
+    _selectedImage = null;
+    _imagePath = product.imagePath;
+    _localImagePath = null;
+
+    // Fetch vendors for dropdown
+    try {
+      final vendorResponse = await InventoryService.getVendors();
+      vendors = vendorResponse.data;
+    } catch (e) {
+      vendors = [];
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.edit, color: Color(0xFF28A745)),
+                  SizedBox(width: 8),
+                  Text('Edit Product'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Product Title *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter product title';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _designCodeController,
+                        decoration: InputDecoration(
+                          labelText: 'Design Code *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter design code';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _subCategoryIdController,
+                        decoration: InputDecoration(
+                          labelText: 'Sub Category ID *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter sub category ID';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _salePriceController,
+                        decoration: InputDecoration(
+                          labelText: 'Sale Price *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter sale price';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _openingStockQuantityController,
+                        decoration: InputDecoration(
+                          labelText: 'Opening Stock Quantity *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter opening stock quantity';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      DropdownButtonFormField<int>(
+                        value: _selectedVendorId,
+                        decoration: InputDecoration(
+                          labelText: 'Vendor *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        items: vendors.map((v) {
+                          return DropdownMenuItem<int>(
+                            value: v.id,
+                            child: Text('${v.fullName} (${v.vendorCode})'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedVendorId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select a vendor';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 16),
+                      TextFormField(
+                        controller: _barcodeController,
+                        decoration: InputDecoration(
+                          labelText: 'Barcode *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter barcode';
+                          }
+                          return null;
+                        },
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Product Image (optional)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF343A40),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          if (_selectedImage != null)
+                            Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  _selectedImage!,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            )
+                          else if (_imagePath != null && _imagePath!.isNotEmpty)
+                            Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child:
+                                  _imagePath!.startsWith('http') &&
+                                      !_imagePath!.contains(
+                                        'zafarcomputers.com',
+                                      )
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        _imagePath!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Icon(
+                                                  Icons.inventory_2,
+                                                  color: Color(0xFF6C757D),
+                                                  size: 48,
+                                                ),
+                                      ),
+                                    )
+                                  : FutureBuilder<Uint8List?>(
+                                      future: _loadProductImage(_imagePath!),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState ==
+                                            ConnectionState.waiting) {
+                                          return Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        } else if (snapshot.hasData &&
+                                            snapshot.data != null) {
+                                          return ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Image.memory(
+                                              snapshot.data!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          );
+                                        } else {
+                                          return Icon(
+                                            Icons.inventory_2,
+                                            color: Color(0xFF6C757D),
+                                            size: 48,
+                                          );
+                                        }
+                                      },
+                                    ),
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              height: 150,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Color(0xFFF8F9FA),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image,
+                                    color: Color(0xFF6C757D),
+                                    size: 48,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No image selected',
+                                    style: TextStyle(color: Color(0xFF6C757D)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              final picker = ImagePicker();
+                              final pickedFile = await picker.pickImage(
+                                source: ImageSource.gallery,
+                              );
+                              if (pickedFile != null) {
+                                final imageFile = File(pickedFile.path);
+                                // Save to local storage
+                                try {
+                                  final directory = Directory(
+                                    '${Directory.current.path}/assets/images/products',
+                                  );
+                                  if (!await directory.exists()) {
+                                    await directory.create(recursive: true);
+                                  }
+                                  final fileName =
+                                      'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                  final savedImage = await imageFile.copy(
+                                    '${directory.path}/$fileName',
+                                  );
+                                  setState(() {
+                                    _selectedImage = savedImage;
+                                    _localImagePath =
+                                        'assets/images/products/$fileName';
+                                    _imagePath =
+                                        'https://zafarcomputers.com/assets/images/products/$fileName';
+                                  });
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to save image: $e'),
+                                      backgroundColor: Color(0xFFDC3545),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: Icon(Icons.photo_library),
+                            label: Text(
+                              _selectedImage != null ||
+                                      (_imagePath != null &&
+                                          _imagePath!.isNotEmpty)
+                                  ? 'Change Image'
+                                  : 'Select Image',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFF0D1845),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          labelText: 'Status *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        items: ['Active', 'Inactive'].map((status) {
+                          return DropdownMenuItem<String>(
+                            value: status,
+                            child: Text(status),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedStatus = value!;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (_formKey.currentState!.validate()) {
+                            setState(() {
+                              isSubmitting = true;
+                            });
+
+                            try {
+                              final productData = {
+                                'title': _titleController.text,
+                                'design_code': _designCodeController.text,
+                                'image_path': _imagePath,
+                                'sub_category_id': int.parse(
+                                  _subCategoryIdController.text,
+                                ),
+                                'sale_price': double.parse(
+                                  _salePriceController.text,
+                                ),
+                                'opening_stock_quantity': int.parse(
+                                  _openingStockQuantityController.text,
+                                ),
+                                'vendor_id': _selectedVendorId,
+                                'user_id': 1, // Hardcoded for now
+                                'barcode': _barcodeController.text,
+                                'status': _selectedStatus,
+                              };
+
+                              await InventoryService.updateProduct(
+                                product.id,
+                                productData,
+                              );
+
+                              Navigator.of(context).pop();
+                              _fetchProducts(
+                                page: currentPage,
+                              ); // Refresh the list
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Product updated successfully!'),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFF28A745),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.error, color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Failed to update product: ${e.toString()}',
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFFDC3545),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            } finally {
+                              setState(() {
+                                isSubmitting = false;
+                              });
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF28A745),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: isSubmitting
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text('Update Product'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void editProduct(Map<String, dynamic> product) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.edit, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Editing product: ${product['name']}'),
-          ],
-        ),
-        backgroundColor: Color(0xFF28A745),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void deleteProduct(Map<String, dynamic> product) {
+  void deleteProduct(Product product) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -169,7 +1392,7 @@ class _ProductListPageState extends State<ProductListPage> {
             ],
           ),
           content: Text(
-            'Are you sure you want to delete "${product['name']}"?\n\nThis action cannot be undone.',
+            'Are you sure you want to delete "${product.title}"?\n\nThis action cannot be undone.',
             style: TextStyle(color: Color(0xFF6C757D)),
           ),
           actions: [
@@ -178,27 +1401,59 @@ class _ProductListPageState extends State<ProductListPage> {
               child: Text('Cancel', style: TextStyle(color: Color(0xFF6C757D))),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.delete, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text(
-                          'Product "${product['name']}" deleted successfully',
-                        ),
-                      ],
+
+                try {
+                  await InventoryService.deleteProduct(product.id);
+
+                  // Refresh the product list on the same page
+                  await _fetchProducts(page: currentPage);
+
+                  // Check if current page is now empty and we need to go to previous page
+                  if ((productResponse?.data.isEmpty ?? true) &&
+                      currentPage > 1) {
+                    await _fetchProducts(page: currentPage - 1);
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Product "${product.title}" deleted successfully',
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFF28A745),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      duration: const Duration(seconds: 2),
                     ),
-                    backgroundColor: Color(0xFFDC3545),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Failed to delete product: ${e.toString()}'),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFFDC3545),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      duration: const Duration(seconds: 3),
                     ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFDC3545),
@@ -217,6 +1472,91 @@ class _ProductListPageState extends State<ProductListPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Color(0xFFF8F9FA)],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Loading products...',
+                style: TextStyle(color: Color(0xFF6C757D), fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (errorMessage != null) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Color(0xFFF8F9FA)],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Color(0xFFDC3545), size: 64),
+                SizedBox(height: 16),
+                Text(
+                  'Failed to load products',
+                  style: TextStyle(
+                    color: Color(0xFFDC3545),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Container(
+                  constraints: BoxConstraints(maxHeight: 200),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      errorMessage!,
+                      style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _fetchProducts,
+                  icon: Icon(Icons.refresh),
+                  label: Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF0D1845),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -673,7 +2013,7 @@ class _ProductListPageState extends State<ProductListPage> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${products.length} Products',
+                            '${productResponse?.meta.total ?? 0} Products',
                             style: TextStyle(
                               color: Color(0xFF6C757D),
                               fontWeight: FontWeight.w500,
@@ -708,7 +2048,9 @@ class _ProductListPageState extends State<ProductListPage> {
                         DataColumn(label: Text('Created By')),
                         DataColumn(label: Text('Actions')),
                       ],
-                      rows: products.map((product) {
+                      rows: (productResponse?.data ?? []).map((product) {
+                        final quantity =
+                            int.tryParse(product.openingStockQuantity) ?? 0;
                         return DataRow(
                           cells: [
                             DataCell(
@@ -722,7 +2064,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  product['code'],
+                                  product.designCode,
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     fontWeight: FontWeight.w600,
@@ -746,11 +2088,81 @@ class _ProductListPageState extends State<ProductListPage> {
                                           color: Color(0xFFDEE2E6),
                                         ),
                                       ),
-                                      child: Icon(
-                                        Icons.inventory_2,
-                                        color: Color(0xFF6C757D),
-                                        size: 24,
-                                      ),
+                                      child:
+                                          product.imagePath != null &&
+                                              product.imagePath!.isNotEmpty
+                                          ? (product.imagePath!.startsWith(
+                                                      'http',
+                                                    ) &&
+                                                    !product.imagePath!
+                                                        .contains(
+                                                          'zafarcomputers.com',
+                                                        ))
+                                                ? ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    child: Image.network(
+                                                      product.imagePath!,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) => Icon(
+                                                            Icons.inventory_2,
+                                                            color: Color(
+                                                              0xFF6C757D,
+                                                            ),
+                                                            size: 24,
+                                                          ),
+                                                    ),
+                                                  )
+                                                : FutureBuilder<Uint8List?>(
+                                                    future: _loadProductImage(
+                                                      product.imagePath!,
+                                                    ),
+                                                    builder: (context, snapshot) {
+                                                      if (snapshot
+                                                              .connectionState ==
+                                                          ConnectionState
+                                                              .waiting) {
+                                                        return Center(
+                                                          child:
+                                                              CircularProgressIndicator(),
+                                                        );
+                                                      } else if (snapshot
+                                                              .hasData &&
+                                                          snapshot.data !=
+                                                              null) {
+                                                        return ClipRRect(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          child: Image.memory(
+                                                            snapshot.data!,
+                                                            fit: BoxFit.cover,
+                                                          ),
+                                                        );
+                                                      } else {
+                                                        return Icon(
+                                                          Icons.inventory_2,
+                                                          color: Color(
+                                                            0xFF6C757D,
+                                                          ),
+                                                          size: 24,
+                                                        );
+                                                      }
+                                                    },
+                                                  )
+                                          : Icon(
+                                              Icons.inventory_2,
+                                              color: Color(0xFF6C757D),
+                                              size: 24,
+                                            ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -761,14 +2173,14 @@ class _ProductListPageState extends State<ProductListPage> {
                                             MainAxisAlignment.center,
                                         children: [
                                           Text(
-                                            product['name'],
+                                            product.title,
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               color: Color(0xFF343A40),
                                             ),
                                           ),
                                           Text(
-                                            'Code: ${product['code']}',
+                                            'Code: ${product.designCode}',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Color(0xFF6C757D),
@@ -788,11 +2200,13 @@ class _ProductListPageState extends State<ProductListPage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _getCategoryColor(product['category']),
+                                  color: _getCategoryColor(
+                                    product.subCategoryId,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  product['category'],
+                                  'Category ${product.subCategoryId}',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -803,7 +2217,8 @@ class _ProductListPageState extends State<ProductListPage> {
                             ),
                             DataCell(
                               Text(
-                                product['vendor'],
+                                product.vendor.name ??
+                                    'Vendor ${product.vendorId}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xFF343A40),
@@ -812,7 +2227,7 @@ class _ProductListPageState extends State<ProductListPage> {
                             ),
                             DataCell(
                               Text(
-                                product['price'],
+                                'PKR ${product.salePrice}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF28A745),
@@ -831,7 +2246,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  product['unit'],
+                                  'Pc',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w500,
                                     color: Color(0xFF6C757D),
@@ -846,16 +2261,16 @@ class _ProductListPageState extends State<ProductListPage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: product['qty'] < 50
+                                  color: quantity < 50
                                       ? Color(0xFFFFF3CD)
                                       : Color(0xFFD4EDDA),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  product['qty'].toString(),
+                                  quantity.toString(),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
-                                    color: product['qty'] < 50
+                                    color: quantity < 50
                                         ? Color(0xFF856404)
                                         : Color(0xFF155724),
                                   ),
@@ -864,7 +2279,7 @@ class _ProductListPageState extends State<ProductListPage> {
                             ),
                             DataCell(
                               Text(
-                                product['createdBy'],
+                                'N/A',
                                 style: TextStyle(color: Color(0xFF6C757D)),
                               ),
                             ),
@@ -939,12 +2354,16 @@ class _ProductListPageState extends State<ProductListPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed: currentPage > 1
+                        ? () => _fetchProducts(page: currentPage - 1)
+                        : null,
                     icon: Icon(Icons.chevron_left),
                     label: Text('Previous'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: Color(0xFF6C757D),
+                      foregroundColor: currentPage > 1
+                          ? Color(0xFF0D1845)
+                          : Color(0xFF6C757D),
                       elevation: 0,
                       side: BorderSide(color: Color(0xFFDEE2E6)),
                       shape: RoundedRectangleBorder(
@@ -953,44 +2372,21 @@ class _ProductListPageState extends State<ProductListPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  for (int i = 1; i <= 5; i++)
-                    Container(
-                      margin: EdgeInsets.symmetric(horizontal: 4),
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: i == 1
-                              ? Color(0xFF0D1845)
-                              : Colors.white,
-                          foregroundColor: i == 1
-                              ? Colors.white
-                              : Color(0xFF6C757D),
-                          elevation: i == 1 ? 2 : 0,
-                          side: i == 1
-                              ? null
-                              : BorderSide(color: Color(0xFFDEE2E6)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: Text(
-                          i.toString(),
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ),
+                  ..._buildPageButtons(),
                   const SizedBox(width: 16),
                   ElevatedButton.icon(
-                    onPressed: () {},
+                    onPressed:
+                        currentPage < (productResponse?.meta.lastPage ?? 1)
+                        ? () => _fetchProducts(page: currentPage + 1)
+                        : null,
                     icon: Icon(Icons.chevron_right),
                     label: Text('Next'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: Color(0xFF6C757D),
+                      foregroundColor:
+                          currentPage < (productResponse?.meta.lastPage ?? 1)
+                          ? Color(0xFF0D1845)
+                          : Color(0xFF6C757D),
                       elevation: 0,
                       side: BorderSide(color: Color(0xFFDEE2E6)),
                       shape: RoundedRectangleBorder(
@@ -1017,6 +2413,152 @@ class _ProductListPageState extends State<ProductListPage> {
         return Color(0xFFFD7E14);
       default:
         return Color(0xFF6C757D);
+    }
+  }
+
+  Future<Uint8List?> _loadProductImage(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      print('�️ Extracted filename: $filename from path: $imagePath');
+
+      // Check if file exists in local products directory
+      final file = File('assets/images/products/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
+  }
+
+  List<Widget> _buildPageButtons() {
+    if (productResponse?.meta == null) {
+      return [];
+    }
+
+    final meta = productResponse!.meta;
+    final totalPages = meta.lastPage;
+    final current = meta.currentPage;
+
+    // Show max 5 page buttons centered around current page
+    const maxButtons = 5;
+    final halfRange = maxButtons ~/ 2; // 2
+
+    // Calculate desired start and end
+    int startPage = (current - halfRange).clamp(1, totalPages);
+    int endPage = (startPage + maxButtons - 1).clamp(1, totalPages);
+
+    // If endPage exceeds totalPages, adjust startPage
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = (endPage - maxButtons + 1).clamp(1, totalPages);
+    }
+
+    List<Widget> buttons = [];
+
+    for (int i = startPage; i <= endPage; i++) {
+      buttons.add(
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: 1),
+          child: ElevatedButton(
+            onPressed: i == current ? null : () => _fetchProducts(page: i),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: i == current ? Color(0xFF0D1845) : Colors.white,
+              foregroundColor: i == current ? Colors.white : Color(0xFF6C757D),
+              elevation: i == current ? 2 : 0,
+              side: i == current ? null : BorderSide(color: Color(0xFFDEE2E6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size(32, 32),
+            ),
+            child: Text(
+              i.toString(),
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return buttons;
+  }
+
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    bool isMultiline = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: isMultiline
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6C757D),
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Color(0xFF343A40),
+                fontSize: 12,
+                fontFamily:
+                    label == 'Barcode' ||
+                        label == 'Product ID' ||
+                        label.contains('ID')
+                    ? 'monospace'
+                    : null,
+              ),
+              maxLines: isMultiline ? null : 1,
+              overflow: isMultiline
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateTime(String dateTimeString) {
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeString;
     }
   }
 }

@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import '../../services/inventory_service.dart';
+import '../../models/category.dart';
 
 class CategoryListPage extends StatefulWidget {
   const CategoryListPage({super.key});
@@ -8,53 +13,124 @@ class CategoryListPage extends StatefulWidget {
 }
 
 class _CategoryListPageState extends State<CategoryListPage> {
-  final List<Map<String, dynamic>> categories = [
-    {
-      'name': 'Computers',
-      'slug': 'computers',
-      'createdDate': '24 Dec 2024',
-      'status': 'Active',
-      'productCount': 15,
-    },
-    {
-      'name': 'Electronics',
-      'slug': 'electronics',
-      'createdDate': '10 Dec 2024',
-      'status': 'Active',
-      'productCount': 23,
-    },
-    {
-      'name': 'Shoe',
-      'slug': 'shoe',
-      'createdDate': '27 Nov 2024',
-      'status': 'Active',
-      'productCount': 8,
-    },
-    {
-      'name': 'Cosmetics',
-      'slug': 'cosmetics',
-      'createdDate': '18 Nov 2024',
-      'status': 'Active',
-      'productCount': 12,
-    },
-    {
-      'name': 'Groceries',
-      'slug': 'groceries',
-      'createdDate': '06 Nov 2024',
-      'status': 'Active',
-      'productCount': 31,
-    },
-    {
-      'name': 'Fashion',
-      'slug': 'fashion',
-      'createdDate': '15 Oct 2024',
-      'status': 'Inactive',
-      'productCount': 0,
-    },
-  ];
+  List<Category> categories = [];
+  bool isLoading = true;
+  String? errorMessage;
+  int currentPage = 1;
+  int totalCategories = 0;
+  int totalPages = 1;
+  final int itemsPerPage = 10;
 
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
+
+  // Image-related state variables
+  File? _selectedImage;
+  String? _imagePath;
+  String? _localImagePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCategories();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final imageFile = File(pickedFile.path);
+      await _saveImageLocally(imageFile);
+    }
+  }
+
+  Future<void> _saveImageLocally(File imageFile) async {
+    try {
+      final directory = Directory(
+        '${Directory.current.path}/assets/images/categories',
+      );
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+      final fileName = 'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await imageFile.copy('${directory.path}/$fileName');
+      setState(() {
+        _selectedImage = savedImage;
+        _imagePath =
+            'https://zafarcomputers.com/assets/images/categories/$fileName';
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save image: $e'),
+          backgroundColor: Color(0xFFDC3545),
+        ),
+      );
+    }
+  }
+
+  Future<Uint8List?> _loadCategoryImage(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      print('🖼️ Extracted filename: $filename from path: $imagePath');
+
+      // Check if file exists in local categories directory
+      final file = File('assets/images/categories/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
+  }
+
+  Future<void> _fetchCategories({int page = 1}) async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final response = await InventoryService.getCategories(
+        page: page,
+        limit: itemsPerPage,
+      );
+
+      setState(() {
+        categories = response.data;
+        currentPage = response.meta.currentPage;
+        totalCategories = response.meta.total;
+        totalPages = response.meta.lastPage;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
 
   void exportToPDF() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -92,43 +168,633 @@ class _CategoryListPageState extends State<CategoryListPage> {
     );
   }
 
-  void addNewCategory() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.add_circle, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Add Category feature coming soon!'),
-          ],
-        ),
-        backgroundColor: Color(0xFF17A2B8),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
+  void addNewCategory() async {
+    final titleController = TextEditingController();
+    String selectedStatus = 'Active';
+
+    // Reset image state
+    _selectedImage = null;
+    _imagePath = null;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.add_circle, color: Color(0xFF17A2B8)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Add New Category',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Category Title *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Image Section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Category Image (optional)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Color(0xFFDEE2E6)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: _selectedImage != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    _selectedImage!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.image,
+                                      color: Color(0xFF6C757D),
+                                      size: 48,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No image selected',
+                                      style: TextStyle(
+                                        color: Color(0xFF6C757D),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final picker = ImagePicker();
+                            final pickedFile = await picker.pickImage(
+                              source: ImageSource.gallery,
+                            );
+                            if (pickedFile != null) {
+                              final imageFile = File(pickedFile.path);
+                              // Save to local storage
+                              try {
+                                final directory = Directory(
+                                  '${Directory.current.path}/assets/images/categories',
+                                );
+                                if (!await directory.exists()) {
+                                  await directory.create(recursive: true);
+                                }
+                                final fileName =
+                                    'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                final savedImage = await imageFile.copy(
+                                  '${directory.path}/$fileName',
+                                );
+                                setState(() {
+                                  _selectedImage = savedImage;
+                                  _imagePath =
+                                      'https://zafarcomputers.com/assets/images/categories/$fileName';
+                                });
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to save image: $e'),
+                                    backgroundColor: Color(0xFFDC3545),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.photo_library),
+                          label: Text(
+                            _selectedImage == null
+                                ? 'Select Image'
+                                : 'Change Image',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF0D1845),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedStatus,
+                      decoration: InputDecoration(
+                        labelText: 'Status *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: ['Active', 'Inactive']
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => selectedStatus = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF6C757D)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (titleController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a category title'),
+                          backgroundColor: Color(0xFFDC3545),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      setState(() => isLoading = true);
+                      Navigator.of(context).pop(true); // Close dialog first
+
+                      final createData = {
+                        'title': titleController.text.trim(),
+                        'status': selectedStatus,
+                        if (_imagePath != null) 'img_path': _imagePath,
+                      };
+
+                      await InventoryService.createCategory(createData);
+
+                      // Refresh the categories list
+                      await _fetchCategories(page: currentPage);
+
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Category created successfully'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFF28A745),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.error, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Failed to create category: $e'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF17A2B8),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void editCategory(Map<String, dynamic> category) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.edit, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Editing category: ${category['name']}'),
-          ],
-        ),
-        backgroundColor: Color(0xFF28A745),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
+  void editCategory(Category category) async {
+    final titleController = TextEditingController(text: category.title);
+    final categoryCodeController = TextEditingController(
+      text: category.categoryCode,
+    );
+    String selectedStatus = category.status;
+
+    // Reset image state for editing
+    _selectedImage = null;
+    _imagePath = category.imgPath;
+    _localImagePath = null;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.edit, color: Color(0xFF28A745)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Edit Category',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Category Title',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: categoryCodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Category Code',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Image Section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Category Image (optional)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        if (_selectedImage != null)
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _selectedImage!,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          )
+                        else if (_imagePath != null && _imagePath!.isNotEmpty)
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                _imagePath!.startsWith('http') &&
+                                    !_imagePath!.contains('zafarcomputers.com')
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      _imagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) => Icon(
+                                            Icons.category,
+                                            color: Color(0xFF6C757D),
+                                            size: 48,
+                                          ),
+                                    ),
+                                  )
+                                : FutureBuilder<Uint8List?>(
+                                    future: _loadCategoryImage(_imagePath!),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      } else if (snapshot.hasData &&
+                                          snapshot.data != null) {
+                                        return ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: Image.memory(
+                                            snapshot.data!,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        );
+                                      } else {
+                                        return Icon(
+                                          Icons.category,
+                                          color: Color(0xFF6C757D),
+                                          size: 48,
+                                        );
+                                      }
+                                    },
+                                  ),
+                          )
+                        else
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Color(0xFFF8F9FA),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image,
+                                  color: Color(0xFF6C757D),
+                                  size: 48,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'No image selected',
+                                  style: TextStyle(color: Color(0xFF6C757D)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final picker = ImagePicker();
+                            final pickedFile = await picker.pickImage(
+                              source: ImageSource.gallery,
+                            );
+                            if (pickedFile != null) {
+                              final imageFile = File(pickedFile.path);
+                              // Save to local storage
+                              try {
+                                final directory = Directory(
+                                  '${Directory.current.path}/assets/images/categories',
+                                );
+                                if (!await directory.exists()) {
+                                  await directory.create(recursive: true);
+                                }
+                                final fileName =
+                                    'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                final savedImage = await imageFile.copy(
+                                  '${directory.path}/$fileName',
+                                );
+                                setState(() {
+                                  _selectedImage = savedImage;
+                                  _localImagePath =
+                                      'assets/images/categories/$fileName';
+                                  _imagePath =
+                                      'https://zafarcomputers.com/assets/images/categories/$fileName';
+                                });
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to save image: $e'),
+                                    backgroundColor: Color(0xFFDC3545),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.photo_library),
+                          label: Text(
+                            _selectedImage != null ||
+                                    (_imagePath != null &&
+                                        _imagePath!.isNotEmpty)
+                                ? 'Change Image'
+                                : 'Select Image',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF0D1845),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedStatus,
+                      decoration: InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: ['Active', 'Inactive']
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => selectedStatus = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF6C757D)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (titleController.text.trim().isEmpty ||
+                        categoryCodeController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please fill in all required fields'),
+                          backgroundColor: Color(0xFFDC3545),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      setState(() => isLoading = true);
+                      Navigator.of(context).pop(true); // Close dialog first
+
+                      final updateData = {
+                        'title': titleController.text.trim(),
+                        'category_code': categoryCodeController.text.trim(),
+                        'status': selectedStatus,
+                        if (_imagePath != null) 'img_path': _imagePath,
+                      };
+
+                      await InventoryService.updateCategory(
+                        category.id,
+                        updateData,
+                      );
+
+                      // Refresh the categories list
+                      await _fetchCategories(page: currentPage);
+
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Category updated successfully'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFF28A745),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.error, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Failed to update category: $e'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF28A745),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void deleteCategory(Map<String, dynamic> category) {
+  void deleteCategory(Category category) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -144,7 +810,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
             ],
           ),
           content: Text(
-            'Are you sure you want to delete "${category['name']}"?\n\nThis will also remove all associated products and sub-categories.',
+            'Are you sure you want to delete "${category.title}"?\n\nThis will also remove all associated products and sub-categories.',
             style: TextStyle(color: Color(0xFF6C757D)),
           ),
           actions: [
@@ -153,27 +819,56 @@ class _CategoryListPageState extends State<CategoryListPage> {
               child: Text('Cancel', style: TextStyle(color: Color(0xFF6C757D))),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.delete, color: Colors.white),
-                        SizedBox(width: 8),
-                        Text(
-                          'Category "${category['name']}" deleted successfully',
-                        ),
-                      ],
+              onPressed: () async {
+                try {
+                  setState(() => isLoading = true);
+                  Navigator.of(context).pop(); // Close dialog first
+
+                  await InventoryService.deleteCategory(category.id);
+
+                  // Refresh the categories list
+                  await _fetchCategories(page: currentPage);
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.delete, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Category "${category.title}" deleted successfully',
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFFDC3545),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    backgroundColor: Color(0xFFDC3545),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text('Failed to delete category: $e'),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFFDC3545),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  );
+                } finally {
+                  if (mounted) setState(() => isLoading = false);
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFDC3545),
@@ -190,22 +885,265 @@ class _CategoryListPageState extends State<CategoryListPage> {
     );
   }
 
-  void viewCategoryDetails(Map<String, dynamic> category) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.visibility, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Viewing details for: ${category['name']}'),
-          ],
-        ),
-        backgroundColor: Color(0xFF17A2B8),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
+  void viewCategoryDetails(Category category) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return FutureBuilder<Category>(
+              future: InventoryService.getCategory(category.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _getCategoryColor(category.title),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            _getCategoryIcon(category.title),
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Loading Category Details...',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF0D1845),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Fetching category information...',
+                          style: TextStyle(
+                            color: Color(0xFF6C757D),
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(color: Color(0xFF6C757D)),
+                        ),
+                      ),
+                    ],
+                  );
+                } else if (snapshot.hasError) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Icon(Icons.error, color: Color(0xFFDC3545)),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Error Loading Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: Text(
+                      'Failed to load category details: ${snapshot.error}',
+                      style: TextStyle(color: Color(0xFF6C757D)),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'Close',
+                          style: TextStyle(color: Color(0xFF6C757D)),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          viewCategoryDetails(category); // Retry
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF0D1845),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text('Retry'),
+                      ),
+                    ],
+                  );
+                } else if (snapshot.hasData) {
+                  final categoryDetails = snapshot.data!;
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _getCategoryColor(categoryDetails.title),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            _getCategoryIcon(categoryDetails.title),
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Category Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildDetailRow('Title', categoryDetails.title),
+                        _buildDetailRow(
+                          'Category Code',
+                          categoryDetails.categoryCode,
+                        ),
+                        _buildDetailRow('Status', categoryDetails.status),
+                        _buildDetailRow(
+                          'Created',
+                          _formatDate(categoryDetails.createdAt),
+                        ),
+                        _buildDetailRow(
+                          'Updated',
+                          _formatDate(categoryDetails.updatedAt),
+                        ),
+                        if (categoryDetails.imgPath != null)
+                          _buildDetailRow(
+                            'Image Path',
+                            categoryDetails.imgPath!,
+                          ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(
+                          'Close',
+                          style: TextStyle(color: Color(0xFF6C757D)),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Text('Unknown Error'),
+                    content: Text('An unexpected error occurred.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Close'),
+                      ),
+                    ],
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF495057),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays == 0) {
+        return 'Today';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return '$weeks week${weeks > 1 ? 's' : ''} ago';
+      } else if (difference.inDays < 365) {
+        final months = (difference.inDays / 30).floor();
+        return '$months month${months > 1 ? 's' : ''} ago';
+      } else {
+        final years = (difference.inDays / 365).floor();
+        return '$years year${years > 1 ? 's' : ''} ago';
+      }
+    } catch (e) {
+      return dateString; // Fallback to original string if parsing fails
+    }
   }
 
   @override
@@ -525,379 +1463,540 @@ class _CategoryListPageState extends State<CategoryListPage> {
             ),
             const SizedBox(height: 24),
 
-            // Enhanced Table Section
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.list_alt,
-                          color: Color(0xFF0D1845),
-                          size: 20,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Categories List',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        Spacer(),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE7F3FF),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.inventory_2,
-                                color: Color(0xFF0066CC),
-                                size: 14,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                '${categories.length} Categories',
-                                style: TextStyle(
-                                  color: Color(0xFF0066CC),
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+            // Loading and Error States
+            if (isLoading)
+              Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+              )
+            else if (errorMessage != null)
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Color(0xFFDC3545),
+                      size: 64,
                     ),
-                  ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(
-                        Color(0xFFF8F9FA),
+                    SizedBox(height: 16),
+                    Text(
+                      'Error loading categories',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF343A40),
                       ),
-                      dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                        Set<MaterialState> states,
-                      ) {
-                        if (states.contains(MaterialState.selected)) {
-                          return Color(0xFF0D1845).withOpacity(0.1);
-                        }
-                        return Colors.white;
-                      }),
-                      columns: const [
-                        DataColumn(label: Text('Category Name')),
-                        DataColumn(label: Text('Slug')),
-                        DataColumn(label: Text('Products')),
-                        DataColumn(label: Text('Created Date')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Actions')),
-                      ],
-                      rows: categories.map((category) {
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              SizedBox(
-                                width: 140,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: _getCategoryColor(
-                                          category['name'],
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        _getCategoryIcon(category['name']),
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        category['name'],
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF343A40),
-                                          fontSize: 13,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8F9FA),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  category['slug'],
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF6C757D),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFE7F3FF),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '${category['productCount']}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF0066CC),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8F9FA),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  category['createdDate'],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF495057),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: category['status'] == 'Active'
-                                      ? Color(0xFFD4EDDA)
-                                      : Color(0xFFF8D7DA),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      category['status'] == 'Active'
-                                          ? Icons.check_circle
-                                          : Icons.cancel,
-                                      color: category['status'] == 'Active'
-                                          ? Color(0xFF28A745)
-                                          : Color(0xFFDC3545),
-                                      size: 12,
-                                    ),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      category['status'],
-                                      style: TextStyle(
-                                        color: category['status'] == 'Active'
-                                            ? Color(0xFF155724)
-                                            : Color(0xFF721C24),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    onPressed: () =>
-                                        viewCategoryDetails(category),
-                                    icon: Icon(
-                                      Icons.visibility,
-                                      color: Color(0xFF17A2B8),
-                                      size: 16,
-                                    ),
-                                    tooltip: 'View Details',
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                  ),
-                                  SizedBox(width: 4),
-                                  IconButton(
-                                    onPressed: () => editCategory(category),
-                                    icon: Icon(
-                                      Icons.edit,
-                                      color: Color(0xFF28A745),
-                                      size: 16,
-                                    ),
-                                    tooltip: 'Edit Category',
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                  ),
-                                  SizedBox(width: 4),
-                                  IconButton(
-                                    onPressed: () => deleteCategory(category),
-                                    icon: Icon(
-                                      Icons.delete,
-                                      color: Color(0xFFDC3545),
-                                      size: 16,
-                                    ),
-                                    tooltip: 'Delete Category',
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
                     ),
-                  ),
-                ],
+                    SizedBox(height: 8),
+                    Text(
+                      errorMessage!,
+                      style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => _fetchCategories(page: currentPage),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF0D1845),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              // Enhanced Table Section
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.list_alt,
+                            color: Color(0xFF0D1845),
+                            size: 20,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Categories List',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF343A40),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header row with total categories positioned above Actions column
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                            child: Row(
+                              children: [
+                                // Space for Category Name column (160px width)
+                                SizedBox(width: 160),
+                                // Space for Category Code column (increased spacing)
+                                SizedBox(width: 170),
+                                // Space for Created Date column (increased spacing)
+                                SizedBox(width: 190),
+                                // Space for Status column (increased spacing)
+                                SizedBox(width: 180),
+                                // Total categories above Actions column
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFE7F3FF),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.inventory_2,
+                                        color: Color(0xFF0066CC),
+                                        size: 14,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        '$totalCategories Categories',
+                                        style: TextStyle(
+                                          color: Color(0xFF0066CC),
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: DataTable(
+                              headingRowColor: MaterialStateProperty.all(
+                                Color(0xFFF8F9FA),
+                              ),
+                              dataRowColor:
+                                  MaterialStateProperty.resolveWith<Color>((
+                                    Set<MaterialState> states,
+                                  ) {
+                                    if (states.contains(
+                                      MaterialState.selected,
+                                    )) {
+                                      return Color(0xFF0D1845).withOpacity(0.1);
+                                    }
+                                    return Colors.white;
+                                  }),
+                              columnSpacing: 75,
+                              columns: const [
+                                DataColumn(label: Text('Category Name')),
+                                DataColumn(label: Text('Category Code')),
+                                DataColumn(label: Text('Created Date')),
+                                DataColumn(label: Text('Status')),
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: categories.map((category) {
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                      SizedBox(
+                                        width: 150,
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFF8F9FA),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Color(0xFFDEE2E6),
+                                                ),
+                                              ),
+                                              child:
+                                                  category.imgPath != null &&
+                                                      category
+                                                          .imgPath!
+                                                          .isNotEmpty
+                                                  ? (category.imgPath!
+                                                                .startsWith(
+                                                                  'http',
+                                                                ) &&
+                                                            !category.imgPath!
+                                                                .contains(
+                                                                  'zafarcomputers.com',
+                                                                ))
+                                                        ? ClipRRect(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  6,
+                                                                ),
+                                                            child: Image.network(
+                                                              category.imgPath!,
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder:
+                                                                  (
+                                                                    context,
+                                                                    error,
+                                                                    stackTrace,
+                                                                  ) => Icon(
+                                                                    _getCategoryIcon(
+                                                                      category
+                                                                          .title,
+                                                                    ),
+                                                                    color: Color(
+                                                                      0xFF6C757D,
+                                                                    ),
+                                                                    size: 16,
+                                                                  ),
+                                                            ),
+                                                          )
+                                                        : FutureBuilder<
+                                                            Uint8List?
+                                                          >(
+                                                            future:
+                                                                _loadCategoryImage(
+                                                                  category
+                                                                      .imgPath!,
+                                                                ),
+                                                            builder: (context, snapshot) {
+                                                              if (snapshot
+                                                                      .connectionState ==
+                                                                  ConnectionState
+                                                                      .waiting) {
+                                                                return Center(
+                                                                  child: CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                  ),
+                                                                );
+                                                              } else if (snapshot
+                                                                      .hasData &&
+                                                                  snapshot.data !=
+                                                                      null) {
+                                                                return ClipRRect(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        6,
+                                                                      ),
+                                                                  child: Image.memory(
+                                                                    snapshot
+                                                                        .data!,
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                  ),
+                                                                );
+                                                              } else {
+                                                                return Icon(
+                                                                  _getCategoryIcon(
+                                                                    category
+                                                                        .title,
+                                                                  ),
+                                                                  color: Color(
+                                                                    0xFF6C757D,
+                                                                  ),
+                                                                  size: 16,
+                                                                );
+                                                              }
+                                                            },
+                                                          )
+                                                  : Icon(
+                                                      _getCategoryIcon(
+                                                        category.title,
+                                                      ),
+                                                      color: Color(0xFF6C757D),
+                                                      size: 16,
+                                                    ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                category.title,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF343A40),
+                                                  fontSize: 13,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFF8F9FA),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          category.categoryCode,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF6C757D),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFF8F9FA),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _formatDate(category.createdAt),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF495057),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: category.status == 'Active'
+                                              ? Color(0xFFD4EDDA)
+                                              : Color(0xFFF8D7DA),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              category.status == 'Active'
+                                                  ? Icons.check_circle
+                                                  : Icons.cancel,
+                                              color: category.status == 'Active'
+                                                  ? Color(0xFF28A745)
+                                                  : Color(0xFFDC3545),
+                                              size: 12,
+                                            ),
+                                            SizedBox(width: 3),
+                                            Text(
+                                              category.status,
+                                              style: TextStyle(
+                                                color:
+                                                    category.status == 'Active'
+                                                    ? Color(0xFF155724)
+                                                    : Color(0xFF721C24),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            onPressed: () =>
+                                                viewCategoryDetails(category),
+                                            icon: Icon(
+                                              Icons.visibility,
+                                              color: Color(0xFF17A2B8),
+                                              size: 16,
+                                            ),
+                                            tooltip: 'View Details',
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                          ),
+                                          SizedBox(width: 4),
+                                          IconButton(
+                                            onPressed: () =>
+                                                editCategory(category),
+                                            icon: Icon(
+                                              Icons.edit,
+                                              color: Color(0xFF28A745),
+                                              size: 16,
+                                            ),
+                                            tooltip: 'Edit Category',
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                          ),
+                                          SizedBox(width: 4),
+                                          IconButton(
+                                            onPressed: () =>
+                                                deleteCategory(category),
+                                            icon: Icon(
+                                              Icons.delete,
+                                              color: Color(0xFFDC3545),
+                                              size: 16,
+                                            ),
+                                            tooltip: 'Delete Category',
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             // Enhanced Pagination
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: Icon(Icons.chevron_left, size: 16),
-                    label: Text('Previous', style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Color(0xFF6C757D),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+            if (!isLoading && errorMessage == null) const SizedBox(height: 24),
+            if (!isLoading && errorMessage == null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  for (int i = 1; i <= 3; i++)
-                    Container(
-                      margin: EdgeInsets.symmetric(horizontal: 2),
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: i == 1
-                              ? Color(0xFF0D1845)
-                              : Colors.white,
-                          foregroundColor: i == 1
-                              ? Colors.white
-                              : Color(0xFF6C757D),
-                          elevation: i == 1 ? 2 : 0,
-                          side: i == 1
-                              ? null
-                              : BorderSide(color: Color(0xFFDEE2E6)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          minimumSize: Size(36, 36),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: Icon(Icons.chevron_left, size: 16),
+                      label: Text('Previous', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Color(0xFF6C757D),
+                        elevation: 0,
+                        side: BorderSide(color: Color(0xFFDEE2E6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          i.toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
-                          ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                       ),
                     ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: Icon(Icons.chevron_right, size: 16),
-                    label: Text('Next', style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Color(0xFF6C757D),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                    const SizedBox(width: 12),
+                    for (int i = 1; i <= 3; i++)
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 2),
+                        child: ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: i == 1
+                                ? Color(0xFF0D1845)
+                                : Colors.white,
+                            foregroundColor: i == 1
+                                ? Colors.white
+                                : Color(0xFF6C757D),
+                            elevation: i == 1 ? 2 : 0,
+                            side: i == 1
+                                ? null
+                                : BorderSide(color: Color(0xFFDEE2E6)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size(36, 36),
+                          ),
+                          child: Text(
+                            i.toString(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                       ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: Icon(Icons.chevron_right, size: 16),
+                      label: Text('Next', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Color(0xFF6C757D),
+                        elevation: 0,
+                        side: BorderSide(color: Color(0xFFDEE2E6)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -918,6 +2017,12 @@ class _CategoryListPageState extends State<CategoryListPage> {
         return Color(0xFFFD7E14);
       case 'fashion':
         return Color(0xFF6F42C1);
+      case 'bridal':
+        return Color(0xFFE91E63);
+      case 'fancy':
+        return Color(0xFF9C27B0);
+      case 'casual':
+        return Color(0xFF2196F3);
       default:
         return Color(0xFF6C757D);
     }
@@ -937,6 +2042,12 @@ class _CategoryListPageState extends State<CategoryListPage> {
         return Icons.shopping_cart;
       case 'fashion':
         return Icons.style;
+      case 'bridal':
+        return Icons.diamond;
+      case 'fancy':
+        return Icons.star;
+      case 'casual':
+        return Icons.accessibility;
       default:
         return Icons.category;
     }

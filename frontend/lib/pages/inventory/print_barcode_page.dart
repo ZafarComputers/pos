@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../services/inventory_service.dart';
+import '../../models/product.dart';
 
 class PrintBarcodePage extends StatefulWidget {
   const PrintBarcodePage({super.key});
@@ -9,86 +13,91 @@ class PrintBarcodePage extends StatefulWidget {
 }
 
 class _PrintBarcodePageState extends State<PrintBarcodePage> {
-  final List<Map<String, dynamic>> products = [
-    {
-      'code': 'PT001',
-      'name': 'Lenovo IdeaPad 3',
-      'category': 'Computers',
-      'vendor': 'Lenovo',
-      'price': '\$600',
-      'unit': 'Pc',
-      'qty': 100,
-      'createdBy': 'James Kirwin',
-      'selected': false,
-    },
-    {
-      'code': 'PT002',
-      'name': 'Beats Pro',
-      'category': 'Electronics',
-      'vendor': 'Beats',
-      'price': '\$160',
-      'unit': 'Pc',
-      'qty': 140,
-      'createdBy': 'Francis Chang',
-      'selected': false,
-    },
-    {
-      'code': 'PT003',
-      'name': 'Nike Jordan',
-      'category': 'Shoe',
-      'vendor': 'Nike',
-      'price': '\$110',
-      'unit': 'Pc',
-      'qty': 300,
-      'createdBy': 'Antonio Engle',
-      'selected': false,
-    },
-    {
-      'code': 'PT004',
-      'name': 'Dell XPS 13',
-      'category': 'Computers',
-      'vendor': 'Dell',
-      'price': '\$1200',
-      'unit': 'Pc',
-      'qty': 50,
-      'createdBy': 'Sarah Johnson',
-      'selected': false,
-    },
-    {
-      'code': 'PT005',
-      'name': 'Apple AirPods',
-      'category': 'Electronics',
-      'vendor': 'Apple',
-      'price': '\$199',
-      'unit': 'Pc',
-      'qty': 200,
-      'createdBy': 'Mike Davis',
-      'selected': false,
-    },
-  ];
+  ProductResponse? productResponse;
+  bool isLoading = true;
+  String? errorMessage;
+  int currentPage = 1;
+  final int itemsPerPage = 10; // Load 10 products per page for better performance
 
   String selectedCategory = 'All';
   String selectedVendor = 'All';
+  final TextEditingController _searchController = TextEditingController();
+
+  // Selection state
+  Set<int> selectedProductIds = {};
   bool selectAll = false;
 
-  void toggleSelectAll() {
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchProducts({int page = 1}) async {
+    if (!mounted) return;
+
     setState(() {
-      selectAll = !selectAll;
-      for (var product in products) {
-        product['selected'] = selectAll;
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final response = await InventoryService.getProducts(
+        page: page,
+        limit: itemsPerPage,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        productResponse = response;
+        currentPage = response.meta.currentPage;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
+
+  void toggleSelectAll() {
+    if (productResponse == null) return;
+
+    setState(() {
+      if (selectAll) {
+        selectedProductIds.clear();
+        selectAll = false;
+      } else {
+        selectedProductIds = productResponse!.data.map((product) => product.id).toSet();
+        selectAll = true;
       }
     });
   }
 
-  void toggleProductSelection(int index) {
+  void toggleProductSelection(int productId) {
     setState(() {
-      products[index]['selected'] = !products[index]['selected'];
-      selectAll = products.every((product) => product['selected']);
+      if (selectedProductIds.contains(productId)) {
+        selectedProductIds.remove(productId);
+      } else {
+        selectedProductIds.add(productId);
+      }
+      selectAll = selectedProductIds.length == productResponse?.data.length;
     });
   }
 
-  List<Map<String, dynamic>> getSelectedProducts() {
-    return products.where((product) => product['selected'] == true).toList();
+  List<Product> getSelectedProducts() {
+    if (productResponse == null) return [];
+    return productResponse!.data.where((product) => selectedProductIds.contains(product.id)).toList();
   }
 
   void generateAndPrintBarcode() {
@@ -105,12 +114,15 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       return;
     }
 
+    // Check if all products are selected
+    final isAllProductsSelected = selectAll || selectedProductIds.length == productResponse?.data.length;
+
     // Show barcode generation dialog
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Generate Barcodes'),
+          title: Text(isAllProductsSelected ? 'Generate Single Barcode (All Products)' : 'Generate Barcodes'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -118,9 +130,60 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               children: [
                 Text('${selectedProducts.length} product(s) selected'),
                 const SizedBox(height: 16),
-                const Text(
-                  'Barcode generation and printing feature coming soon!',
+                if (isAllProductsSelected)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'All Products Barcode',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        QrImageView(
+                          data: _generateAllProductsBarcodeData(selectedProducts),
+                          version: QrVersions.auto,
+                          size: 120.0,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Contains all ${selectedProducts.length} products',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Column(
+                    children: [
+                      const Text(
+                        'Individual barcodes will be generated for each selected product.',
+                        style: TextStyle(color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Selected products: ${selectedProducts.map((p) => p.designCode).join(", ")}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 16),
+                Text(
+                  isAllProductsSelected
+                    ? 'This barcode contains information for all products in your inventory.'
+                    : 'Barcode generation and printing feature coming soon!',
                   style: TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -136,21 +199,46 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Generating barcodes for ${selectedProducts.length} products...',
+                      isAllProductsSelected
+                        ? 'Generating single barcode for all ${selectedProducts.length} products...'
+                        : 'Generating barcodes for ${selectedProducts.length} products...',
                     ),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF0D1845),
+                backgroundColor: Color(0xFF17A2B8),
               ),
-              child: const Text('Generate & Print'),
+              child: Text(isAllProductsSelected ? 'Generate Single Barcode' : 'Generate & Print'),
             ),
           ],
         );
       },
     );
+  }
+
+  String _generateAllProductsBarcodeData(List<Product> products) {
+    // Create a structured data format for all products
+    final productData = products.map((product) => {
+      'id': product.id.toString(),
+      'code': product.designCode,
+      'name': product.title,
+      'price': product.salePrice,
+      'category': product.subCategoryId,
+      'vendor': product.vendor.name ?? 'Vendor ${product.vendorId}',
+      'quantity': product.openingStockQuantity,
+    }).toList();
+
+    // Convert to JSON-like string that can be encoded in QR
+    final data = {
+      'type': 'all_products',
+      'total_products': products.length,
+      'timestamp': DateTime.now().toIso8601String(),
+      'products': productData,
+    };
+
+    return data.toString();
   }
 
   void generateQRCode() {
@@ -192,18 +280,18 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     child: Column(
                       children: [
                         Text(
-                          selectedProducts[0]['name'],
+                          selectedProducts[0].title,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         QrImageView(
-                          data: selectedProducts[0]['code'],
+                          data: selectedProducts[0].barcode,
                           version: QrVersions.auto,
                           size: 120.0,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Code: ${selectedProducts[0]['code']}',
+                          'Code: ${selectedProducts[0].designCode}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -238,7 +326,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF0D1845),
+                backgroundColor: Color(0xFF17A2B8),
               ),
               child: const Text('Generate'),
             ),
@@ -273,7 +361,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF17A2B8).withOpacity(0.3),
+                    color: Color(0xFF17A2B8).withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -284,7 +372,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -312,7 +400,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           'Generate barcodes and QR codes for your products',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -347,7 +435,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -383,13 +471,14 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           decoration: BoxDecoration(
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: TextField(
+                            controller: _searchController,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.white,
@@ -453,14 +542,14 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                value: selectedCategory,
+                                initialValue: selectedCategory,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
@@ -544,14 +633,14 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                value: selectedVendor,
+                                initialValue: selectedVendor,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
@@ -629,7 +718,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -651,7 +740,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   ),
                   const SizedBox(width: 16),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Color(0xFFE3F2FD),
                       borderRadius: BorderRadius.circular(12),
@@ -687,7 +779,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
@@ -733,7 +825,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               ),
                               SizedBox(width: 3),
                               Text(
-                                '${products.length} Products',
+                                '${productResponse?.meta.total ?? 0} Products',
                                 style: TextStyle(
                                   color: Color(0xFF1976D2),
                                   fontWeight: FontWeight.w500,
@@ -748,203 +840,340 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   ),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: MaterialStateProperty.all(
-                        Color(0xFFF8F9FA),
-                      ),
-                      dataRowColor: MaterialStateProperty.resolveWith<Color>((
-                        Set<MaterialState> states,
-                      ) {
-                        if (states.contains(MaterialState.selected)) {
-                          return Color(0xFF17A2B8).withOpacity(0.1);
-                        }
-                        return Colors.white;
-                      }),
-                      columns: const [
-                        DataColumn(label: Text('Select')),
-                        DataColumn(label: Text('Product Code')),
-                        DataColumn(label: Text('Product Name')),
-                        DataColumn(label: Text('Category')),
-                        DataColumn(label: Text('Vendor')),
-                        DataColumn(label: Text('Price')),
-                        DataColumn(label: Text('Unit')),
-                        DataColumn(label: Text('Qty')),
-                      ],
-                      rows: products.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final product = entry.value;
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Checkbox(
-                                value: product['selected'],
-                                onChanged: (value) =>
-                                    toggleProductSelection(index),
-                                activeColor: Color(0xFF17A2B8),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8F9FA),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(
-                                  product['code'],
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF17A2B8),
-                                    fontSize: 11,
+                    child: isLoading
+                        ? Container(
+                            padding: const EdgeInsets.all(40),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF17A2B8),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading products...',
+                                    style: TextStyle(
+                                      color: Color(0xFF6C757D),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            DataCell(
-                              SizedBox(
-                                width: 200,
-                                child: Row(
-                                  children: [
+                          )
+                        : errorMessage != null
+                        ? Container(
+                            padding: const EdgeInsets.all(40),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: Color(0xFFDC3545),
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Failed to load products',
+                                    style: TextStyle(
+                                      color: Color(0xFFDC3545),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    errorMessage!,
+                                    style: TextStyle(
+                                      color: Color(0xFF6C757D),
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: _fetchProducts,
+                                    child: Text('Retry'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Color(0xFF17A2B8),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : productResponse == null || productResponse!.data.isEmpty
+                        ? Container(
+                            padding: const EdgeInsets.all(40),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: Color(0xFF6C757D),
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No products found',
+                                    style: TextStyle(
+                                      color: Color(0xFF6C757D),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Create your first product to get started',
+                                    style: TextStyle(
+                                      color: Color(0xFF6C757D),
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              Color(0xFFF8F9FA),
+                            ),
+                            dataRowColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Color(0xFF17A2B8).withValues(alpha: 0.1);
+                              }
+                              return Colors.white;
+                            }),
+                            columns: const [
+                              DataColumn(label: Text('Select')),
+                              DataColumn(label: Text('Product Code')),
+                              DataColumn(label: Text('Product Name')),
+                              DataColumn(label: Text('Category')),
+                              DataColumn(label: Text('Vendor')),
+                              DataColumn(label: Text('Price')),
+                              DataColumn(label: Text('Unit')),
+                              DataColumn(label: Text('Qty')),
+                            ],
+                            rows: productResponse!.data.map((product) {
+                              final quantity = int.tryParse(product.openingStockQuantity) ?? 0;
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    Checkbox(
+                                      value: selectedProductIds.contains(product.id),
+                                      onChanged: (value) => toggleProductSelection(product.id),
+                                      activeColor: Color(0xFF17A2B8),
+                                    ),
+                                  ),
+                                  DataCell(
                                     Container(
-                                      width: 36,
-                                      height: 36,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Color(0xFFF8F9FA),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: Color(0xFFDEE2E6),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        product.designCode,
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF17A2B8),
+                                          fontSize: 11,
                                         ),
                                       ),
-                                      child: Icon(
-                                        Icons.inventory_2,
-                                        color: Color(0xFF6C757D),
-                                        size: 16,
-                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                  ),
+                                  DataCell(
+                                    SizedBox(
+                                      width: 200,
+                                      child: Row(
                                         children: [
-                                          Text(
-                                            product['name'],
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF343A40),
-                                              fontSize: 12,
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: Color(0xFFF8F9FA),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: Color(0xFFDEE2E6),
+                                              ),
                                             ),
-                                            overflow: TextOverflow.ellipsis,
+                                            child: product.imagePath != null && product.imagePath!.isNotEmpty
+                                                ? (product.imagePath!.startsWith('http') && !product.imagePath!.contains('zafarcomputers.com'))
+                                                    ? ClipRRect(
+                                                        borderRadius: BorderRadius.circular(4),
+                                                        child: Image.network(
+                                                          product.imagePath!,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (context, error, stackTrace) => Icon(
+                                                            Icons.inventory_2,
+                                                            color: Color(0xFF6C757D),
+                                                            size: 16,
+                                                          ),
+                                                        ),
+                                                      )
+                                                    : FutureBuilder<Uint8List?>(
+                                                        future: _loadProductImage(product.imagePath!),
+                                                        builder: (context, snapshot) {
+                                                          if (snapshot.connectionState == ConnectionState.waiting) {
+                                                            return Center(
+                                                              child: SizedBox(
+                                                                width: 16,
+                                                                height: 16,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          } else if (snapshot.hasData && snapshot.data != null) {
+                                                            return ClipRRect(
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              child: Image.memory(
+                                                                snapshot.data!,
+                                                                fit: BoxFit.cover,
+                                                              ),
+                                                            );
+                                                          } else {
+                                                            return Icon(
+                                                              Icons.inventory_2,
+                                                              color: Color(0xFF6C757D),
+                                                              size: 16,
+                                                            );
+                                                          }
+                                                        },
+                                                      )
+                                                : Icon(
+                                                    Icons.inventory_2,
+                                                    color: Color(0xFF6C757D),
+                                                    size: 16,
+                                                  ),
                                           ),
-                                          Text(
-                                            product['code'],
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Color(0xFF6C757D),
-                                              fontFamily: 'monospace',
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  product.title,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF343A40),
+                                                    fontSize: 12,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                Text(
+                                                  'Code: ${product.designCode}',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Color(0xFF6C757D),
+                                                    fontFamily: 'monospace',
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getCategoryColor(product['category']),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(
-                                  product['category'],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white,
-                                    fontSize: 11,
                                   ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                product['vendor'],
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF343A40),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                product['price'],
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF28A745),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8F9FA),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(
-                                  product['unit'],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF6C757D),
-                                    fontSize: 11,
+                                  DataCell(
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getCategoryColor(product.subCategoryId),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        'Category ${product.subCategoryId}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: product['qty'] < 50
-                                      ? Color(0xFFFFF3CD)
-                                      : Color(0xFFD4EDDA),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  product['qty'].toString(),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: product['qty'] < 50
-                                        ? Color(0xFF856404)
-                                        : Color(0xFF155724),
-                                    fontSize: 11,
+                                  DataCell(
+                                    Text(
+                                      product.vendor.name ?? 'Vendor ${product.vendorId}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF343A40),
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+                                  DataCell(
+                                    Text(
+                                      'PKR ${product.salePrice}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF28A745),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Color(0xFFF8F9FA),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        'Pc',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF6C757D),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: quantity < 50
+                                            ? Color(0xFFFFF3CD)
+                                            : Color(0xFFD4EDDA),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        quantity.toString(),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: quantity < 50
+                                              ? Color(0xFF856404)
+                                              : Color(0xFF155724),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
                   ),
                 ],
               ),
@@ -960,7 +1189,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -1005,5 +1234,39 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       default:
         return Color(0xFF6C757D);
     }
+  }
+
+  Future<Uint8List?> _loadProductImage(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      // Check if file exists in local products directory
+      final file = File('assets/images/products/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
   }
 }
