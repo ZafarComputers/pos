@@ -414,7 +414,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
             // Gender
             DropdownButtonFormField<String>(
-              value: _selectedGender,
+              initialValue: _selectedGender,
               decoration: const InputDecoration(
                 labelText: 'Gender',
                 prefixIcon: Icon(Icons.person_outline),

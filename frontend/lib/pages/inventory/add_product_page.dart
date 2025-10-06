@@ -139,6 +139,9 @@ class _AddProductPageState extends State<AddProductPage> {
         _selectedImage = null;
         _imagePath = null;
       });
+
+      // Return true to indicate success and navigate back
+      Navigator.of(context).pop(true);
     } catch (e) {
       String errorMessage = 'Failed to add product';
       if (e.toString().contains('sub_category_id')) {

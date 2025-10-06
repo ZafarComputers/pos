@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
+import 'package:file_picker/file_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/inventory_service.dart';
 import '../../models/vendor.dart' as vendor;
 
@@ -12,16 +16,177 @@ class VendorsPage extends StatefulWidget {
 
 class _VendorsPageState extends State<VendorsPage> {
   vendor.VendorResponse? vendorResponse;
+  List<vendor.Vendor> _filteredVendors = [];
+  List<vendor.Vendor> _allFilteredVendors =
+      []; // Store all filtered vendors for local pagination
   bool isLoading = true;
   String? errorMessage;
   int currentPage = 1;
   final int itemsPerPage = 10;
   bool _isDeletingVendor = false; // Add this flag for delete loading state
+  Timer? _searchDebounceTimer; // Add debounce timer for search
+  bool _isFilterActive = false; // Track if any filter is currently active
 
   @override
   void initState() {
     super.initState();
     _fetchVendors();
+    _setupSearchListener();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchDebounceTimer?.cancel(); // Cancel timer on dispose
+    super.dispose();
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      // Cancel previous timer
+      _searchDebounceTimer?.cancel();
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        setState(() {
+          currentPage = 1; // Reset to first page when search changes
+        });
+        // Apply filters when search changes
+        _applyFilters();
+      });
+    });
+  }
+
+  // New method to handle filter application
+  Future<void> _applyFilters() async {
+    final searchText = _searchController.text.toLowerCase().trim();
+    final hasSearch = searchText.isNotEmpty;
+    final hasStatusFilter = selectedStatus != 'All';
+
+    setState(() {
+      _isFilterActive = hasSearch || hasStatusFilter;
+    });
+
+    if (_isFilterActive) {
+      // Fetch all vendors when filters are active
+      await _fetchAllVendorsForFiltering();
+    } else {
+      // Use normal pagination when no filters
+      await _fetchVendors(page: 1);
+    }
+  }
+
+  // Fetch all vendors and apply filters locally
+  Future<void> _fetchAllVendorsForFiltering() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      // Fetch all vendors from all pages
+      List<vendor.Vendor> allVendors = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        final response = await InventoryService.getVendors(
+          page: currentFetchPage,
+          limit: 50, // Use larger page size for efficiency
+        );
+
+        allVendors.addAll(response.data);
+
+        // Check if there are more pages
+        if (response.meta.currentPage >= response.meta.lastPage) {
+          hasMorePages = false;
+        } else {
+          currentFetchPage++;
+        }
+      }
+
+      // Apply filters to all vendors
+      final searchText = _searchController.text.toLowerCase().trim();
+      _allFilteredVendors = allVendors.where((vendor) {
+        // Status filter
+        if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+          return false;
+        }
+
+        // Search filter
+        if (searchText.isEmpty) {
+          return true;
+        }
+
+        // Search in multiple fields
+        return vendor.fullName.toLowerCase().contains(searchText) ||
+            vendor.vendorCode.toLowerCase().contains(searchText) ||
+            vendor.firstName.toLowerCase().contains(searchText) ||
+            vendor.lastName.toLowerCase().contains(searchText) ||
+            vendor.cnic.toLowerCase().contains(searchText) ||
+            (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
+            vendor.city.title.toLowerCase().contains(searchText);
+      }).toList();
+
+      // Apply local pagination to filtered results
+      _paginateFilteredVendors();
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
+
+  // Apply local pagination to filtered vendors
+  void _paginateFilteredVendors() {
+    final startIndex = (currentPage - 1) * itemsPerPage;
+    final endIndex = startIndex + itemsPerPage;
+
+    setState(() {
+      _filteredVendors = _allFilteredVendors.sublist(
+        startIndex,
+        endIndex > _allFilteredVendors.length
+            ? _allFilteredVendors.length
+            : endIndex,
+      );
+
+      // Update vendorResponse meta for pagination controls
+      if (vendorResponse != null) {
+        final totalPages = (_allFilteredVendors.length / itemsPerPage).ceil();
+        vendorResponse = vendor.VendorResponse(
+          data: _filteredVendors,
+          links: vendor.Links(), // Empty links for local pagination
+          meta: vendor.Meta(
+            currentPage: currentPage,
+            lastPage: totalPages,
+            links: [], // Empty links array for local pagination
+            path: "/vendors", // Default path
+            perPage: itemsPerPage,
+            total: _allFilteredVendors.length,
+          ),
+        );
+      }
+    });
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    if (_isFilterActive) {
+      // Use local pagination for filtered results
+      _paginateFilteredVendors();
+    } else {
+      // Use server pagination for normal browsing
+      await _fetchVendors(page: newPage);
+    }
   }
 
   Future<void> _fetchVendors({int page = 1}) async {
@@ -39,6 +204,7 @@ class _VendorsPageState extends State<VendorsPage> {
         vendorResponse = response;
         currentPage = page;
         isLoading = false;
+        _filteredVendors = response.data;
       });
     } catch (e) {
       setState(() {
@@ -51,22 +217,414 @@ class _VendorsPageState extends State<VendorsPage> {
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
 
-  void exportToPDF() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Exporting vendors to PDF... (Feature coming soon)'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
+  Future<void> exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all vendors...'),
+              ],
+            ),
+          );
+        },
+      );
 
-  void exportToExcel() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Exporting vendors to Excel... (Feature coming soon)'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+      // Always fetch ALL vendors from database for export
+      List<vendor.Vendor> allVendorsForExport = [];
+
+      try {
+        // Fetch ALL vendors with unlimited pagination
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getVendors(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          allVendorsForExport.addAll(pageResponse.data);
+
+          // Check if there are more pages
+          if (pageResponse.meta.currentPage >= pageResponse.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+
+          // Update loading message
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                content: Row(
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF17A2B8),
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Text('Fetched ${allVendorsForExport.length} vendors...'),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+
+        // Apply filters if any are active
+        if (_searchController.text.isNotEmpty || selectedStatus != 'All') {
+          final searchText = _searchController.text.toLowerCase().trim();
+          allVendorsForExport = allVendorsForExport.where((vendor) {
+            // Status filter
+            if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+              return false;
+            }
+
+            // Search filter
+            if (searchText.isEmpty) {
+              return true;
+            }
+
+            // Search in multiple fields
+            return vendor.fullName.toLowerCase().contains(searchText) ||
+                vendor.vendorCode.toLowerCase().contains(searchText) ||
+                vendor.firstName.toLowerCase().contains(searchText) ||
+                vendor.lastName.toLowerCase().contains(searchText) ||
+                vendor.cnic.toLowerCase().contains(searchText) ||
+                (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
+                vendor.city.title.toLowerCase().contains(searchText);
+          }).toList();
+        }
+      } catch (e) {
+        print('Error fetching all vendors: $e');
+        // Fallback to current data
+        allVendorsForExport = _filteredVendors.isNotEmpty
+            ? _filteredVendors
+            : (vendorResponse?.data ?? []);
+      }
+
+      if (allVendorsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No vendors to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allVendorsForExport.length} vendors...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(23, 162, 184);
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 6);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths - reduce address width to prevent cutoff
+      grid.columns[0].width = tableWidth * 0.12; // 12% - Vendor Code
+      grid.columns[1].width = tableWidth * 0.22; // 22% - Vendor Name
+      grid.columns[2].width = tableWidth * 0.16; // 16% - CNIC
+      grid.columns[3].width = tableWidth * 0.14; // 14% - City
+      grid.columns[4].width = tableWidth * 0.10; // 10% - Status
+      grid.columns[5].width =
+          tableWidth * 0.26; // 26% - Address (with truncation)
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Vendor Code';
+      headerRow.cells[1].value = 'Vendor Name';
+      headerRow.cells[2].value = 'CNIC';
+      headerRow.cells[3].value = 'City';
+      headerRow.cells[4].value = 'Status';
+      headerRow.cells[5].value = 'Address';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all vendor data rows
+      for (var vendorItem in allVendorsForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = vendorItem.vendorCode;
+        row.cells[1].value = vendorItem.fullName;
+        row.cells[2].value = vendorItem.cnic;
+        row.cells[3].value = vendorItem.city.title;
+        row.cells[4].value = vendorItem.status;
+
+        // Handle address with better formatting and truncation if needed
+        String addressText = vendorItem.address ?? 'N/A';
+        // Limit address length to prevent excessive width
+        if (addressText.length > 80) {
+          addressText = '${addressText.substring(0, 77)}...';
+        }
+        row.cells[5].value = addressText;
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          // Special formatting for address column to ensure proper wrapping
+          if (i == 5) {
+            row.cells[i].style = PdfGridCellStyle(
+              font: smallFont,
+              textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+              format: PdfStringFormat(
+                alignment: PdfTextAlignment.left,
+                lineAlignment: PdfVerticalAlignment.top,
+                wordWrap: PdfWordWrapType.wordOnly,
+              ),
+            );
+          } else {
+            row.cells[i].style = PdfGridCellStyle(
+              font: smallFont,
+              textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+              format: PdfStringFormat(
+                alignment: i == 4
+                    ? PdfTextAlignment.center
+                    : PdfTextAlignment.left,
+                lineAlignment: PdfVerticalAlignment.top,
+                wordWrap: PdfWordWrapType.word,
+              ),
+            );
+          }
+        }
+
+        // Color code status
+        if (vendorItem.status == 'Active') {
+          row.cells[4].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[4].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[4].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[4].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Complete Vendors Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
+        ),
+      );
+
+      headerTemplate.graphics.drawString(
+        'Total Vendors: ${allVendorsForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | Filters: ${selectedStatus != 'All' ? 'Status=$selectedStatus' : 'All'} ${_searchController.text.isNotEmpty ? ', Search="${_searchController.text}"' : ''}',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allVendorsForExport.length} Total Vendors | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allVendorsForExport.length} vendors',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Vendors Database PDF',
+        fileName:
+            'complete_vendors_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allVendorsForExport.length} vendors across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void addNewVendor() {
@@ -628,33 +1186,14 @@ class _VendorsPageState extends State<VendorsPage> {
                         Row(
                           children: [
                             Container(
-                              margin: const EdgeInsets.only(right: 8),
+                              margin: const EdgeInsets.only(right: 16),
                               child: ElevatedButton.icon(
                                 onPressed: exportToPDF,
                                 icon: Icon(Icons.picture_as_pdf, size: 16),
-                                label: Text('PDF'),
+                                label: Text('Export PDF'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: Color(0xFFDC3545),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(right: 16),
-                              child: ElevatedButton.icon(
-                                onPressed: exportToExcel,
-                                icon: Icon(Icons.file_download, size: 16),
-                                label: Text('Excel'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Color(0xFF28A745),
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 12,
@@ -863,7 +1402,11 @@ class _VendorsPageState extends State<VendorsPage> {
                                         if (value != null) {
                                           setState(() {
                                             selectedStatus = value;
+                                            currentPage =
+                                                1; // Reset to first page when filter changes
                                           });
+                                          // Apply filters with new status
+                                          _applyFilters();
                                         }
                                       },
                                     ),
@@ -931,7 +1474,7 @@ class _VendorsPageState extends State<VendorsPage> {
                                     ),
                                     SizedBox(width: 3),
                                     Text(
-                                      '${vendorResponse?.meta.total ?? 0} Vendors',
+                                      '${_filteredVendors.length} Vendors',
                                       style: TextStyle(
                                         color: Color(0xFF1976D2),
                                         fontWeight: FontWeight.w500,
@@ -969,7 +1512,7 @@ class _VendorsPageState extends State<VendorsPage> {
                               DataColumn(label: Text('Status')),
                               DataColumn(label: Text('Actions')),
                             ],
-                            rows: (vendorResponse?.data ?? []).map((vendor) {
+                            rows: _filteredVendors.map((vendor) {
                               return DataRow(
                                 cells: [
                                   DataCell(
@@ -1211,7 +1754,7 @@ class _VendorsPageState extends State<VendorsPage> {
                         // Previous button
                         ElevatedButton.icon(
                           onPressed: currentPage > 1
-                              ? () => _fetchVendors(page: currentPage - 1)
+                              ? () => _changePage(currentPage - 1)
                               : null,
                           icon: Icon(Icons.chevron_left, size: 14),
                           label: Text(
@@ -1246,7 +1789,7 @@ class _VendorsPageState extends State<VendorsPage> {
                           onPressed:
                               (vendorResponse?.meta != null &&
                                   currentPage < vendorResponse!.meta.lastPage)
-                              ? () => _fetchVendors(page: currentPage + 1)
+                              ? () => _changePage(currentPage + 1)
                               : null,
                           icon: Icon(Icons.chevron_right, size: 14),
                           label: Text('Next', style: TextStyle(fontSize: 11)),
@@ -1391,7 +1934,7 @@ class _VendorsPageState extends State<VendorsPage> {
         Container(
           margin: EdgeInsets.symmetric(horizontal: 1),
           child: ElevatedButton(
-            onPressed: i == current ? null : () => _fetchVendors(page: i),
+            onPressed: i == current ? null : () => _changePage(i),
             style: ElevatedButton.styleFrom(
               backgroundColor: i == current ? Color(0xFF17A2B8) : Colors.white,
               foregroundColor: i == current ? Colors.white : Color(0xFF6C757D),
