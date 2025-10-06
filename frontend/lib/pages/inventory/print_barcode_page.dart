@@ -14,7 +14,6 @@ class PrintBarcodePage extends StatefulWidget {
 
 class _PrintBarcodePageState extends State<PrintBarcodePage> {
   ProductResponse? productResponse;
-  bool isLoading = true;
   String? errorMessage;
   int currentPage = 1;
   final int itemsPerPage =
@@ -44,7 +43,6 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
     if (!mounted) return;
 
     setState(() {
-      isLoading = true;
       errorMessage = null;
     });
 
@@ -59,16 +57,27 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       setState(() {
         productResponse = response;
         currentPage = response.meta.currentPage;
-        isLoading = false;
+        // Clear selections when changing pages
+        selectedProductIds.clear();
+        selectAll = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         errorMessage = e.toString();
-        isLoading = false;
       });
     }
+  }
+
+  Future<void> _changePage(int newPage) async {
+    if (!mounted) return;
+
+    setState(() {
+      currentPage = newPage;
+    });
+
+    await _fetchProducts(page: newPage);
   }
 
   void toggleSelectAll() {
@@ -842,7 +851,9 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               ),
                               SizedBox(width: 3),
                               Text(
-                                '${productResponse?.meta.total ?? 0} Products',
+                                productResponse != null
+                                    ? '${productResponse!.meta.total} Products (Page $currentPage of ${productResponse!.meta.lastPage})'
+                                    : '0 Products',
                                 style: TextStyle(
                                   color: Color(0xFF1976D2),
                                   fontWeight: FontWeight.w500,
@@ -857,30 +868,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   ),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: isLoading
-                        ? Container(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xFF17A2B8),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Loading products...',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : errorMessage != null
+                    child: errorMessage != null
                         ? Container(
                             padding: const EdgeInsets.all(40),
                             child: Center(
@@ -922,40 +910,6 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               ),
                             ),
                           )
-                        : productResponse == null ||
-                              productResponse!.data.isEmpty
-                        ? Container(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.inventory_2_outlined,
-                                    color: Color(0xFF6C757D),
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No products found',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Create your first product to get started',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
                         : DataTable(
                             headingRowColor: WidgetStateProperty.all(
                               Color(0xFFF8F9FA),
@@ -981,7 +935,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               DataColumn(label: Text('Unit')),
                               DataColumn(label: Text('Qty')),
                             ],
-                            rows: productResponse!.data.map((product) {
+                            rows: (productResponse?.data ?? []).map((product) {
                               final quantity =
                                   int.tryParse(product.openingStockQuantity) ??
                                   0;
@@ -1266,38 +1220,121 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
 
             const SizedBox(height: 24),
 
-            // Generate QR Code Button at Bottom
+            // Enhanced Pagination
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: Center(
-                child: ElevatedButton.icon(
-                  onPressed: generateQRCode,
-                  icon: Icon(Icons.qr_code, size: 18),
-                  label: Text('Generate QR Code'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF28A745),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    textStyle: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Previous button
+                  ElevatedButton.icon(
+                    onPressed: currentPage > 1
+                        ? () => _changePage(currentPage - 1)
+                        : null,
+                    icon: Icon(Icons.chevron_left, size: 14),
+                    label: Text('Previous', style: TextStyle(fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: currentPage > 1
+                          ? Color(0xFF17A2B8)
+                          : Color(0xFF6C757D),
+                      elevation: 0,
+                      side: BorderSide(color: Color(0xFFDEE2E6)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+
+                  // Page numbers
+                  ..._buildPageButtons(),
+
+                  const SizedBox(width: 8),
+
+                  // Next button
+                  ElevatedButton.icon(
+                    onPressed:
+                        (productResponse?.meta != null &&
+                            currentPage < productResponse!.meta.lastPage)
+                        ? () => _changePage(currentPage + 1)
+                        : null,
+                    icon: Icon(Icons.chevron_right, size: 14),
+                    label: Text('Next', style: TextStyle(fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          (productResponse?.meta != null &&
+                              currentPage < productResponse!.meta.lastPage)
+                          ? Color(0xFF17A2B8)
+                          : Colors.grey.shade300,
+                      foregroundColor:
+                          (productResponse?.meta != null &&
+                              currentPage < productResponse!.meta.lastPage)
+                          ? Colors.white
+                          : Colors.grey.shade600,
+                      elevation:
+                          (productResponse?.meta != null &&
+                              currentPage < productResponse!.meta.lastPage)
+                          ? 2
+                          : 0,
+                      side:
+                          (productResponse?.meta != null &&
+                              currentPage < productResponse!.meta.lastPage)
+                          ? null
+                          : BorderSide(color: Color(0xFFDEE2E6)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                    ),
+                  ),
+
+                  // Page info
+                  if (productResponse != null) ...[
+                    const SizedBox(width: 16),
+                    Builder(
+                      builder: (context) {
+                        final meta = productResponse!.meta;
+                        return Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Page $currentPage of ${meta.lastPage} (${meta.total} total)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF6C757D),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
               ),
             ),
 
@@ -1353,5 +1390,59 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       // Error loading image
     }
     return null;
+  }
+
+  List<Widget> _buildPageButtons() {
+    if (productResponse?.meta == null) {
+      return [];
+    }
+
+    final meta = productResponse!.meta;
+    final totalPages = meta.lastPage;
+    final current = meta.currentPage;
+
+    // Show max 5 page buttons centered around current page
+    const maxButtons = 5;
+    final halfRange = maxButtons ~/ 2; // 2
+
+    // Calculate desired start and end
+    int startPage = (current - halfRange).clamp(1, totalPages);
+    int endPage = (startPage + maxButtons - 1).clamp(1, totalPages);
+
+    // If endPage exceeds totalPages, adjust startPage
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = (endPage - maxButtons + 1).clamp(1, totalPages);
+    }
+
+    List<Widget> buttons = [];
+
+    for (int i = startPage; i <= endPage; i++) {
+      buttons.add(
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: 1),
+          child: ElevatedButton(
+            onPressed: i == current ? null : () => _changePage(i),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: i == current ? Color(0xFF17A2B8) : Colors.white,
+              foregroundColor: i == current ? Colors.white : Color(0xFF6C757D),
+              elevation: i == current ? 2 : 0,
+              side: i == current ? null : BorderSide(color: Color(0xFFDEE2E6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size(32, 32),
+            ),
+            child: Text(
+              i.toString(),
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return buttons;
   }
 }

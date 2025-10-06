@@ -24,10 +24,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
   int totalPages = 1;
   final int itemsPerPage = 10;
 
-  // Caching for real-time search and filter
-  List<Category> _allCategoriesCache = [];
-  List<Category> _allFilteredCategories = [];
-
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounceTimer;
@@ -35,12 +31,11 @@ class _CategoryListPageState extends State<CategoryListPage> {
   // Image-related state variables
   File? _selectedImage;
   String? _imagePath;
-  String? _localImagePath;
 
   @override
   void initState() {
     super.initState();
-    _fetchAllCategoriesOnInit();
+    _fetchCategories(page: 1);
     _setupSearchListener();
   }
 
@@ -49,40 +44,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      final imageFile = File(pickedFile.path);
-      await _saveImageLocally(imageFile);
-    }
-  }
-
-  Future<void> _saveImageLocally(File imageFile) async {
-    try {
-      final directory = Directory(
-        '${Directory.current.path}/assets/images/categories',
-      );
-      if (!await directory.exists()) {
-        await directory.create(recursive: true);
-      }
-      final fileName = 'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await imageFile.copy('${directory.path}/$fileName');
-      setState(() {
-        _selectedImage = savedImage;
-        _imagePath =
-            'https://zafarcomputers.com/assets/images/categories/$fileName';
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to save image: $e'),
-          backgroundColor: Color(0xFFDC3545),
-        ),
-      );
-    }
   }
 
   Future<Uint8List?> _loadCategoryImage(String imagePath) async {
@@ -148,105 +109,16 @@ class _CategoryListPageState extends State<CategoryListPage> {
     }
   }
 
-  Future<void> _fetchAllCategoriesOnInit() async {
-    try {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-
-      // Fetch ALL categories for client-side filtering
-      List<Category> allCategories = [];
-      int currentPage = 1;
-      bool hasMorePages = true;
-
-      while (hasMorePages) {
-        final pageResponse = await InventoryService.getCategories(
-          page: currentPage,
-          limit: 100, // Fetch in larger chunks for efficiency
-        );
-
-        final categories = pageResponse.data;
-        allCategories.addAll(categories);
-
-        // Check if there are more pages
-        final totalItems = pageResponse.meta.total;
-        final fetchedSoFar = allCategories.length;
-
-        if (fetchedSoFar >= totalItems) {
-          hasMorePages = false;
-        } else {
-          currentPage++;
-        }
-      }
-
-      setState(() {
-        _allCategoriesCache = allCategories;
-        _allFilteredCategories = List.from(allCategories);
-        totalCategories = allCategories.length;
-        totalPages = (allCategories.length / itemsPerPage).ceil();
-        currentPage = 1;
-        isLoading = false;
-      });
-
-      // Apply initial pagination
-      _paginateFilteredCategories();
-    } catch (e) {
-      setState(() {
-        errorMessage = e.toString();
-        isLoading = false;
-      });
-    }
-  }
-
   void _setupSearchListener() {
     _searchController.addListener(() {
       _searchDebounceTimer?.cancel();
       _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-        _applyFiltersClientSide();
+        // Reset to first page when search changes
+        setState(() {
+          currentPage = 1;
+        });
+        _fetchCategories(page: 1);
       });
-    });
-  }
-
-  void _applyFiltersClientSide() {
-    final searchQuery = _searchController.text.toLowerCase().trim();
-
-    setState(() {
-      _allFilteredCategories = _allCategoriesCache.where((category) {
-        // Apply search filter
-        final matchesSearch =
-            searchQuery.isEmpty ||
-            category.title.toLowerCase().contains(searchQuery) ||
-            category.categoryCode.toLowerCase().contains(searchQuery);
-
-        // Apply status filter
-        final matchesStatus =
-            selectedStatus == 'All' ||
-            category.status.toLowerCase() == selectedStatus.toLowerCase();
-
-        return matchesSearch && matchesStatus;
-      }).toList();
-
-      // Reset to first page when filters change
-      currentPage = 1;
-      totalPages = (_allFilteredCategories.length / itemsPerPage).ceil();
-      totalCategories = _allFilteredCategories.length;
-    });
-
-    _paginateFilteredCategories();
-  }
-
-  void _paginateFilteredCategories() {
-    final startIndex = (currentPage - 1) * itemsPerPage;
-    final endIndex = startIndex + itemsPerPage;
-
-    setState(() {
-      categories = _allFilteredCategories.sublist(
-        startIndex,
-        endIndex > _allFilteredCategories.length
-            ? _allFilteredCategories.length
-            : endIndex,
-      );
     });
   }
 
@@ -255,7 +127,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
       setState(() {
         currentPage = page;
       });
-      _paginateFilteredCategories();
+      _fetchCategories(page: page);
     }
   }
 
@@ -284,36 +156,28 @@ class _CategoryListPageState extends State<CategoryListPage> {
       List<Category> allCategoriesForExport = [];
 
       try {
-        // Use the current filtered categories for export
-        allCategoriesForExport = List.from(_allFilteredCategories);
+        // Fetch ALL categories with unlimited pagination
+        allCategoriesForExport = [];
+        int currentPage = 1;
+        bool hasMorePages = true;
 
-        // If no filters are applied, fetch fresh data from server
-        if (_allFilteredCategories.length == _allCategoriesCache.length &&
-            _searchController.text.trim().isEmpty &&
-            selectedStatus == 'All') {
-          // Fetch ALL categories with unlimited pagination
-          allCategoriesForExport = [];
-          int currentPage = 1;
-          bool hasMorePages = true;
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getCategories(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
 
-          while (hasMorePages) {
-            final pageResponse = await InventoryService.getCategories(
-              page: currentPage,
-              limit: 100, // Fetch in chunks of 100
-            );
+          final categories = pageResponse.data;
+          allCategoriesForExport.addAll(categories);
 
-            final categories = pageResponse.data;
-            allCategoriesForExport.addAll(categories);
+          // Check if there are more pages
+          final totalItems = pageResponse.meta.total;
+          final fetchedSoFar = allCategoriesForExport.length;
 
-            // Check if there are more pages
-            final totalItems = pageResponse.meta.total;
-            final fetchedSoFar = allCategoriesForExport.length;
-
-            if (fetchedSoFar >= totalItems) {
-              hasMorePages = false;
-            } else {
-              currentPage++;
-            }
+          if (fetchedSoFar >= totalItems) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
           }
         }
       } catch (e) {
@@ -820,7 +684,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       await InventoryService.createCategory(createData);
 
                       // Refresh the categories cache and apply current filters
-                      await _fetchAllCategoriesOnInit();
+                      await _fetchCategories(page: 1);
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -888,7 +752,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
     // Reset image state for editing
     _selectedImage = null;
     _imagePath = category.imgPath;
-    _localImagePath = null;
 
     await showDialog<bool>(
       context: context,
@@ -1076,8 +939,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                 );
                                 setState(() {
                                   _selectedImage = savedImage;
-                                  _localImagePath =
-                                      'assets/images/categories/$fileName';
                                   _imagePath =
                                       'https://zafarcomputers.com/assets/images/categories/$fileName';
                                 });
@@ -1177,7 +1038,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       );
 
                       // Refresh the categories cache and apply current filters
-                      await _fetchAllCategoriesOnInit();
+                      await _fetchCategories(page: 1);
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1268,7 +1129,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                   await InventoryService.deleteCategory(category.id);
 
                   // Refresh the categories cache and apply current filters
-                  await _fetchAllCategoriesOnInit();
+                  await _fetchCategories(page: 1);
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1922,8 +1783,10 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedStatus = value;
+                                      currentPage =
+                                          1; // Reset to first page when filter changes
                                     });
-                                    _applyFiltersClientSide();
+                                    _fetchCategories(page: 1);
                                   }
                                 },
                               ),
@@ -2373,9 +2236,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
               ),
 
             // Enhanced Pagination
-            if (errorMessage == null && totalPages > 1)
-              const SizedBox(height: 24),
-            if (errorMessage == null && totalPages > 1)
+            if (errorMessage == null) const SizedBox(height: 24),
+            if (errorMessage == null)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -2393,14 +2255,15 @@ class _CategoryListPageState extends State<CategoryListPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: currentPage > 1
+                      onPressed: (currentPage > 1 && totalCategories > 0)
                           ? () => _changePage(currentPage - 1)
                           : null,
                       icon: Icon(Icons.chevron_left, size: 16),
                       label: Text('Previous', style: TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: currentPage > 1
+                        foregroundColor:
+                            (currentPage > 1 && totalCategories > 0)
                             ? Color(0xFF0D1845)
                             : Color(0xFF6C757D),
                         elevation: 0,
@@ -2416,17 +2279,40 @@ class _CategoryListPageState extends State<CategoryListPage> {
                     ),
                     const SizedBox(width: 12),
                     // Dynamic page buttons
-                    ..._buildPageButtons(),
+                    if (totalCategories > 0)
+                      ..._buildPageButtons()
+                    else ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'No categories yet',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF6C757D),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: currentPage < totalPages
+                      onPressed:
+                          (currentPage < totalPages && totalCategories > 0)
                           ? () => _changePage(currentPage + 1)
                           : null,
                       icon: Icon(Icons.chevron_right, size: 16),
                       label: Text('Next', style: TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: currentPage < totalPages
+                        foregroundColor:
+                            (currentPage < totalPages && totalCategories > 0)
                             ? Color(0xFF0D1845)
                             : Color(0xFF6C757D),
                         elevation: 0,
@@ -2440,6 +2326,49 @@ class _CategoryListPageState extends State<CategoryListPage> {
                         ),
                       ),
                     ),
+
+                    // Page info
+                    if (totalCategories > 0) ...[
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Page $currentPage of $totalPages ($totalCategories total)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6C757D),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF8F9FA),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Loading categories...',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6C757D),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
