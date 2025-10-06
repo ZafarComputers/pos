@@ -11,7 +11,7 @@ class SeasonListPage extends StatefulWidget {
 
 class _SeasonListPageState extends State<SeasonListPage> {
   List<season_model.Season> seasons = [];
-  bool isLoading = true;
+  bool isLoading = false;
   String? errorMessage;
   int currentPage = 1;
   int totalPages = 1;
@@ -1119,30 +1119,7 @@ class _SeasonListPageState extends State<SeasonListPage> {
                         await _fetchSeasons(page: 1);
                       },
                       color: Color(0xFFFFA726),
-                      child: isLoading
-                          ? Container(
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFFFFA726),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Loading seasons...',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : errorMessage != null
+                      child: errorMessage != null
                           ? Container(
                               padding: const EdgeInsets.all(40),
                               child: Center(
@@ -1179,39 +1156,6 @@ class _SeasonListPageState extends State<SeasonListPage> {
                                         backgroundColor: Color(0xFFFFA726),
                                         foregroundColor: Colors.white,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : seasons.isEmpty
-                          ? Container(
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.wb_sunny_outlined,
-                                      color: Color(0xFF6C757D),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No seasons found',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Create your first season to get started',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 14,
-                                      ),
-                                      textAlign: TextAlign.center,
                                     ),
                                   ],
                                 ),

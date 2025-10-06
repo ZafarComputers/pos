@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/inventory_service.dart';
 import '../../models/category.dart';
 
@@ -21,8 +24,13 @@ class _CategoryListPageState extends State<CategoryListPage> {
   int totalPages = 1;
   final int itemsPerPage = 10;
 
+  // Caching for real-time search and filter
+  List<Category> _allCategoriesCache = [];
+  List<Category> _allFilteredCategories = [];
+
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounceTimer;
 
   // Image-related state variables
   File? _selectedImage;
@@ -32,7 +40,15 @@ class _CategoryListPageState extends State<CategoryListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchCategories();
+    _fetchAllCategoriesOnInit();
+    _setupSearchListener();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _pickImage() async {
@@ -132,40 +148,465 @@ class _CategoryListPageState extends State<CategoryListPage> {
     }
   }
 
-  void exportToPDF() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.picture_as_pdf, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Exporting categories to PDF... (Feature coming soon)'),
-          ],
-        ),
-        backgroundColor: Color(0xFFDC3545),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<void> _fetchAllCategoriesOnInit() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      // Fetch ALL categories for client-side filtering
+      List<Category> allCategories = [];
+      int currentPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        final pageResponse = await InventoryService.getCategories(
+          page: currentPage,
+          limit: 100, // Fetch in larger chunks for efficiency
+        );
+
+        final categories = pageResponse.data;
+        allCategories.addAll(categories);
+
+        // Check if there are more pages
+        final totalItems = pageResponse.meta.total;
+        final fetchedSoFar = allCategories.length;
+
+        if (fetchedSoFar >= totalItems) {
+          hasMorePages = false;
+        } else {
+          currentPage++;
+        }
+      }
+
+      setState(() {
+        _allCategoriesCache = allCategories;
+        _allFilteredCategories = List.from(allCategories);
+        totalCategories = allCategories.length;
+        totalPages = (allCategories.length / itemsPerPage).ceil();
+        currentPage = 1;
+        isLoading = false;
+      });
+
+      // Apply initial pagination
+      _paginateFilteredCategories();
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
   }
 
-  void exportToExcel() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.file_download, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Exporting categories to Excel... (Feature coming soon)'),
-          ],
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      _searchDebounceTimer?.cancel();
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _applyFiltersClientSide();
+      });
+    });
+  }
+
+  void _applyFiltersClientSide() {
+    final searchQuery = _searchController.text.toLowerCase().trim();
+
+    setState(() {
+      _allFilteredCategories = _allCategoriesCache.where((category) {
+        // Apply search filter
+        final matchesSearch =
+            searchQuery.isEmpty ||
+            category.title.toLowerCase().contains(searchQuery) ||
+            category.categoryCode.toLowerCase().contains(searchQuery);
+
+        // Apply status filter
+        final matchesStatus =
+            selectedStatus == 'All' ||
+            category.status.toLowerCase() == selectedStatus.toLowerCase();
+
+        return matchesSearch && matchesStatus;
+      }).toList();
+
+      // Reset to first page when filters change
+      currentPage = 1;
+      totalPages = (_allFilteredCategories.length / itemsPerPage).ceil();
+      totalCategories = _allFilteredCategories.length;
+    });
+
+    _paginateFilteredCategories();
+  }
+
+  void _paginateFilteredCategories() {
+    final startIndex = (currentPage - 1) * itemsPerPage;
+    final endIndex = startIndex + itemsPerPage;
+
+    setState(() {
+      categories = _allFilteredCategories.sublist(
+        startIndex,
+        endIndex > _allFilteredCategories.length
+            ? _allFilteredCategories.length
+            : endIndex,
+      );
+    });
+  }
+
+  void _changePage(int page) {
+    if (page >= 1 && page <= totalPages) {
+      setState(() {
+        currentPage = page;
+      });
+      _paginateFilteredCategories();
+    }
+  }
+
+  void exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all categories...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL categories from database for export
+      List<Category> allCategoriesForExport = [];
+
+      try {
+        // Use the current filtered categories for export
+        allCategoriesForExport = List.from(_allFilteredCategories);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredCategories.length == _allCategoriesCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL categories with unlimited pagination
+          allCategoriesForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getCategories(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            final categories = pageResponse.data;
+            allCategoriesForExport.addAll(categories);
+
+            // Check if there are more pages
+            final totalItems = pageResponse.meta.total;
+            final fetchedSoFar = allCategoriesForExport.length;
+
+            if (fetchedSoFar >= totalItems) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all categories: $e');
+        // Fallback to current data
+        allCategoriesForExport = categories.isNotEmpty ? categories : [];
+      }
+
+      if (allCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allCategoriesForExport.length} categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(
+        13,
+        24,
+        69,
+      ); // Categories theme color
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 4);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths for categories
+      grid.columns[0].width = tableWidth * 0.30; // 30% - Category Name
+      grid.columns[1].width = tableWidth * 0.25; // 25% - Category Code
+      grid.columns[2].width = tableWidth * 0.20; // 20% - Status
+      grid.columns[3].width = tableWidth * 0.25; // 25% - Created Date
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Category Name';
+      headerRow.cells[1].value = 'Category Code';
+      headerRow.cells[2].value = 'Status';
+      headerRow.cells[3].value = 'Created Date';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all category data rows
+      for (var category in allCategoriesForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = category.title;
+        row.cells[1].value = category.categoryCode;
+        row.cells[2].value = category.status;
+        row.cells[3].value = _formatDate(category.createdAt);
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          row.cells[i].style = PdfGridCellStyle(
+            font: smallFont,
+            textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+            format: PdfStringFormat(
+              alignment: i == 2
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.top,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+
+        // Color code status
+        if (category.status == 'Active') {
+          row.cells[2].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[2].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[2].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[2].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Categories Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
         ),
-        backgroundColor: Color(0xFF28A745),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+
+      headerTemplate.graphics.drawString(
+        'Total Categories: ${allCategoriesForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | Product Categories Report',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allCategoriesForExport.length} Total Categories | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allCategoriesForExport.length} categories',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Categories Database PDF',
+        fileName: 'categories_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Categories Exported!\n📊 ${allCategoriesForExport.length} categories across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void addNewCategory() async {
@@ -378,8 +819,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
 
                       await InventoryService.createCategory(createData);
 
-                      // Refresh the categories list
-                      await _fetchCategories(page: currentPage);
+                      // Refresh the categories cache and apply current filters
+                      await _fetchAllCategoriesOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -735,8 +1176,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
                         updateData,
                       );
 
-                      // Refresh the categories list
-                      await _fetchCategories(page: currentPage);
+                      // Refresh the categories cache and apply current filters
+                      await _fetchAllCategoriesOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -826,8 +1267,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
 
                   await InventoryService.deleteCategory(category.id);
 
-                  // Refresh the categories list
-                  await _fetchCategories(page: currentPage);
+                  // Refresh the categories cache and apply current filters
+                  await _fetchAllCategoriesOnInit();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1146,6 +1587,58 @@ class _CategoryListPageState extends State<CategoryListPage> {
     }
   }
 
+  List<Widget> _buildPageButtons() {
+    List<Widget> buttons = [];
+    int startPage = 1;
+    int endPage = totalPages;
+
+    // Show max 5 page buttons
+    if (totalPages > 5) {
+      if (currentPage <= 3) {
+        endPage = 5;
+      } else if (currentPage >= totalPages - 2) {
+        startPage = totalPages - 4;
+      } else {
+        startPage = currentPage - 2;
+        endPage = currentPage + 2;
+      }
+    }
+
+    for (int i = startPage; i <= endPage; i++) {
+      buttons.add(
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: 2),
+          child: ElevatedButton(
+            onPressed: () => _changePage(i),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: i == currentPage
+                  ? Color(0xFF0D1845)
+                  : Colors.white,
+              foregroundColor: i == currentPage
+                  ? Colors.white
+                  : Color(0xFF6C757D),
+              elevation: i == currentPage ? 2 : 0,
+              side: i == currentPage
+                  ? null
+                  : BorderSide(color: Color(0xFFDEE2E6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: Size(36, 36),
+            ),
+            child: Text(
+              i.toString(),
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return buttons;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1219,33 +1712,14 @@ class _CategoryListPageState extends State<CategoryListPage> {
                   Row(
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(right: 8),
+                        margin: const EdgeInsets.only(right: 16),
                         child: ElevatedButton.icon(
                           onPressed: exportToPDF,
                           icon: Icon(Icons.picture_as_pdf, size: 16),
-                          label: Text('PDF'),
+                          label: Text('Export PDF'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToExcel,
-                          icon: Icon(Icons.file_download, size: 16),
-                          label: Text('Excel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
@@ -1449,6 +1923,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                     setState(() {
                                       selectedStatus = value;
                                     });
+                                    _applyFiltersClientSide();
                                   }
                                 },
                               ),
@@ -1463,14 +1938,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
             ),
             const SizedBox(height: 24),
 
-            // Loading and Error States
-            if (isLoading)
-              Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
-                ),
-              )
-            else if (errorMessage != null)
+            // Error State (removed loading state)
+            if (errorMessage != null)
               Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1904,8 +2373,9 @@ class _CategoryListPageState extends State<CategoryListPage> {
               ),
 
             // Enhanced Pagination
-            if (!isLoading && errorMessage == null) const SizedBox(height: 24),
-            if (!isLoading && errorMessage == null)
+            if (errorMessage == null && totalPages > 1)
+              const SizedBox(height: 24),
+            if (errorMessage == null && totalPages > 1)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -1923,12 +2393,16 @@ class _CategoryListPageState extends State<CategoryListPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () {},
+                      onPressed: currentPage > 1
+                          ? () => _changePage(currentPage - 1)
+                          : null,
                       icon: Icon(Icons.chevron_left, size: 16),
                       label: Text('Previous', style: TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Color(0xFF6C757D),
+                        foregroundColor: currentPage > 1
+                            ? Color(0xFF0D1845)
+                            : Color(0xFF6C757D),
                         elevation: 0,
                         side: BorderSide(color: Color(0xFFDEE2E6)),
                         shape: RoundedRectangleBorder(
@@ -1941,48 +2415,20 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    for (int i = 1; i <= 3; i++)
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 2),
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: i == 1
-                                ? Color(0xFF0D1845)
-                                : Colors.white,
-                            foregroundColor: i == 1
-                                ? Colors.white
-                                : Color(0xFF6C757D),
-                            elevation: i == 1 ? 2 : 0,
-                            side: i == 1
-                                ? null
-                                : BorderSide(color: Color(0xFFDEE2E6)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            minimumSize: Size(36, 36),
-                          ),
-                          child: Text(
-                            i.toString(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
+                    // Dynamic page buttons
+                    ..._buildPageButtons(),
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
-                      onPressed: () {},
+                      onPressed: currentPage < totalPages
+                          ? () => _changePage(currentPage + 1)
+                          : null,
                       icon: Icon(Icons.chevron_right, size: 16),
                       label: Text('Next', style: TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Color(0xFF6C757D),
+                        foregroundColor: currentPage < totalPages
+                            ? Color(0xFF0D1845)
+                            : Color(0xFF6C757D),
                         elevation: 0,
                         side: BorderSide(color: Color(0xFFDEE2E6)),
                         shape: RoundedRectangleBorder(

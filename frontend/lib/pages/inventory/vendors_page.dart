@@ -19,7 +19,9 @@ class _VendorsPageState extends State<VendorsPage> {
   List<vendor.Vendor> _filteredVendors = [];
   List<vendor.Vendor> _allFilteredVendors =
       []; // Store all filtered vendors for local pagination
-  bool isLoading = true;
+  List<vendor.Vendor> _allVendorsCache =
+      []; // Cache for all vendors to avoid refetching
+  bool isLoading = false; // Start with false to show UI immediately
   String? errorMessage;
   int currentPage = 1;
   final int itemsPerPage = 10;
@@ -27,10 +29,14 @@ class _VendorsPageState extends State<VendorsPage> {
   Timer? _searchDebounceTimer; // Add debounce timer for search
   bool _isFilterActive = false; // Track if any filter is currently active
 
+  // Search and filter controllers
+  final TextEditingController _searchController = TextEditingController();
+  String selectedStatus = 'All';
+
   @override
   void initState() {
     super.initState();
-    _fetchVendors();
+    _fetchAllVendorsOnInit(); // Fetch all vendors once on page load
     _setupSearchListener();
   }
 
@@ -41,46 +47,11 @@ class _VendorsPageState extends State<VendorsPage> {
     super.dispose();
   }
 
-  void _setupSearchListener() {
-    _searchController.addListener(() {
-      // Cancel previous timer
-      _searchDebounceTimer?.cancel();
-
-      // Set new timer for debounced search (500ms delay)
-      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-        setState(() {
-          currentPage = 1; // Reset to first page when search changes
-        });
-        // Apply filters when search changes
-        _applyFilters();
-      });
-    });
-  }
-
-  // New method to handle filter application
-  Future<void> _applyFilters() async {
-    final searchText = _searchController.text.toLowerCase().trim();
-    final hasSearch = searchText.isNotEmpty;
-    final hasStatusFilter = selectedStatus != 'All';
-
-    setState(() {
-      _isFilterActive = hasSearch || hasStatusFilter;
-    });
-
-    if (_isFilterActive) {
-      // Fetch all vendors when filters are active
-      await _fetchAllVendorsForFiltering();
-    } else {
-      // Use normal pagination when no filters
-      await _fetchVendors(page: 1);
-    }
-  }
-
-  // Fetch all vendors and apply filters locally
-  Future<void> _fetchAllVendorsForFiltering() async {
+  // Fetch all vendors once when page loads
+  Future<void> _fetchAllVendorsOnInit() async {
     try {
+      print('🚀 Initial load: Fetching all vendors');
       setState(() {
-        isLoading = true;
         errorMessage = null;
       });
 
@@ -90,43 +61,143 @@ class _VendorsPageState extends State<VendorsPage> {
       bool hasMorePages = true;
 
       while (hasMorePages) {
-        final response = await InventoryService.getVendors(
-          page: currentFetchPage,
-          limit: 50, // Use larger page size for efficiency
-        );
+        try {
+          print('📡 Fetching page $currentFetchPage');
+          final response = await InventoryService.getVendors(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
 
-        allVendors.addAll(response.data);
+          allVendors.addAll(response.data);
+          print(
+            '📦 Page $currentFetchPage: ${response.data.length} vendors (total: ${allVendors.length})',
+          );
 
-        // Check if there are more pages
-        if (response.meta.currentPage >= response.meta.lastPage) {
-          hasMorePages = false;
-        } else {
-          currentFetchPage++;
+          // Check if there are more pages
+          if (response.meta.currentPage >= response.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
         }
       }
 
-      // Apply filters to all vendors
+      _allVendorsCache = allVendors;
+      print('💾 Cached ${_allVendorsCache.length} total vendors');
+
+      // Apply initial filters (which will be no filters, showing all vendors)
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _fetchAllVendorsOnInit: $e');
+      setState(() {
+        errorMessage = 'Failed to load vendors. Please refresh the page.';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      // Cancel previous timer
+      _searchDebounceTimer?.cancel();
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        print('🔍 Search triggered: "${_searchController.text}"');
+        setState(() {
+          currentPage = 1; // Reset to first page when search changes
+        });
+        // Apply filters when search changes
+        _applyFilters();
+      });
+    });
+  }
+
+  // Client-side only filter application
+  void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
+    _applyFiltersClientSide();
+  }
+
+  // Pure client-side filtering method
+  void _applyFiltersClientSide() {
+    try {
       final searchText = _searchController.text.toLowerCase().trim();
-      _allFilteredVendors = allVendors.where((vendor) {
-        // Status filter
-        if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+      final hasSearch = searchText.isNotEmpty;
+      final hasStatusFilter = selectedStatus != 'All';
+
+      print(
+        '🎯 Client-side filtering - search: "$searchText", status: "$selectedStatus"',
+      );
+      print('📊 hasSearch: $hasSearch, hasStatusFilter: $hasStatusFilter');
+
+      setState(() {
+        _isFilterActive = hasSearch || hasStatusFilter;
+      });
+
+      // Apply filters to cached vendors (no API calls)
+      _filterCachedVendors(searchText);
+
+      print('🔄 _isFilterActive: $_isFilterActive');
+      print('📦 _allVendorsCache.length: ${_allVendorsCache.length}');
+      print('🎯 _allFilteredVendors.length: ${_allFilteredVendors.length}');
+      print('👀 _filteredVendors.length: ${_filteredVendors.length}');
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        errorMessage = 'Search error: Please try a different search term';
+        isLoading = false;
+        _filteredVendors = [];
+      });
+    }
+  }
+
+  // Filter cached vendors without any API calls
+  void _filterCachedVendors(String searchText) {
+    try {
+      // Apply filters to cached vendors with enhanced error handling
+      _allFilteredVendors = _allVendorsCache.where((vendor) {
+        try {
+          // Status filter
+          if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in multiple fields with better null safety and error handling
+          final vendorFullName = vendor.fullName.toLowerCase();
+          final vendorCode = vendor.vendorCode.toLowerCase();
+          final vendorFirstName = vendor.firstName.toLowerCase();
+          final vendorLastName = vendor.lastName.toLowerCase();
+          final vendorCnic = vendor.cnic.toLowerCase();
+          final vendorAddress = vendor.address?.toLowerCase() ?? '';
+          final vendorCity = vendor.city.title.toLowerCase();
+
+          return vendorFullName.contains(searchText) ||
+              vendorCode.contains(searchText) ||
+              vendorFirstName.contains(searchText) ||
+              vendorLastName.contains(searchText) ||
+              vendorCnic.contains(searchText) ||
+              vendorAddress.contains(searchText) ||
+              vendorCity.contains(searchText);
+        } catch (e) {
+          // If there's any error during filtering, exclude this vendor
+          print('⚠️ Error filtering vendor ${vendor.id}: $e');
           return false;
         }
-
-        // Search filter
-        if (searchText.isEmpty) {
-          return true;
-        }
-
-        // Search in multiple fields
-        return vendor.fullName.toLowerCase().contains(searchText) ||
-            vendor.vendorCode.toLowerCase().contains(searchText) ||
-            vendor.firstName.toLowerCase().contains(searchText) ||
-            vendor.lastName.toLowerCase().contains(searchText) ||
-            vendor.cnic.toLowerCase().contains(searchText) ||
-            (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
-            vendor.city.title.toLowerCase().contains(searchText);
       }).toList();
+
+      print(
+        '🔍 After filtering: ${_allFilteredVendors.length} vendors match criteria',
+      );
+      print('📝 Search text: "$searchText", Status filter: "$selectedStatus"');
 
       // Apply local pagination to filtered results
       _paginateFilteredVendors();
@@ -135,29 +206,73 @@ class _VendorsPageState extends State<VendorsPage> {
         isLoading = false;
       });
     } catch (e) {
+      print('❌ Critical error in _filterCachedVendors: $e');
       setState(() {
-        errorMessage = e.toString();
+        errorMessage =
+            'Search failed. Please try again with a simpler search term.';
         isLoading = false;
+        // Fallback: show empty results instead of crashing
+        _filteredVendors = [];
+        _allFilteredVendors = [];
       });
     }
   }
 
   // Apply local pagination to filtered vendors
   void _paginateFilteredVendors() {
-    final startIndex = (currentPage - 1) * itemsPerPage;
-    final endIndex = startIndex + itemsPerPage;
+    try {
+      // Handle empty results case
+      if (_allFilteredVendors.isEmpty) {
+        setState(() {
+          _filteredVendors = [];
+          // Update vendorResponse meta for pagination controls
+          vendorResponse = vendor.VendorResponse(
+            data: [],
+            links: vendor.Links(),
+            meta: vendor.Meta(
+              currentPage: 1,
+              lastPage: 1,
+              links: [],
+              path: "/vendors",
+              perPage: itemsPerPage,
+              total: 0,
+            ),
+          );
+        });
+        return;
+      }
 
-    setState(() {
-      _filteredVendors = _allFilteredVendors.sublist(
-        startIndex,
-        endIndex > _allFilteredVendors.length
-            ? _allFilteredVendors.length
-            : endIndex,
-      );
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
 
-      // Update vendorResponse meta for pagination controls
-      if (vendorResponse != null) {
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredVendors.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredVendors(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        _filteredVendors = _allFilteredVendors.sublist(
+          startIndex,
+          endIndex > _allFilteredVendors.length
+              ? _allFilteredVendors.length
+              : endIndex,
+        );
+
+        // Update vendorResponse meta for pagination controls
         final totalPages = (_allFilteredVendors.length / itemsPerPage).ceil();
+        print('📄 Pagination calculation:');
+        print(
+          '   📊 _allFilteredVendors.length: ${_allFilteredVendors.length}',
+        );
+        print('   📝 itemsPerPage: $itemsPerPage');
+        print('   🔢 totalPages: $totalPages');
+        print('   📍 currentPage: $currentPage');
+
         vendorResponse = vendor.VendorResponse(
           data: _filteredVendors,
           links: vendor.Links(), // Empty links for local pagination
@@ -170,8 +285,14 @@ class _VendorsPageState extends State<VendorsPage> {
             total: _allFilteredVendors.length,
           ),
         );
-      }
-    });
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredVendors: $e');
+      setState(() {
+        _filteredVendors = [];
+        currentPage = 1;
+      });
+    }
   }
 
   // Handle page changes for both filtered and normal pagination
@@ -180,11 +301,11 @@ class _VendorsPageState extends State<VendorsPage> {
       currentPage = newPage;
     });
 
-    if (_isFilterActive) {
-      // Use local pagination for filtered results
+    // Always use client-side pagination when we have cached vendors
+    if (_allVendorsCache.isNotEmpty) {
       _paginateFilteredVendors();
     } else {
-      // Use server pagination for normal browsing
+      // Fallback to server pagination only if no cached data
       await _fetchVendors(page: newPage);
     }
   }
@@ -214,9 +335,6 @@ class _VendorsPageState extends State<VendorsPage> {
     }
   }
 
-  String selectedStatus = 'All';
-  final TextEditingController _searchController = TextEditingController();
-
   Future<void> exportToPDF() async {
     try {
       // Show loading indicator
@@ -231,89 +349,39 @@ class _VendorsPageState extends State<VendorsPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
                 ),
                 SizedBox(width: 16),
-                Text('Fetching all vendors...'),
+                Text('Preparing export...'),
               ],
             ),
           );
         },
       );
 
-      // Always fetch ALL vendors from database for export
-      List<vendor.Vendor> allVendorsForExport = [];
+      // Use cached vendors for export, apply current filters
+      List<vendor.Vendor> allVendorsForExport = List.from(_allVendorsCache);
 
-      try {
-        // Fetch ALL vendors with unlimited pagination
-        int currentPage = 1;
-        bool hasMorePages = true;
-
-        while (hasMorePages) {
-          final pageResponse = await InventoryService.getVendors(
-            page: currentPage,
-            limit: 100, // Fetch in chunks of 100
-          );
-
-          allVendorsForExport.addAll(pageResponse.data);
-
-          // Check if there are more pages
-          if (pageResponse.meta.currentPage >= pageResponse.meta.lastPage) {
-            hasMorePages = false;
-          } else {
-            currentPage++;
+      // Apply filters if any are active
+      if (_searchController.text.isNotEmpty || selectedStatus != 'All') {
+        final searchText = _searchController.text.toLowerCase().trim();
+        allVendorsForExport = allVendorsForExport.where((vendor) {
+          // Status filter
+          if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+            return false;
           }
 
-          // Update loading message
-          Navigator.of(context).pop();
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                content: Row(
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF17A2B8),
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Text('Fetched ${allVendorsForExport.length} vendors...'),
-                  ],
-                ),
-              );
-            },
-          );
-        }
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
 
-        // Apply filters if any are active
-        if (_searchController.text.isNotEmpty || selectedStatus != 'All') {
-          final searchText = _searchController.text.toLowerCase().trim();
-          allVendorsForExport = allVendorsForExport.where((vendor) {
-            // Status filter
-            if (selectedStatus != 'All' && vendor.status != selectedStatus) {
-              return false;
-            }
-
-            // Search filter
-            if (searchText.isEmpty) {
-              return true;
-            }
-
-            // Search in multiple fields
-            return vendor.fullName.toLowerCase().contains(searchText) ||
-                vendor.vendorCode.toLowerCase().contains(searchText) ||
-                vendor.firstName.toLowerCase().contains(searchText) ||
-                vendor.lastName.toLowerCase().contains(searchText) ||
-                vendor.cnic.toLowerCase().contains(searchText) ||
-                (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
-                vendor.city.title.toLowerCase().contains(searchText);
-          }).toList();
-        }
-      } catch (e) {
-        print('Error fetching all vendors: $e');
-        // Fallback to current data
-        allVendorsForExport = _filteredVendors.isNotEmpty
-            ? _filteredVendors
-            : (vendorResponse?.data ?? []);
+          // Search in multiple fields
+          return vendor.fullName.toLowerCase().contains(searchText) ||
+              vendor.vendorCode.toLowerCase().contains(searchText) ||
+              vendor.firstName.toLowerCase().contains(searchText) ||
+              vendor.lastName.toLowerCase().contains(searchText) ||
+              vendor.cnic.toLowerCase().contains(searchText) ||
+              (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
+              vendor.city.title.toLowerCase().contains(searchText);
+        }).toList();
       }
 
       if (allVendorsForExport.isEmpty) {
@@ -633,8 +701,8 @@ class _VendorsPageState extends State<VendorsPage> {
       builder: (BuildContext context) {
         return AddVendorDialog(
           onVendorAdded: () {
-            // Refresh the vendor list after adding
-            _fetchVendors();
+            // Refresh the vendor cache after adding
+            _fetchAllVendorsOnInit();
           },
         );
       },
@@ -1011,8 +1079,8 @@ class _VendorsPageState extends State<VendorsPage> {
         return EditVendorDialog(
           vendorData: vendor,
           onVendorUpdated: () {
-            // Refresh the vendor list after updating, staying on current page
-            _fetchVendors(page: currentPage);
+            // Refresh the vendor cache after updating, staying on current page
+            _fetchAllVendorsOnInit();
           },
         );
       },
@@ -1066,23 +1134,46 @@ class _VendorsPageState extends State<VendorsPage> {
                   await InventoryService.deleteVendor(vendor.id);
 
                   if (mounted) {
-                    // Refresh the vendor list - check if current page needs adjustment
-                    final currentVendors = vendorResponse?.data ?? [];
-                    final remainingVendors = currentVendors
-                        .where((v) => v.id != vendor.id)
-                        .toList();
+                    // Remove from cache and update UI in real-time
+                    setState(() {
+                      _allVendorsCache.removeWhere((v) => v.id == vendor.id);
+                    });
 
-                    // If current page becomes empty after deletion, go to previous page
-                    if (remainingVendors.isEmpty && currentPage > 1) {
-                      _fetchVendors(page: currentPage - 1);
-                    } else {
-                      _fetchVendors(page: currentPage);
+                    // Re-apply current filters to update the display
+                    _applyFiltersClientSide();
+
+                    // If current page is now empty and we're not on page 1, go to previous page
+                    if (_filteredVendors.isEmpty && currentPage > 1) {
+                      setState(() {
+                        currentPage = currentPage - 1;
+                      });
+                      _paginateFilteredVendors();
                     }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Vendor "${vendor.fullName}" deleted successfully',
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Color(0xFF28A745),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
                   }
                 } catch (e) {
                   if (mounted) {
-                    // Error occurred, but we'll just refresh the list to show current state
-                    _fetchVendors(page: currentPage);
+                    // Error occurred, but we'll just refresh the cache to show current state
+                    _fetchAllVendorsOnInit();
                   }
                 } finally {
                   if (mounted) {

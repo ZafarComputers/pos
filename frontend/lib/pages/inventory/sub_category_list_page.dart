@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../services/inventory_service.dart';
 import '../../models/sub_category.dart';
 import '../../models/category.dart';
@@ -15,7 +18,7 @@ class SubCategoryListPage extends StatefulWidget {
 
 class _SubCategoryListPageState extends State<SubCategoryListPage> {
   List<SubCategory> subCategories = [];
-  bool isLoading = true;
+  bool isLoading = false;
   bool isPaginationLoading = false;
   String? errorMessage;
   int currentPage = 1;
@@ -23,9 +26,14 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   int totalPages = 1;
   final int itemsPerPage = 10;
 
+  // Caching for real-time search and filter
+  List<SubCategory> _allSubCategoriesCache = [];
+  List<SubCategory> _allFilteredSubCategories = [];
+
   String selectedCategory = 'All';
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounceTimer;
 
   // Image-related state variables
   File? _selectedImage;
@@ -36,8 +44,16 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchSubCategories();
+    _fetchAllSubCategoriesOnInit();
     _fetchCategories();
+    _setupSearchListener();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchSubCategories({int page = 1}) async {
@@ -64,6 +80,125 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
         errorMessage = e.toString();
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchAllSubCategoriesOnInit() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      // Fetch ALL sub categories for client-side filtering
+      List<SubCategory> allSubCategories = [];
+      int currentPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        final pageResponse = await InventoryService.getSubCategories(
+          page: currentPage,
+          limit: 100, // Fetch in larger chunks for efficiency
+        );
+
+        final subCategories = pageResponse.data;
+        allSubCategories.addAll(subCategories);
+
+        // Check if there are more pages
+        final totalItems = pageResponse.meta.total;
+        final fetchedSoFar = allSubCategories.length;
+
+        if (fetchedSoFar >= totalItems) {
+          hasMorePages = false;
+        } else {
+          currentPage++;
+        }
+      }
+
+      setState(() {
+        _allSubCategoriesCache = allSubCategories;
+        _allFilteredSubCategories = List.from(allSubCategories);
+        totalSubCategories = allSubCategories.length;
+        totalPages = (allSubCategories.length / itemsPerPage).ceil();
+        currentPage = 1;
+        isLoading = false;
+      });
+
+      // Apply initial pagination
+      _paginateFilteredSubCategories();
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      _searchDebounceTimer?.cancel();
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _applyFiltersClientSide();
+      });
+    });
+  }
+
+  void _applyFiltersClientSide() {
+    final searchQuery = _searchController.text.toLowerCase().trim();
+
+    setState(() {
+      // Apply filters to cached sub categories
+      _allFilteredSubCategories = _allSubCategoriesCache.where((subCategory) {
+        // Apply search filter
+        final matchesSearch =
+            searchQuery.isEmpty ||
+            subCategory.title.toLowerCase().contains(searchQuery) ||
+            subCategory.subCategoryCode.toLowerCase().contains(searchQuery) ||
+            (subCategory.category?.title.toLowerCase().contains(searchQuery) ??
+                false);
+
+        // Apply status filter
+        final matchesStatus =
+            selectedStatus == 'All' ||
+            subCategory.status.toLowerCase() == selectedStatus.toLowerCase();
+
+        // Apply category filter
+        final matchesCategory =
+            selectedCategory == 'All' ||
+            (subCategory.category?.title == selectedCategory);
+
+        return matchesSearch && matchesStatus && matchesCategory;
+      }).toList();
+
+      // Reset to first page when filters change
+      currentPage = 1;
+      totalPages = (_allFilteredSubCategories.length / itemsPerPage).ceil();
+      totalSubCategories = _allFilteredSubCategories.length;
+    });
+
+    _paginateFilteredSubCategories();
+  }
+
+  void _paginateFilteredSubCategories() {
+    final startIndex = (currentPage - 1) * itemsPerPage;
+    final endIndex = startIndex + itemsPerPage;
+
+    setState(() {
+      subCategories = _allFilteredSubCategories.sublist(
+        startIndex,
+        endIndex > _allFilteredSubCategories.length
+            ? _allFilteredSubCategories.length
+            : endIndex,
+      );
+    });
+  }
+
+  void _changePage(int page) {
+    if (page >= 1 && page <= totalPages) {
+      setState(() {
+        currentPage = page;
+      });
+      _paginateFilteredSubCategories();
     }
   }
 
@@ -115,40 +250,374 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
     return null;
   }
 
-  void exportToPDF() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.picture_as_pdf, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Exporting sub-categories to PDF... (Feature coming soon)'),
-          ],
-        ),
-        backgroundColor: Color(0xFFDC3545),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+  Future<void> exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all sub-categories...'),
+              ],
+            ),
+          );
+        },
+      );
 
-  void exportToExcel() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.file_download, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Exporting sub-categories to Excel... (Feature coming soon)'),
-          ],
+      // Always fetch ALL sub-categories from database for export
+      List<SubCategory> allSubCategoriesForExport = [];
+
+      try {
+        // Use the current filtered sub categories for export
+        allSubCategoriesForExport = List.from(_allFilteredSubCategories);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredSubCategories.length == _allSubCategoriesCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All' &&
+            selectedCategory == 'All') {
+          // Fetch ALL sub-categories with unlimited pagination
+          allSubCategoriesForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getSubCategories(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allSubCategoriesForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.meta.currentPage >= pageResponse.meta.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all sub-categories: $e');
+        // Fallback to current data
+        allSubCategoriesForExport = subCategories.isNotEmpty
+            ? subCategories
+            : [];
+      }
+
+      if (allSubCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No sub-categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allSubCategoriesForExport.length} sub-categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(
+        111,
+        66,
+        193,
+      ); // Sub-category theme color
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 5);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths for sub-categories
+      grid.columns[0].width = tableWidth * 0.15; // 15% - Sub Category Code
+      grid.columns[1].width = tableWidth * 0.25; // 25% - Sub Category Name
+      grid.columns[2].width = tableWidth * 0.20; // 20% - Category
+      grid.columns[3].width = tableWidth * 0.15; // 15% - Status
+      grid.columns[4].width = tableWidth * 0.25; // 25% - Created Date
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Sub Category Code';
+      headerRow.cells[1].value = 'Sub Category Name';
+      headerRow.cells[2].value = 'Category';
+      headerRow.cells[3].value = 'Status';
+      headerRow.cells[4].value = 'Created Date';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all sub-category data rows
+      for (var subCategory in allSubCategoriesForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = subCategory.subCategoryCode;
+        row.cells[1].value = subCategory.title;
+        row.cells[2].value = subCategory.category?.title ?? 'N/A';
+        row.cells[3].value = subCategory.status;
+
+        // Format created date
+        String formattedDate = 'N/A';
+        try {
+          final date = DateTime.parse(subCategory.createdAt);
+          formattedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+        row.cells[4].value = formattedDate;
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          row.cells[i].style = PdfGridCellStyle(
+            font: smallFont,
+            textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+            format: PdfStringFormat(
+              alignment: i == 3
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.top,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+
+        // Color code status
+        if (subCategory.status == 'Active') {
+          row.cells[3].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[3].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[3].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[3].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Complete Sub Categories Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
         ),
-        backgroundColor: Color(0xFF28A745),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+
+      String filterInfo = 'Filters: ';
+      List<String> filters = [];
+      if (selectedStatus != 'All') filters.add('Status=$selectedStatus');
+      if (selectedCategory != 'All') filters.add('Category=$selectedCategory');
+      if (_searchController.text.isNotEmpty)
+        filters.add('Search="${_searchController.text}"');
+      if (filters.isEmpty) filters.add('All');
+
+      headerTemplate.graphics.drawString(
+        'Total Sub Categories: ${allSubCategoriesForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | $filterInfo${filters.join(', ')}',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allSubCategoriesForExport.length} Total Sub Categories | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allSubCategoriesForExport.length} sub-categories',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Sub Categories Database PDF',
+        fileName:
+            'complete_sub_categories_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allSubCategoriesForExport.length} sub-categories across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void addNewSubCategory() async {
@@ -440,12 +909,13 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                             );
                           }
                         } catch (e) {
-                          // Image rename failed, but subcategory was created successfully
-                          print('Failed to rename image file: $e');
+                          // Handle file operation errors silently or log them
+                          print('Error handling image file: $e');
                         }
                       }
 
                       // Refresh the subcategories list
+                      await _fetchAllSubCategoriesOnInit();
                       await _fetchSubCategories(page: currentPage);
 
                       if (!mounted) return;
@@ -789,6 +1259,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                       );
 
                       // Refresh the subcategories list
+                      await _fetchAllSubCategoriesOnInit();
                       await _fetchSubCategories(page: currentPage);
 
                       if (!mounted) return;
@@ -880,6 +1351,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                   await InventoryService.deleteSubCategory(subCategory.id);
 
                   // Refresh the subcategories list
+                  await _fetchAllSubCategoriesOnInit();
                   await _fetchSubCategories(page: currentPage);
 
                   if (!mounted) return;
@@ -1260,33 +1732,14 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                   Row(
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(right: 8),
+                        margin: const EdgeInsets.only(right: 16),
                         child: ElevatedButton.icon(
                           onPressed: exportToPDF,
                           icon: Icon(Icons.picture_as_pdf, size: 16),
-                          label: Text('PDF'),
+                          label: Text('Export PDF'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToExcel,
-                          icon: Icon(Icons.file_download, size: 16),
-                          label: Text('Excel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
@@ -1491,6 +1944,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                     setState(() {
                                       selectedCategory = value;
                                     });
+                                    _applyFiltersClientSide();
                                   }
                                 },
                               ),
@@ -1581,6 +2035,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                     setState(() {
                                       selectedStatus = value;
                                     });
+                                    _applyFiltersClientSide();
                                   }
                                 },
                               ),
@@ -1663,30 +2118,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                   ),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: isLoading
-                        ? Container(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xFF6F42C1),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Loading sub categories...',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : errorMessage != null
+                    child: errorMessage != null
                         ? Container(
                             padding: const EdgeInsets.all(40),
                             child: Center(
@@ -1723,39 +2155,6 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                       backgroundColor: Color(0xFF6F42C1),
                                       foregroundColor: Colors.white,
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : subCategories.isEmpty
-                        ? Container(
-                            padding: const EdgeInsets.all(40),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.inventory_2_outlined,
-                                    color: Color(0xFF6C757D),
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No sub categories found',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Create your first sub category to get started',
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
                                   ),
                                 ],
                               ),

@@ -11,7 +11,7 @@ class MaterialListPage extends StatefulWidget {
 
 class _MaterialListPageState extends State<MaterialListPage> {
   List<material_model.Material> materials = [];
-  bool isLoading = true;
+  bool isLoading = false;
   String? errorMessage;
   int currentPage = 1;
   int totalPages = 1;
@@ -1127,30 +1127,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                         await _fetchMaterials(page: 1);
                       },
                       color: Color(0xFF6F42C1),
-                      child: isLoading
-                          ? Container(
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF6F42C1),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Loading materials...',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : errorMessage != null
+                      child: errorMessage != null
                           ? Container(
                               padding: const EdgeInsets.all(40),
                               child: Center(
@@ -1187,39 +1164,6 @@ class _MaterialListPageState extends State<MaterialListPage> {
                                         backgroundColor: Color(0xFF6F42C1),
                                         foregroundColor: Colors.white,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : materials.isEmpty
-                          ? Container(
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.texture_outlined,
-                                      color: Color(0xFF6C757D),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No materials found',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Create your first material to get started',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 14,
-                                      ),
-                                      textAlign: TextAlign.center,
                                     ),
                                   ],
                                 ),
