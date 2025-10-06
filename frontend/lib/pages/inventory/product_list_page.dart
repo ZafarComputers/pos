@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/inventory_service.dart';
 import '../../models/product.dart';
+import '../../models/sub_category.dart';
+import '../../models/vendor.dart' as vendor;
 import 'add_product_page.dart';
 
 class ProductListPage extends StatefulWidget {
@@ -32,10 +36,20 @@ class _ProductListPageState extends State<ProductListPage> {
   final TextEditingController _searchController = TextEditingController();
   String selectedStatus = 'All';
 
+  // Image-related state variables
+  File? _selectedImage;
+  String? _imagePath;
+
+  // Sub categories and vendors for dropdowns
+  List<SubCategory> _subCategories = [];
+  List<vendor.Vendor> _vendors = [];
+
   @override
   void initState() {
     super.initState();
     _fetchAllProductsOnInit(); // Fetch all products once on page load
+    _fetchSubCategories();
+    _fetchVendors();
     _setupSearchListener();
   }
 
@@ -44,6 +58,97 @@ class _ProductListPageState extends State<ProductListPage> {
     _searchController.dispose();
     _searchDebounceTimer?.cancel(); // Cancel timer on dispose
     super.dispose();
+  }
+
+  Future<void> _saveImageLocally(File imageFile) async {
+    try {
+      final directory = Directory(
+        '${Directory.current.path}/assets/images/products',
+      );
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+      final fileName = 'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await imageFile.copy('${directory.path}/$fileName');
+      setState(() {
+        _selectedImage = savedImage;
+        _imagePath =
+            'https://zafarcomputers.com/assets/images/products/$fileName';
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save image: $e'),
+          backgroundColor: Color(0xFFDC3545),
+        ),
+      );
+    }
+  }
+
+  Future<Uint8List?> _loadProductImage(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      print('🖼️ Extracted filename: $filename from path: $imagePath');
+
+      // Check if file exists in local products directory
+      final file = File('assets/images/products/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
+  }
+
+  Future<void> _fetchSubCategories() async {
+    try {
+      final response = await InventoryService.getSubCategories(limit: 1000);
+      setState(() {
+        _subCategories = response.data;
+      });
+    } catch (e) {
+      print('Error fetching sub categories: $e');
+      // Don't show error to user, just use empty list
+      setState(() {
+        _subCategories = [];
+      });
+    }
+  }
+
+  Future<void> _fetchVendors() async {
+    try {
+      final response = await InventoryService.getVendors(limit: 1000);
+      setState(() {
+        _vendors = response.data;
+      });
+    } catch (e) {
+      print('Error fetching vendors: $e');
+      // Don't show error to user, just use empty list
+      setState(() {
+        _vendors = [];
+      });
+    }
   }
 
   // Fetch all products once when page loads
@@ -725,49 +830,638 @@ class _ProductListPageState extends State<ProductListPage> {
     }
   }
 
-  void addNewProduct() async {
-    print('🔘 Add Product button pressed');
-    try {
-      // Navigate to Add Product Page
-      print('🚀 Navigating to AddProductPage...');
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const AddProductPage()),
-      );
-      print('📦 Navigation result: $result');
-
-      // If a product was added successfully, refresh the product list
-      if (result == true) {
-        print('✅ Product added successfully, refreshing list...');
-        // Refresh the product list by re-fetching all products
-        _fetchAllProductsOnInit();
-      } else {
-        print('❌ Product not added or user cancelled');
-      }
-    } catch (e) {
-      print('❌ Error in addNewProduct: $e');
-    }
-  }
-
-  void viewProduct(Product product) async {
-    // Implementation remains the same as original
-    // This would be a long method, keeping the original implementation
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('View product feature - implementation needed'),
-        backgroundColor: Color(0xFF17A2B8),
+  void addNewProduct() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddProductPage(
+          onProductAdded: () {
+            // Refresh the product list when a new product is added
+            _fetchAllProductsOnInit();
+          },
+        ),
       ),
     );
   }
 
-  void editProduct(Product product) async {
-    // Implementation remains the same as original
-    // This would be a long method, keeping the original implementation
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit product feature - implementation needed'),
-        backgroundColor: Color(0xFF17A2B8),
+  void viewProduct(Product product) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.visibility, color: Color(0xFF17A2B8)),
+              const SizedBox(width: 12),
+              Text(
+                'Product Details',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF343A40),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Image Section
+                if (product.imagePath != null && product.imagePath!.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    margin: EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Color(0xFFDEE2E6)),
+                    ),
+                    child: FutureBuilder<Uint8List?>(
+                      future: _loadProductImage(product.imagePath!),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF0D1845),
+                              ),
+                            ),
+                          );
+                        } else if (snapshot.hasData && snapshot.data != null) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                            ),
+                          );
+                        } else {
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2,
+                                color: Color(0xFF6C757D),
+                                size: 48,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No image available',
+                                style: TextStyle(color: Color(0xFF6C757D)),
+                              ),
+                            ],
+                          );
+                        }
+                      },
+                    ),
+                  ),
+
+                // Product Details
+                _buildProductDetailRow('Title', product.title),
+                _buildProductDetailRow('Design Code', product.designCode),
+                _buildProductDetailRow('Barcode', product.barcode),
+                _buildProductDetailRow('Vendor', product.vendor.name ?? 'N/A'),
+                _buildProductDetailRow(
+                  'Sub Category ID',
+                  product.subCategoryId,
+                ),
+                _buildProductDetailRow(
+                  'Sale Price',
+                  'PKR ${product.salePrice}',
+                ),
+                _buildProductDetailRow(
+                  'Stock Quantity',
+                  product.openingStockQuantity,
+                ),
+                _buildProductDetailRow('Status', product.status),
+                _buildProductDetailRow(
+                  'Created',
+                  _formatDate(product.createdAt),
+                ),
+                _buildProductDetailRow(
+                  'Updated',
+                  _formatDate(product.updatedAt),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Close', style: TextStyle(color: Color(0xFF6C757D))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProductDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF343A40),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  void editProduct(Product product) async {
+    final titleController = TextEditingController(text: product.title);
+    final designCodeController = TextEditingController(
+      text: product.designCode,
+    );
+    final subCategoryIdController = TextEditingController(
+      text: product.subCategoryId,
+    );
+    final salePriceController = TextEditingController(text: product.salePrice);
+    final openingStockQuantityController = TextEditingController(
+      text: product.openingStockQuantity,
+    );
+    final barcodeController = TextEditingController(text: product.barcode);
+
+    String selectedStatus = product.status;
+    int? selectedVendorId = int.tryParse(product.vendorId);
+
+    // Reset image state for editing
+    _selectedImage = null;
+    _imagePath = product.imagePath;
+
+    await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.edit, color: Color(0xFF28A745)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Edit Product',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF343A40),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Product Title *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: designCodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Design Code *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: subCategoryIdController,
+                      decoration: InputDecoration(
+                        labelText: 'Sub Category ID *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: salePriceController,
+                      decoration: InputDecoration(
+                        labelText: 'Sale Price *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: openingStockQuantityController,
+                      decoration: InputDecoration(
+                        labelText: 'Opening Stock Quantity *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: barcodeController,
+                      decoration: InputDecoration(
+                        labelText: 'Barcode',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Image Section
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Product Image (optional)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF343A40),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        if (_selectedImage != null)
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _selectedImage!,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          )
+                        else if (_imagePath != null && _imagePath!.isNotEmpty)
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                _imagePath!.startsWith('http') &&
+                                    !_imagePath!.contains('zafarcomputers.com')
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      _imagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) => Icon(
+                                            Icons.inventory_2,
+                                            color: Color(0xFF6C757D),
+                                            size: 48,
+                                          ),
+                                    ),
+                                  )
+                                : FutureBuilder<Uint8List?>(
+                                    future: _loadProductImage(_imagePath!),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      } else if (snapshot.hasData &&
+                                          snapshot.data != null) {
+                                        return ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: Image.memory(
+                                            snapshot.data!,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        );
+                                      } else {
+                                        return Icon(
+                                          Icons.inventory_2,
+                                          color: Color(0xFF6C757D),
+                                          size: 48,
+                                        );
+                                      }
+                                    },
+                                  ),
+                          )
+                        else
+                          Container(
+                            width: double.infinity,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Color(0xFFF8F9FA),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image,
+                                  color: Color(0xFF6C757D),
+                                  size: 48,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'No image selected',
+                                  style: TextStyle(color: Color(0xFF6C757D)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final picker = ImagePicker();
+                            final pickedFile = await picker.pickImage(
+                              source: ImageSource.gallery,
+                            );
+                            if (pickedFile != null) {
+                              final imageFile = File(pickedFile.path);
+                              // Save to local storage
+                              try {
+                                final directory = Directory(
+                                  '${Directory.current.path}/assets/images/products',
+                                );
+                                if (!await directory.exists()) {
+                                  await directory.create(recursive: true);
+                                }
+                                final fileName =
+                                    'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                final savedImage = await imageFile.copy(
+                                  '${directory.path}/$fileName',
+                                );
+                                setState(() {
+                                  _selectedImage = savedImage;
+                                  _imagePath =
+                                      'https://zafarcomputers.com/assets/images/products/$fileName';
+                                });
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to save image: $e'),
+                                    backgroundColor: Color(0xFFDC3545),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.photo_library),
+                          label: Text(
+                            _selectedImage != null ||
+                                    (_imagePath != null &&
+                                        _imagePath!.isNotEmpty)
+                                ? 'Change Image'
+                                : 'Select Image',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF0D1845),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      value: selectedVendorId,
+                      decoration: InputDecoration(
+                        labelText: 'Vendor',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('Select Vendor (optional)'),
+                        ),
+                        ..._vendors.map(
+                          (vendor) => DropdownMenuItem<int>(
+                            value: vendor.id,
+                            child: Text(vendor.fullName),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => selectedVendorId = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedStatus,
+                      decoration: InputDecoration(
+                        labelText: 'Status *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: ['Active', 'Inactive']
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => selectedStatus = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF6C757D)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (titleController.text.trim().isEmpty ||
+                        designCodeController.text.trim().isEmpty ||
+                        subCategoryIdController.text.trim().isEmpty ||
+                        salePriceController.text.trim().isEmpty ||
+                        openingStockQuantityController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please fill in all required fields'),
+                          backgroundColor: Color(0xFFDC3545),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      setState(() => isLoading = true);
+                      Navigator.of(context).pop(true); // Close dialog first
+
+                      final updateData = {
+                        'title': titleController.text.trim(),
+                        'design_code': designCodeController.text.trim(),
+                        'image_path': _imagePath,
+                        'sub_category_id': int.parse(
+                          subCategoryIdController.text.trim(),
+                        ),
+                        'sale_price': double.parse(
+                          salePriceController.text.trim(),
+                        ),
+                        'opening_stock_quantity': int.parse(
+                          openingStockQuantityController.text.trim(),
+                        ),
+                        'vendor_id': selectedVendorId,
+                        'user_id': 1,
+                        'barcode': barcodeController.text.trim(),
+                        'status': selectedStatus,
+                      };
+
+                      await InventoryService.updateProduct(
+                        product.id,
+                        updateData,
+                      );
+
+                      // Refresh the products cache and apply current filters
+                      await _fetchAllProductsOnInit();
+
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Product updated successfully'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFF28A745),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.error, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text('Failed to update product: $e'),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => isLoading = false);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF28A745),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1323,16 +2017,62 @@ class _ProductListPageState extends State<ProductListPage> {
                                       width: 36,
                                       height: 36,
                                       decoration: BoxDecoration(
-                                        color: Color(0xFF0D1845),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
                                           color: Color(0xFFDEE2E6),
                                         ),
                                       ),
-                                      child: Icon(
-                                        Icons.inventory_2,
-                                        color: Colors.white,
-                                        size: 16,
+                                      child: FutureBuilder<Uint8List?>(
+                                        future:
+                                            product.imagePath != null &&
+                                                product.imagePath!.isNotEmpty
+                                            ? _loadProductImage(
+                                                product.imagePath!,
+                                              )
+                                            : null,
+                                        builder: (context, snapshot) {
+                                          if (snapshot.connectionState ==
+                                              ConnectionState.waiting) {
+                                            return Center(
+                                              child: SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Color(0xFF0D1845)),
+                                                ),
+                                              ),
+                                            );
+                                          } else if (snapshot.hasData &&
+                                              snapshot.data != null) {
+                                            return ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              child: Image.memory(
+                                                snapshot.data!,
+                                                fit: BoxFit.cover,
+                                                width: 32,
+                                                height: 32,
+                                              ),
+                                            );
+                                          } else {
+                                            return Container(
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFF0D1845),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Icon(
+                                                Icons.inventory_2,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                            );
+                                          }
+                                        },
                                       ),
                                     ),
                                   ),

@@ -5,7 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 class AddProductPage extends StatefulWidget {
-  const AddProductPage({super.key});
+  final VoidCallback? onProductAdded;
+
+  const AddProductPage({super.key, this.onProductAdded});
 
   @override
   State<AddProductPage> createState() => _AddProductPageState();
@@ -109,6 +111,9 @@ class _AddProductPageState extends State<AddProductPage> {
 
       await InventoryService.createProduct(productData);
 
+      // Call the callback to notify parent that product was added
+      widget.onProductAdded?.call();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -140,8 +145,22 @@ class _AddProductPageState extends State<AddProductPage> {
         _imagePath = null;
       });
 
-      // Return true to indicate success and navigate back
-      Navigator.of(context).pop(true);
+      // Show success message but stay on the page for adding another product
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Product added successfully! You can add another product.'),
+            ],
+          ),
+          backgroundColor: Color(0xFF28A745),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     } catch (e) {
       String errorMessage = 'Failed to add product';
       if (e.toString().contains('sub_category_id')) {
