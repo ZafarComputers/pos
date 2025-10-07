@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/product.dart';
 
@@ -501,6 +502,236 @@ class _LowStockProductsPageState extends State<LowStockProductsPage> {
     }
   }
 
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6B35)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all low stock products...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL low stock products from database for export
+      List<Product> allLowStockProductsForExport = [];
+
+      try {
+        // Fetch ALL low stock products with unlimited pagination
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getLowStockProducts(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          final products = (pageResponse['data'] as List)
+              .map((item) => Product.fromJson(item))
+              .toList();
+
+          allLowStockProductsForExport.addAll(products);
+
+          // Check if there are more pages
+          final totalItems = pageResponse['total'] ?? 0;
+          final fetchedSoFar = allLowStockProductsForExport.length;
+
+          if (fetchedSoFar >= totalItems) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+
+          // Update loading message
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                content: Row(
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFFF6B35),
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Text(
+                      'Fetched ${allLowStockProductsForExport.length} low stock products...',
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+
+        // Apply filters if any are active (Note: Low stock products page doesn't have search/status filters like products page)
+        // Add any filtering logic here if needed in the future
+      } catch (e) {
+        print('Error fetching all low stock products: $e');
+        // Fallback to current data
+        allLowStockProductsForExport = lowStockProducts.isNotEmpty
+            ? lowStockProducts
+            : [];
+      }
+
+      if (allLowStockProductsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No low stock products to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6B35)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allLowStockProductsForExport.length} low stock products...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Low Stock Products'];
+
+      // Add header row with styling
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Product Code'),
+        excel_pkg.TextCellValue('Product Name'),
+        excel_pkg.TextCellValue('Stock Quantity'),
+        excel_pkg.TextCellValue('Sale Price'),
+        excel_pkg.TextCellValue('Vendor'),
+        excel_pkg.TextCellValue('Status'),
+      ]);
+
+      // Style header row
+      final headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      for (int i = 0; i < 6; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all low stock product data rows
+      for (var product in allLowStockProductsForExport) {
+        sheet.appendRow([
+          excel_pkg.TextCellValue(product.designCode),
+          excel_pkg.TextCellValue(product.title),
+          excel_pkg.TextCellValue(product.openingStockQuantity),
+          excel_pkg.TextCellValue('PKR ${product.salePrice}'),
+          excel_pkg.TextCellValue(product.vendor.name ?? 'N/A'),
+          excel_pkg.TextCellValue(product.status),
+        ]);
+      }
+
+      // Save Excel file
+      final List<int>? bytes = excel.save();
+      if (bytes == null) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate Excel file'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Low Stock Products Database Excel',
+        fileName:
+            'low_stock_products_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Low Stock Products Exported!\n📊 ${allLowStockProductsForExport.length} products exported to Excel\n📈 Ready for inventory analysis',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -582,6 +813,25 @@ class _LowStockProductsPageState extends State<LowStockProductsPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFFF6B35),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/sub_category.dart';
 import '../../models/category.dart';
@@ -584,6 +585,224 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             SnackBar(
               content: Text(
                 '✅ Complete Database Exported!\n📊 ${allSubCategoriesForExport.length} sub-categories across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all sub-categories...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL sub-categories from database for export
+      List<SubCategory> allSubCategoriesForExport = [];
+
+      try {
+        // Use the current filtered sub categories for export
+        allSubCategoriesForExport = List.from(_allFilteredSubCategories);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredSubCategories.length == _allSubCategoriesCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All' &&
+            selectedCategory == 'All') {
+          // Fetch ALL sub-categories with unlimited pagination
+          allSubCategoriesForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getSubCategories(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allSubCategoriesForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.meta.currentPage >= pageResponse.meta.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all sub-categories: $e');
+        // Fallback to current data
+        allSubCategoriesForExport = subCategories.isNotEmpty
+            ? subCategories
+            : [];
+      }
+
+      if (allSubCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No sub-categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allSubCategoriesForExport.length} sub-categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Sub Categories'];
+
+      // Add header row with styling
+      final headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Sub Category Code'),
+        excel_pkg.TextCellValue('Sub Category Name'),
+        excel_pkg.TextCellValue('Category'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+      ]);
+
+      // Apply header styling
+      for (int i = 0; i < 5; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all sub-category data rows
+      for (var subCategory in allSubCategoriesForExport) {
+        // Format created date
+        String formattedDate = 'N/A';
+        try {
+          final date = DateTime.parse(subCategory.createdAt);
+          formattedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(subCategory.subCategoryCode),
+          excel_pkg.TextCellValue(subCategory.title),
+          excel_pkg.TextCellValue(subCategory.category?.title ?? 'N/A'),
+          excel_pkg.TextCellValue(subCategory.status),
+          excel_pkg.TextCellValue(formattedDate),
+        ]);
+      }
+
+      // Auto-fit columns
+      for (int i = 0; i < 5; i++) {
+        sheet.setColumnAutoFit(i);
+      }
+
+      // Save Excel file
+      final List<int>? bytes = excel.save();
+      if (bytes == null) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate Excel file'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Sub Categories Database Excel',
+        fileName:
+            'complete_sub_categories_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allSubCategoriesForExport.length} sub-categories exported to Excel\n📄 Ready for data analysis',
               ),
               backgroundColor: Color(0xFF28A745),
               duration: Duration(seconds: 5),
@@ -1740,6 +1959,25 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

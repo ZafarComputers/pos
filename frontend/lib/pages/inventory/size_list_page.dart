@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/size.dart' as size_model;
 
@@ -1270,6 +1271,228 @@ class _SizeListPageState extends State<SizeListPage> {
     );
   }
 
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF28A745)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all sizes...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL sizes from database for export
+      List<size_model.Size> allSizesForExport = [];
+
+      try {
+        // Use the current filtered sizes for export
+        allSizesForExport = List.from(_allFilteredSizes);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredSizes.length == _allSizesCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL sizes with unlimited pagination
+          allSizesForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getSizes(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allSizesForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.currentPage >= pageResponse.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all sizes: $e');
+        // Fallback to current data
+        allSizesForExport = sizes.isNotEmpty ? sizes : [];
+      }
+
+      if (allSizesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No sizes to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF28A745)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allSizesForExport.length} sizes...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Sizes'];
+
+      // Add header row with styling
+      final headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Size Name'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+        excel_pkg.TextCellValue('Updated Date'),
+      ]);
+
+      // Apply header styling
+      for (int i = 0; i < 4; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all size data rows
+      for (var size in allSizesForExport) {
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(size.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(size.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(size.title),
+          excel_pkg.TextCellValue(size.status),
+          excel_pkg.TextCellValue(formattedCreatedDate),
+          excel_pkg.TextCellValue(formattedUpdatedDate),
+        ]);
+      }
+
+      // Auto-fit columns
+      for (int i = 0; i < 4; i++) {
+        sheet.setColumnAutoFit(i);
+      }
+
+      // Save Excel file
+      final List<int>? bytes = excel.save();
+      if (bytes == null) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate Excel file'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Sizes Database Excel',
+        fileName:
+            'complete_sizes_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allSizesForExport.length} sizes exported to Excel\n📄 Ready for data analysis',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1351,6 +1574,25 @@ class _SizeListPageState extends State<SizeListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

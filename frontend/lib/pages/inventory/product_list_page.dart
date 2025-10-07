@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/product.dart';
 import '../../models/sub_category.dart';
@@ -794,6 +795,247 @@ class _ProductListPageState extends State<ProductListPage> {
             SnackBar(
               content: Text(
                 '✅ Complete Database Exported!\n📊 ${allProductsForExport.length} products across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all products...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL products from database for export
+      List<Product> allProductsForExport = [];
+
+      try {
+        // Fetch ALL products with unlimited pagination
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getProducts(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          allProductsForExport.addAll(pageResponse.data);
+
+          // Check if there are more pages
+          if (pageResponse.meta.currentPage >= pageResponse.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+
+          // Update loading message
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                content: Row(
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF0D1845),
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Text('Fetched ${allProductsForExport.length} products...'),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+
+        // Apply filters if any are active
+        if (_searchController.text.isNotEmpty || selectedStatus != 'All') {
+          final searchText = _searchController.text.toLowerCase().trim();
+          allProductsForExport = allProductsForExport.where((product) {
+            // Status filter
+            if (selectedStatus != 'All' && product.status != selectedStatus) {
+              return false;
+            }
+
+            // Search filter
+            if (searchText.isEmpty) {
+              return true;
+            }
+
+            // Search in multiple fields
+            return product.title.toLowerCase().contains(searchText) ||
+                product.designCode.toLowerCase().contains(searchText) ||
+                product.barcode.toLowerCase().contains(searchText) ||
+                product.vendor.name?.toLowerCase().contains(searchText) ==
+                    true ||
+                product.subCategoryId.toLowerCase().contains(searchText);
+          }).toList();
+        }
+      } catch (e) {
+        print('Error fetching all products: $e');
+        // Fallback to current data
+        allProductsForExport = _filteredProducts.isNotEmpty
+            ? _filteredProducts
+            : (productResponse?.data ?? []);
+      }
+
+      if (allProductsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No products to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allProductsForExport.length} products...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Products'];
+
+      // Add header row with styling
+      final headerStyle = excel_pkg.CellStyle(
+        bold: true,
+        fontSize: 12,
+        horizontalAlign: excel_pkg.HorizontalAlign.Center,
+      );
+
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Product Code'),
+        excel_pkg.TextCellValue('Product Name'),
+        excel_pkg.TextCellValue('Barcode'),
+        excel_pkg.TextCellValue('Vendor'),
+        excel_pkg.TextCellValue('Price'),
+        excel_pkg.TextCellValue('Quantity'),
+        excel_pkg.TextCellValue('Status'),
+      ]);
+
+      // Apply header styling
+      for (int i = 0; i < 7; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all product data rows
+      for (var product in allProductsForExport) {
+        sheet.appendRow([
+          excel_pkg.TextCellValue(product.designCode),
+          excel_pkg.TextCellValue(product.title),
+          excel_pkg.TextCellValue(product.barcode),
+          excel_pkg.TextCellValue(product.vendor.name ?? 'N/A'),
+          excel_pkg.TextCellValue('PKR ${product.salePrice}'),
+          excel_pkg.TextCellValue(product.openingStockQuantity),
+          excel_pkg.TextCellValue(product.status),
+        ]);
+      }
+
+      // Save Excel file
+      final List<int>? bytes = excel.save();
+      if (bytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Products Database Excel',
+        fileName:
+            'complete_products_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allProductsForExport.length} products exported to Excel\n📄 Spreadsheet format for easy data manipulation',
               ),
               backgroundColor: Color(0xFF28A745),
               duration: Duration(seconds: 5),
@@ -1647,6 +1889,25 @@ class _ProductListPageState extends State<ProductListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

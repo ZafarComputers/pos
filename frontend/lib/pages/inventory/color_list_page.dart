@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import 'package:file_picker/file_picker.dart';
 import '../../services/inventory_service.dart';
 import '../../models/color.dart' as color_model;
@@ -657,6 +658,212 @@ class _ColorListPageState extends State<ColorListPage> {
             SnackBar(
               content: Text(
                 '✅ Complete Database Exported!\n🎨 ${allColorsForExport.length} colors across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all colors...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL colors from database for export
+      List<color_model.Color> allColorsForExport = [];
+
+      try {
+        // Use the current filtered colors for export
+        allColorsForExport = List.from(colors);
+
+        // If no filters are applied, fetch fresh data from server
+        if (colors.length == totalColors &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL colors with unlimited pagination
+          allColorsForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getColors(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allColorsForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.currentPage >= pageResponse.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all colors: $e');
+        // Fallback to current data
+        allColorsForExport = colors.isNotEmpty ? colors : [];
+      }
+
+      if (allColorsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No colors to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allColorsForExport.length} colors...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Colors'];
+
+      // Add header row with styling
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Color Name'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+      ]);
+
+      // Style header row
+      final headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      for (int i = 0; i < 3; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all color data rows
+      for (var color in allColorsForExport) {
+        // Format created date
+        String formattedDate = 'N/A';
+        try {
+          final date = DateTime.parse(color.createdAt);
+          formattedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(color.title),
+          excel_pkg.TextCellValue(color.status),
+          excel_pkg.TextCellValue(formattedDate),
+        ]);
+      }
+
+      // Save Excel file
+      final List<int>? bytes = excel.save();
+      if (bytes == null) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate Excel file'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Colors Database Excel',
+        fileName:
+            'complete_colors_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n🎨 ${allColorsForExport.length} colors exported to Excel\n📊 Ready for analysis',
               ),
               backgroundColor: Color(0xFF28A745),
               duration: Duration(seconds: 5),
@@ -1499,6 +1706,25 @@ class _ColorListPageState extends State<ColorListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

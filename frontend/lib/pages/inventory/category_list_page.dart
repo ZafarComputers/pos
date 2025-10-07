@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/inventory_service.dart';
 import '../../models/category.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 
 class CategoryListPage extends StatefulWidget {
   const CategoryListPage({super.key});
@@ -688,6 +689,210 @@ class _CategoryListPageState extends State<CategoryListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all categories...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL categories from database for export
+      List<Category> allCategoriesForExport = [];
+
+      try {
+        // Fetch ALL categories with unlimited pagination
+        allCategoriesForExport = [];
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getCategories(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          final categories = pageResponse.data;
+          allCategoriesForExport.addAll(categories);
+
+          // Check if there are more pages
+          final totalItems = pageResponse.meta.total;
+          final fetchedSoFar = allCategoriesForExport.length;
+
+          if (fetchedSoFar >= totalItems) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+        }
+      } catch (e) {
+        print('Error fetching all categories: $e');
+        // Fallback to current data
+        allCategoriesForExport = categories.isNotEmpty ? categories : [];
+      }
+
+      if (allCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allCategoriesForExport.length} categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      var excel = excel_pkg.Excel.createExcel();
+      var sheet = excel['Categories'];
+
+      // Add header row
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Category Name'),
+        excel_pkg.TextCellValue('Category Code'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+        excel_pkg.TextCellValue('Updated Date'),
+      ]);
+
+      // Style header row
+      var headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      for (int i = 0; i < 5; i++) {
+        var cell = sheet.cell(
+          excel_pkg.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+        );
+        cell.cellStyle = headerStyle;
+      }
+
+      // Add all category data rows
+      for (var category in allCategoriesForExport) {
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(category.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(category.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(category.title),
+          excel_pkg.TextCellValue(category.categoryCode),
+          excel_pkg.TextCellValue(category.status),
+          excel_pkg.TextCellValue(formattedCreatedDate),
+          excel_pkg.TextCellValue(formattedUpdatedDate),
+        ]);
+      }
+
+      // Auto-fit columns
+      for (int i = 0; i < 5; i++) {
+        sheet.setColumnAutoFit(i);
+      }
+
+      // Save Excel file
+      var fileBytes = excel.save();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Categories Database Excel',
+        fileName: 'categories_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(fileBytes!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Categories Exported!\n📊 ${allCategoriesForExport.length} categories exported to Excel\n📄 File saved successfully',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Excel export failed: ${e.toString()}'),
             backgroundColor: Color(0xFFDC3545),
             duration: Duration(seconds: 5),
           ),
@@ -1804,6 +2009,25 @@ class _CategoryListPageState extends State<CategoryListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/vendor.dart' as vendor;
 
@@ -695,6 +696,178 @@ class _VendorsPageState extends State<VendorsPage> {
     }
   }
 
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
+                ),
+                SizedBox(width: 16),
+                Text('Preparing export...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Use cached vendors for export, apply current filters
+      List<vendor.Vendor> allVendorsForExport = List.from(_allVendorsCache);
+
+      // Apply filters if any are active
+      if (_searchController.text.isNotEmpty || selectedStatus != 'All') {
+        final searchText = _searchController.text.toLowerCase().trim();
+        allVendorsForExport = allVendorsForExport.where((vendor) {
+          // Status filter
+          if (selectedStatus != 'All' && vendor.status != selectedStatus) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in multiple fields
+          return vendor.fullName.toLowerCase().contains(searchText) ||
+              vendor.vendorCode.toLowerCase().contains(searchText) ||
+              vendor.firstName.toLowerCase().contains(searchText) ||
+              vendor.lastName.toLowerCase().contains(searchText) ||
+              vendor.cnic.toLowerCase().contains(searchText) ||
+              (vendor.address?.toLowerCase().contains(searchText) ?? false) ||
+              vendor.city.title.toLowerCase().contains(searchText);
+        }).toList();
+      }
+
+      if (allVendorsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No vendors to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF17A2B8)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allVendorsForExport.length} vendors...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Vendors'];
+
+      // Add header row
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Vendor Code'),
+        excel_pkg.TextCellValue('Vendor Name'),
+        excel_pkg.TextCellValue('CNIC'),
+        excel_pkg.TextCellValue('City'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Address'),
+      ]);
+
+      // Add data rows
+      for (var vendorItem in allVendorsForExport) {
+        sheet.appendRow([
+          excel_pkg.TextCellValue(vendorItem.vendorCode),
+          excel_pkg.TextCellValue(vendorItem.fullName),
+          excel_pkg.TextCellValue(vendorItem.cnic),
+          excel_pkg.TextCellValue(vendorItem.city.title),
+          excel_pkg.TextCellValue(vendorItem.status),
+          excel_pkg.TextCellValue(vendorItem.address ?? 'N/A'),
+        ]);
+      }
+
+      // Generate filename with timestamp
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'vendors_export_$timestamp.xlsx';
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Vendors Excel Export',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        // Save Excel file
+        final List<int>? bytes = excel.encode();
+        if (bytes != null) {
+          final file = File(outputFile);
+          await file.writeAsBytes(bytes);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '✅ Excel Export Complete!\n📊 ${allVendorsForExport.length} vendors exported\n📄 File saved as: ${fileName.split('_').last}',
+                ),
+                backgroundColor: Color(0xFF28A745),
+                duration: Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Open',
+                  textColor: Colors.white,
+                  onPressed: () async {
+                    try {
+                      await Process.run('explorer', ['/select,', outputFile]);
+                    } catch (e) {
+                      print('File saved at: $outputFile');
+                    }
+                  },
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   void addNewVendor() {
     showDialog(
       context: context,
@@ -1285,6 +1458,25 @@ class _VendorsPageState extends State<VendorsPage> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: Color(0xFFDC3545),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              margin: const EdgeInsets.only(right: 16),
+                              child: ElevatedButton.icon(
+                                onPressed: exportToExcel,
+                                icon: Icon(Icons.table_chart, size: 16),
+                                label: Text('Export Excel'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Color(0xFF28A745),
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 12,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:excel/excel.dart' as excel_pkg;
 import 'package:file_picker/file_picker.dart';
 import '../../services/inventory_service.dart';
 import '../../models/season.dart' as season_model;
@@ -1172,6 +1173,221 @@ class _SeasonListPageState extends State<SeasonListPage> {
     }
   }
 
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF28A745)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all seasons...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL seasons from database for export
+      List<season_model.Season> allSeasonsForExport = [];
+
+      try {
+        // Use the current filtered seasons for export
+        allSeasonsForExport = List.from(_allFilteredSeasons);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredSeasons.length == _allSeasonsCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL seasons with unlimited pagination
+          allSeasonsForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getSeasons(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allSeasonsForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.currentPage >= pageResponse.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all seasons: $e');
+        // Fallback to current data
+        allSeasonsForExport = seasons.isNotEmpty ? seasons : [];
+      }
+
+      if (allSeasonsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No seasons to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF28A745)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allSeasonsForExport.length} seasons...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      final excel_pkg.Excel excel = excel_pkg.Excel.createExcel();
+      final excel_pkg.Sheet sheet = excel['Seasons'];
+
+      // Add header row with styling
+      final headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Season Name'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+        excel_pkg.TextCellValue('Updated Date'),
+      ]);
+
+      // Apply header styling
+      for (int i = 0; i < 4; i++) {
+        sheet
+                .cell(
+                  excel_pkg.CellIndex.indexByColumnRow(
+                    columnIndex: i,
+                    rowIndex: 0,
+                  ),
+                )
+                .cellStyle =
+            headerStyle;
+      }
+
+      // Add all season data rows
+      for (var season in allSeasonsForExport) {
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(season.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(season.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(season.title),
+          excel_pkg.TextCellValue(season.status),
+          excel_pkg.TextCellValue(formattedCreatedDate),
+          excel_pkg.TextCellValue(formattedUpdatedDate),
+        ]);
+      }
+
+      // Auto-fit columns
+      for (int i = 0; i < 4; i++) {
+        sheet.setColumnAutoFit(i);
+      }
+
+      // Save Excel file
+      final List<int>? excelBytes = excel.save();
+      if (excelBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Seasons Database Excel',
+        fileName:
+            'complete_seasons_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(excelBytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allSeasonsForExport.length} seasons exported to Excel\n📄 File saved successfully',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   void viewSeasonDetails(season_model.Season season) {
     showDialog(
       context: context,
@@ -1464,6 +1680,25 @@ class _SeasonListPageState extends State<SeasonListPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToExcel,
+                          icon: Icon(Icons.table_chart, size: 16),
+                          label: Text('Export Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF28A745),
                             padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
