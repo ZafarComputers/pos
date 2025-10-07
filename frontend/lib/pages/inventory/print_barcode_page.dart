@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../../services/inventory_service.dart';
 import '../../models/product.dart';
 
@@ -160,23 +160,28 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     child: Column(
                       children: [
                         Text(
-                          'All Products Barcode',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          'Single Barcode for All Products',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF17A2B8),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        QrImageView(
+                        const SizedBox(height: 12),
+                        BarcodeWidget(
+                          barcode: Barcode.code128(),
                           data: _generateAllProductsBarcodeData(
                             selectedProducts,
                           ),
-                          version: QrVersions.auto,
-                          size: 120.0,
+                          width: 250,
+                          height: 80,
+                          drawText: false,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Contains all ${selectedProducts.length} products',
-                          style: const TextStyle(
+                          'Contains data for ${selectedProducts.length} products',
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: Color(0xFF6C757D),
                           ),
                         ),
                       ],
@@ -184,19 +189,49 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                   )
                 else
                   Column(
-                    children: [
-                      const Text(
-                        'Individual barcodes will be generated for each selected product.',
-                        style: TextStyle(color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Selected products: ${selectedProducts.map((p) => p.designCode).join(", ")}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                    children: selectedProducts.map((product) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              product.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF17A2B8),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            BarcodeWidget(
+                              barcode: Barcode.code128(),
+                              data: product.barcode,
+                              width: 200,
+                              height: 60,
+                              drawText: true,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Code: ${product.barcode}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF6C757D),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
                 const SizedBox(height: 16),
                 Text(
@@ -297,7 +332,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               children: [
                 Text('${selectedProducts.length} product(s) selected'),
                 const SizedBox(height: 16),
-                // Show QR code preview for first selected product
+                // Show barcode preview for first selected product
                 if (selectedProducts.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -310,20 +345,27 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                       children: [
                         Text(
                           selectedProducts[0].title,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF17A2B8),
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        QrImageView(
+                        BarcodeWidget(
+                          barcode: Barcode.code128(),
                           data: selectedProducts[0].barcode,
-                          version: QrVersions.auto,
-                          size: 120.0,
+                          width: 200,
+                          height: 60,
+                          drawText: true,
+                          style: TextStyle(fontSize: 10, color: Colors.black),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Code: ${selectedProducts[0].designCode}',
-                          style: const TextStyle(
+                          'Code: ${selectedProducts[0].barcode}',
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: Color(0xFF6C757D),
+                            fontFamily: 'monospace',
                           ),
                         ),
                       ],

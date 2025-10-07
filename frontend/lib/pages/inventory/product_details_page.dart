@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:barcode_widget/barcode_widget.dart';
 import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../models/vendor.dart' as vendor;
@@ -261,7 +262,69 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                             'Design Code',
                             widget.product.designCode,
                           ),
-                          _buildDetailRow('Barcode', widget.product.barcode),
+                          // Barcode display with generated barcode image
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey.shade200,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Barcode:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF343A40),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      BarcodeWidget(
+                                        barcode: Barcode.code128(),
+                                        data: widget.product.barcode,
+                                        width: 200,
+                                        height: 60,
+                                        drawText: true,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.product.barcode,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6C757D),
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           _buildDetailRow('Category', _getCategoryName()),
                           _buildDetailRow(
                             'Sub Category',

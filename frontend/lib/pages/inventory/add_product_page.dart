@@ -479,14 +479,19 @@ class _AddProductPageState extends State<AddProductPage> {
                             child: TextFormField(
                               controller: _barcodeController,
                               decoration: InputDecoration(
-                                labelText: 'Barcode *',
+                                labelText: 'Barcode (Numerical) *',
+                                hintText: 'Enter numerical barcode value',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
+                              keyboardType: TextInputType.number,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter barcode';
+                                }
+                                if (int.tryParse(value) == null) {
+                                  return 'Barcode must be a valid number';
                                 }
                                 return null;
                               },
