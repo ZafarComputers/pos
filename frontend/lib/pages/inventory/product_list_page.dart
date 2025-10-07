@@ -11,6 +11,7 @@ import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../models/vendor.dart' as vendor;
 import 'add_product_page.dart';
+import 'product_details_page.dart';
 
 class ProductListPage extends StatefulWidget {
   const ProductListPage({super.key});
@@ -143,6 +144,12 @@ class _ProductListPageState extends State<ProductListPage> {
       setState(() {
         _vendors = response.data;
       });
+      print('📦 Fetched ${_vendors.length} vendors');
+
+      // Populate vendor data for cached products if they exist
+      if (_allProductsCache.isNotEmpty) {
+        _populateVendorDataForProducts();
+      }
     } catch (e) {
       print('Error fetching vendors: $e');
       // Don't show error to user, just use empty list
@@ -150,6 +157,63 @@ class _ProductListPageState extends State<ProductListPage> {
         _vendors = [];
       });
     }
+  }
+
+  // Populate vendor data for products by matching vendor IDs
+  void _populateVendorDataForProducts() {
+    if (_vendors.isEmpty || _allProductsCache.isEmpty) {
+      print('⚠️ Cannot populate vendor data: vendors or products not loaded');
+      return;
+    }
+
+    print('🔗 Populating vendor data for ${_allProductsCache.length} products');
+
+    // Create a map for faster vendor lookup
+    final vendorMap = {for (var vendor in _vendors) vendor.id: vendor};
+
+    // Update products with vendor data
+    for (int i = 0; i < _allProductsCache.length; i++) {
+      final product = _allProductsCache[i];
+      final vendorId = int.tryParse(product.vendorId);
+
+      if (vendorId != null && vendorMap.containsKey(vendorId)) {
+        final vendor = vendorMap[vendorId]!;
+        // Create a new product with populated vendor data
+        _allProductsCache[i] = Product(
+          id: product.id,
+          title: product.title,
+          designCode: product.designCode,
+          imagePath: product.imagePath,
+          subCategoryId: product.subCategoryId,
+          salePrice: product.salePrice,
+          openingStockQuantity: product.openingStockQuantity,
+          vendorId: product.vendorId,
+          vendor: ProductVendor(
+            id: vendor.id,
+            name: vendor.fullName, // Use fullName from Vendor model
+            email: null, // Vendor model doesn't have email
+            phone: null, // Vendor model doesn't have phone
+            address: vendor.address,
+            status: vendor.status,
+            createdAt: vendor.createdAt,
+            updatedAt: vendor.updatedAt,
+          ),
+          barcode: product.barcode,
+          status: product.status,
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt,
+        );
+      } else {
+        print(
+          '⚠️ No vendor found for product "${product.title}" with vendorId: ${product.vendorId}',
+        );
+      }
+    }
+
+    print('✅ Vendor data populated for products');
+
+    // Re-apply current filters to update the display
+    _applyFiltersClientSide();
   }
 
   // Fetch all products once when page loads
@@ -192,6 +256,9 @@ class _ProductListPageState extends State<ProductListPage> {
 
       _allProductsCache = allProducts;
       print('💾 Cached ${_allProductsCache.length} total products');
+
+      // Populate vendor data for all products
+      _populateVendorDataForProducts();
 
       // Apply initial filters (which will be no filters, showing all products)
       _applyFiltersClientSide();
@@ -1087,120 +1154,15 @@ class _ProductListPageState extends State<ProductListPage> {
   }
 
   void viewProduct(Product product) async {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.visibility, color: Color(0xFF17A2B8)),
-              const SizedBox(width: 12),
-              Text(
-                'Product Details',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF343A40),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Image Section
-                if (product.imagePath != null && product.imagePath!.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    height: 200,
-                    margin: EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Color(0xFFDEE2E6)),
-                    ),
-                    child: FutureBuilder<Uint8List?>(
-                      future: _loadProductImage(product.imagePath!),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF0D1845),
-                              ),
-                            ),
-                          );
-                        } else if (snapshot.hasData && snapshot.data != null) {
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.cover,
-                            ),
-                          );
-                        } else {
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.inventory_2,
-                                color: Color(0xFF6C757D),
-                                size: 48,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No image available',
-                                style: TextStyle(color: Color(0xFF6C757D)),
-                              ),
-                            ],
-                          );
-                        }
-                      },
-                    ),
-                  ),
-
-                // Product Details
-                _buildProductDetailRow('Title', product.title),
-                _buildProductDetailRow('Design Code', product.designCode),
-                _buildProductDetailRow('Barcode', product.barcode),
-                _buildProductDetailRow('Vendor', product.vendor.name ?? 'N/A'),
-                _buildProductDetailRow(
-                  'Sub Category ID',
-                  product.subCategoryId,
-                ),
-                _buildProductDetailRow(
-                  'Sale Price',
-                  'PKR ${product.salePrice}',
-                ),
-                _buildProductDetailRow(
-                  'Stock Quantity',
-                  product.openingStockQuantity,
-                ),
-                _buildProductDetailRow('Status', product.status),
-                _buildProductDetailRow(
-                  'Created',
-                  _formatDate(product.createdAt),
-                ),
-                _buildProductDetailRow(
-                  'Updated',
-                  _formatDate(product.updatedAt),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Close', style: TextStyle(color: Color(0xFF6C757D))),
-            ),
-          ],
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProductDetailsPage(
+          product: product,
+          subCategories: _subCategories,
+          vendors: _vendors,
+        ),
+      ),
     );
   }
 

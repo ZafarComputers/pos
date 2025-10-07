@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/inventory_service.dart';
 import '../../models/vendor.dart' as vendor;
+import '../../models/category.dart';
+import '../../models/sub_category.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -24,6 +26,10 @@ class _AddProductPageState extends State<AddProductPage> {
 
   String _selectedStatus = 'Active';
   int? _selectedVendorId;
+  int? _selectedCategoryId;
+  int? _selectedSubCategoryId;
+  List<Category> categories = [];
+  List<SubCategory> subCategories = [];
   List<vendor.Vendor> vendors = [];
   bool isSubmitting = false;
   File? _selectedImage;
@@ -32,6 +38,7 @@ class _AddProductPageState extends State<AddProductPage> {
   @override
   void initState() {
     super.initState();
+    _fetchCategories();
     _fetchVendors();
   }
 
@@ -48,6 +55,50 @@ class _AddProductPageState extends State<AddProductPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load vendors: $e'),
+          backgroundColor: Color(0xFFDC3545),
+        ),
+      );
+    }
+  }
+
+  Future<void> _fetchCategories() async {
+    try {
+      final categoryResponse = await InventoryService.getCategories();
+      setState(() {
+        categories = categoryResponse.data;
+      });
+    } catch (e) {
+      setState(() {
+        categories = [];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load categories: $e'),
+          backgroundColor: Color(0xFFDC3545),
+        ),
+      );
+    }
+  }
+
+  Future<void> _fetchSubCategories(int categoryId) async {
+    try {
+      final subCategoryResponse = await InventoryService.getSubCategories();
+      setState(() {
+        // Filter sub categories by selected category
+        subCategories = subCategoryResponse.data
+            .where((subCategory) => subCategory.categoryId == categoryId)
+            .toList();
+        // Reset selected sub category when category changes
+        _selectedSubCategoryId = null;
+      });
+    } catch (e) {
+      setState(() {
+        subCategories = [];
+        _selectedSubCategoryId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load sub categories: $e'),
           backgroundColor: Color(0xFFDC3545),
         ),
       );
@@ -98,7 +149,7 @@ class _AddProductPageState extends State<AddProductPage> {
         'title': _titleController.text,
         'design_code': _designCodeController.text,
         'image_path': _imagePath,
-        'sub_category_id': int.parse(_subCategoryIdController.text),
+        'sub_category_id': _selectedSubCategoryId,
         'sale_price': double.parse(_salePriceController.text),
         'opening_stock_quantity': int.parse(
           _openingStockQuantityController.text,
@@ -141,6 +192,9 @@ class _AddProductPageState extends State<AddProductPage> {
       setState(() {
         _selectedStatus = 'Active';
         _selectedVendorId = null;
+        _selectedCategoryId = null;
+        _selectedSubCategoryId = null;
+        subCategories = []; // Clear sub categories when form is reset
         _selectedImage = null;
         _imagePath = null;
       });
@@ -164,7 +218,8 @@ class _AddProductPageState extends State<AddProductPage> {
     } catch (e) {
       String errorMessage = 'Failed to add product';
       if (e.toString().contains('sub_category_id')) {
-        errorMessage = 'Invalid sub category ID. Please check and try again.';
+        errorMessage =
+            'Invalid sub category selection. Please select a valid sub category.';
       } else if (e.toString().contains('vendor_id')) {
         errorMessage =
             'Invalid vendor selection. Please select a valid vendor.';
@@ -333,32 +388,93 @@ class _AddProductPageState extends State<AddProductPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+
+                      // Category Section
+                      _buildSectionHeader(
+                        'Category & Sub Category',
+                        Icons.category,
+                      ),
+                      const SizedBox(height: 24),
 
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _subCategoryIdController,
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedCategoryId,
                               decoration: InputDecoration(
-                                labelText: 'Sub Category ID *',
+                                labelText: 'Category *',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              keyboardType: TextInputType.number,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter sub category ID';
+                              items: categories.map((category) {
+                                return DropdownMenuItem<int>(
+                                  value: category.id,
+                                  child: Text(
+                                    '${category.title} (${category.categoryCode})',
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedCategoryId = value;
+                                  _selectedSubCategoryId =
+                                      null; // Reset sub category when category changes
+                                });
+                                if (value != null) {
+                                  _fetchSubCategories(value);
+                                } else {
+                                  setState(() {
+                                    subCategories = [];
+                                  });
                                 }
-                                if (int.tryParse(value) == null) {
-                                  return 'Please enter a valid number';
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Please select a category';
                                 }
                                 return null;
                               },
                             ),
                           ),
                           const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedSubCategoryId,
+                              decoration: InputDecoration(
+                                labelText: 'Sub Category *',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: subCategories.map((subCategory) {
+                                return DropdownMenuItem<int>(
+                                  value: subCategory.id,
+                                  child: Text(
+                                    '${subCategory.title} (${subCategory.subCategoryCode})',
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedSubCategoryId = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Please select a sub category';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
                           Expanded(
                             child: TextFormField(
                               controller: _barcodeController,
@@ -375,6 +491,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                 return null;
                               },
                             ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: SizedBox(), // Empty space to maintain layout
                           ),
                         ],
                       ),
