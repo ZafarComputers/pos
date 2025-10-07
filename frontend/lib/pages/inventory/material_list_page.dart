@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../services/inventory_service.dart';
 import '../../models/material.dart' as material_model;
 
@@ -11,12 +15,19 @@ class MaterialListPage extends StatefulWidget {
 
 class _MaterialListPageState extends State<MaterialListPage> {
   List<material_model.Material> materials = [];
+  List<material_model.Material> _filteredMaterials = [];
+  List<material_model.Material> _allFilteredMaterials =
+      []; // Store all filtered materials for local pagination
+  List<material_model.Material> _allMaterialsCache =
+      []; // Cache for all materials to avoid refetching
   bool isLoading = false;
   String? errorMessage;
   int currentPage = 1;
   int totalPages = 1;
   int totalMaterials = 0;
   final int itemsPerPage = 10;
+  Timer? _searchDebounceTimer; // Add debounce timer for search
+  bool _isFilterActive = false; // Track if any filter is currently active
 
   final TextEditingController _searchController = TextEditingController();
   String selectedStatus = 'All';
@@ -46,12 +57,14 @@ class _MaterialListPageState extends State<MaterialListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchMaterials();
+    _fetchAllMaterialsOnInit(); // Fetch all materials once on page load
+    _setupSearchListener();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounceTimer?.cancel(); // Cancel timer on dispose
     super.dispose();
   }
 
@@ -85,6 +98,233 @@ class _MaterialListPageState extends State<MaterialListPage> {
         errorMessage = e.toString();
         isLoading = false;
       });
+    }
+  }
+
+  // Fetch all materials once when page loads
+  Future<void> _fetchAllMaterialsOnInit() async {
+    try {
+      print('🚀 Initial load: Fetching all materials');
+      setState(() {
+        errorMessage = null;
+      });
+
+      // Fetch all materials from all pages
+      List<material_model.Material> allMaterials = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        try {
+          print('📡 Fetching page $currentFetchPage');
+          final response = await InventoryService.getMaterials(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
+
+          allMaterials.addAll(response.data);
+          print(
+            '📦 Page $currentFetchPage: ${response.data.length} materials (total: ${allMaterials.length})',
+          );
+
+          // Check if there are more pages
+          if (response.currentPage >= response.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allMaterialsCache = allMaterials;
+      print('💾 Cached ${_allMaterialsCache.length} total materials');
+
+      // Apply initial filters (which will be no filters, showing all materials)
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _fetchAllMaterialsOnInit: $e');
+      setState(() {
+        errorMessage = 'Failed to load materials. Please refresh the page.';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      // Cancel previous timer
+      _searchDebounceTimer?.cancel();
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        print('🔍 Search triggered: "${_searchController.text}"');
+        setState(() {
+          currentPage = 1; // Reset to first page when search changes
+        });
+        // Apply filters when search changes
+        _applyFilters();
+      });
+    });
+  }
+
+  // Client-side only filter application
+  void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
+    _applyFiltersClientSide();
+  }
+
+  // Pure client-side filtering method
+  void _applyFiltersClientSide() {
+    try {
+      final searchText = _searchController.text.toLowerCase().trim();
+      final hasSearch = searchText.isNotEmpty;
+      final hasStatusFilter = selectedStatus != 'All';
+
+      print(
+        '🎯 Client-side filtering - search: "$searchText", status: "$selectedStatus"',
+      );
+      print('📊 hasSearch: $hasSearch, hasStatusFilter: $hasStatusFilter');
+
+      setState(() {
+        _isFilterActive = hasSearch || hasStatusFilter;
+      });
+
+      // Apply filters to cached materials (no API calls)
+      _filterCachedMaterials(searchText);
+
+      print('🔄 _isFilterActive: $_isFilterActive');
+      print('📦 _allMaterialsCache.length: ${_allMaterialsCache.length}');
+      print('🎯 _allFilteredMaterials.length: ${_allFilteredMaterials.length}');
+      print('👀 _filteredMaterials.length: ${_filteredMaterials.length}');
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        errorMessage = 'Search error: Please try a different search term';
+        isLoading = false;
+        _filteredMaterials = [];
+      });
+    }
+  }
+
+  // Filter cached materials without any API calls
+  void _filterCachedMaterials(String searchText) {
+    try {
+      // Apply filters to cached materials with enhanced error handling
+      _allFilteredMaterials = _allMaterialsCache.where((material) {
+        try {
+          // Status filter
+          if (selectedStatus != 'All' && material.status != selectedStatus) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in material title
+          final materialTitle = material.title.toLowerCase();
+          return materialTitle.contains(searchText);
+        } catch (e) {
+          // If there's any error during filtering, exclude this material
+          print('⚠️ Error filtering material ${material.id}: $e');
+          return false;
+        }
+      }).toList();
+
+      print(
+        '🔍 After filtering: ${_allFilteredMaterials.length} materials match criteria',
+      );
+      print('📝 Search text: "$searchText", Status filter: "$selectedStatus"');
+
+      // Apply local pagination to filtered results
+      _paginateFilteredMaterials();
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Critical error in _filterCachedMaterials: $e');
+      setState(() {
+        errorMessage =
+            'Search failed. Please try again with a simpler search term.';
+        isLoading = false;
+        // Fallback: show empty results instead of crashing
+        _filteredMaterials = [];
+        _allFilteredMaterials = [];
+      });
+    }
+  }
+
+  // Apply local pagination to filtered materials
+  void _paginateFilteredMaterials() {
+    try {
+      // Handle empty results case
+      if (_allFilteredMaterials.isEmpty) {
+        setState(() {
+          _filteredMaterials = [];
+          totalMaterials = 0;
+          totalPages = 1;
+          currentPage = 1;
+        });
+        return;
+      }
+
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
+
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredMaterials.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredMaterials(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        _filteredMaterials = _allFilteredMaterials.sublist(
+          startIndex,
+          endIndex > _allFilteredMaterials.length
+              ? _allFilteredMaterials.length
+              : endIndex,
+        );
+
+        totalMaterials = _allFilteredMaterials.length;
+        totalPages = (totalMaterials / itemsPerPage).ceil();
+        print('📄 Pagination calculation:');
+        print(
+          '   📊 _allFilteredMaterials.length: ${_allFilteredMaterials.length}',
+        );
+        print('   📝 itemsPerPage: $itemsPerPage');
+        print('   🔢 totalPages: $totalPages');
+        print('   📍 currentPage: $currentPage');
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredMaterials: $e');
+      setState(() {
+        _filteredMaterials = [];
+        currentPage = 1;
+      });
+    }
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    // Always use client-side pagination when we have cached materials
+    if (_allMaterialsCache.isNotEmpty) {
+      _paginateFilteredMaterials();
+    } else {
+      // Fallback to server pagination only if no cached data
+      await _fetchMaterials(page: newPage);
     }
   }
 
@@ -219,8 +459,8 @@ class _MaterialListPageState extends State<MaterialListPage> {
 
                       await InventoryService.createMaterial(createData);
 
-                      // Reload the entire page from page 1
-                      await _fetchMaterials(page: 1);
+                      // Refresh the materials cache and apply current filters
+                      await _fetchAllMaterialsOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -418,8 +658,8 @@ class _MaterialListPageState extends State<MaterialListPage> {
                         updateData,
                       );
 
-                      // Reload the entire page from page 1
-                      await _fetchMaterials(page: 1);
+                      // Refresh the materials cache and apply current filters
+                      await _fetchAllMaterialsOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -511,8 +751,13 @@ class _MaterialListPageState extends State<MaterialListPage> {
 
                   await InventoryService.deleteMaterial(material.id);
 
-                  // Reload the entire page from page 1
-                  await _fetchMaterials(page: 1);
+                  // Remove from cache and update UI in real-time
+                  setState(() {
+                    _allMaterialsCache.removeWhere((m) => m.id == material.id);
+                  });
+
+                  // Re-apply current filters to update the display
+                  _applyFiltersClientSide();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -566,6 +811,378 @@ class _MaterialListPageState extends State<MaterialListPage> {
         );
       },
     );
+  }
+
+  Future<void> exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all materials...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL materials from database for export
+      List<material_model.Material> allMaterialsForExport = [];
+
+      try {
+        // Use the current filtered materials for export
+        allMaterialsForExport = List.from(_filteredMaterials);
+
+        // If no filters are applied, fetch fresh data from server
+        if (materials.length == totalMaterials &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL materials with unlimited pagination
+          allMaterialsForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getMaterials(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allMaterialsForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.currentPage >= pageResponse.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all materials: $e');
+        // Fallback to current data
+        allMaterialsForExport = materials.isNotEmpty ? materials : [];
+      }
+
+      if (allMaterialsForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No materials to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allMaterialsForExport.length} materials...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(
+        111,
+        66,
+        193,
+      ); // Material theme color
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 4);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths for materials
+      grid.columns[0].width = tableWidth * 0.20; // 20% - Material Name
+      grid.columns[1].width = tableWidth * 0.20; // 20% - Status
+      grid.columns[2].width = tableWidth * 0.30; // 30% - Created Date
+      grid.columns[3].width = tableWidth * 0.30; // 30% - Updated Date
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Material Name';
+      headerRow.cells[1].value = 'Status';
+      headerRow.cells[2].value = 'Created Date';
+      headerRow.cells[3].value = 'Updated Date';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all material data rows
+      for (var material in allMaterialsForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = material.title;
+        row.cells[1].value = material.status;
+
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(material.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+        row.cells[2].value = formattedCreatedDate;
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(material.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+        row.cells[3].value = formattedUpdatedDate;
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          row.cells[i].style = PdfGridCellStyle(
+            font: smallFont,
+            textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+            format: PdfStringFormat(
+              alignment: i == 1
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.top,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+
+        // Color code status
+        if (material.status == 'Active') {
+          row.cells[1].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[1].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[1].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[1].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Complete Materials Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
+        ),
+      );
+
+      String filterInfo = 'Filters: ';
+      List<String> filters = [];
+      if (selectedStatus != 'All') filters.add('Status=$selectedStatus');
+      if (_searchController.text.isNotEmpty)
+        filters.add('Search="${_searchController.text}"');
+      if (filters.isEmpty) filters.add('All');
+
+      headerTemplate.graphics.drawString(
+        'Total Materials: ${allMaterialsForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | $filterInfo${filters.join(', ')}',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allMaterialsForExport.length} Total Materials | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allMaterialsForExport.length} materials',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Materials Database PDF',
+        fileName:
+            'complete_materials_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allMaterialsForExport.length} materials across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void viewMaterialDetails(material_model.Material material) {
@@ -849,21 +1466,44 @@ class _MaterialListPageState extends State<MaterialListPage> {
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: addNewMaterial,
-                    icon: Icon(Icons.add, size: 16),
-                    label: Text('Add Material'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF17A2B8),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                  Row(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToPDF,
+                          icon: Icon(Icons.picture_as_pdf, size: 16),
+                          label: Text('Export PDF'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      ElevatedButton.icon(
+                        onPressed: addNewMaterial,
+                        icon: Icon(Icons.add, size: 16),
+                        label: Text('Add Material'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF17A2B8),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -1039,7 +1679,11 @@ class _MaterialListPageState extends State<MaterialListPage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedStatus = value;
+                                      currentPage =
+                                          1; // Reset to first page when filter changes
                                     });
+                                    // Apply filters with new status
+                                    _applyFilters();
                                   }
                                 },
                               ),
@@ -1107,7 +1751,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                               ),
                               SizedBox(width: 3),
                               Text(
-                                '$totalMaterials Materials',
+                                '${_filteredMaterials.length} Materials',
                                 style: TextStyle(
                                   color: Color(0xFF0066CC),
                                   fontWeight: FontWeight.w500,
@@ -1124,7 +1768,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                     scrollDirection: Axis.horizontal,
                     child: RefreshIndicator(
                       onRefresh: () async {
-                        await _fetchMaterials(page: 1);
+                        await _fetchAllMaterialsOnInit();
                       },
                       color: Color(0xFF6F42C1),
                       child: errorMessage != null
@@ -1216,7 +1860,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                                   ),
                                 ),
                               ],
-                              rows: materials.map((
+                              rows: _filteredMaterials.map((
                                 material_model.Material material,
                               ) {
                                 return DataRow(
@@ -1403,7 +2047,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                 children: [
                   ElevatedButton.icon(
                     onPressed: currentPage > 1
-                        ? () => _fetchMaterials(page: currentPage - 1)
+                        ? () => _changePage(currentPage - 1)
                         : null,
                     icon: Icon(Icons.chevron_left, size: 14),
                     label: Text('Previous', style: TextStyle(fontSize: 11)),
@@ -1440,7 +2084,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                     return Container(
                       margin: EdgeInsets.symmetric(horizontal: 1),
                       child: ElevatedButton(
-                        onPressed: () => _fetchMaterials(page: pageNumber),
+                        onPressed: () => _changePage(pageNumber),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: pageNumber == currentPage
                               ? Color(0xFF6F42C1)
@@ -1474,7 +2118,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: currentPage < totalPages
-                        ? () => _fetchMaterials(page: currentPage + 1)
+                        ? () => _changePage(currentPage + 1)
                         : null,
                     icon: Icon(Icons.chevron_right, size: 14),
                     label: Text('Next', style: TextStyle(fontSize: 11)),
@@ -1503,7 +2147,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'Page $currentPage of $totalPages (${totalMaterials} total)',
+                      'Page $currentPage of $totalPages (${_allFilteredMaterials.length} total)',
                       style: TextStyle(
                         fontSize: 11,
                         color: Color(0xFF6C757D),

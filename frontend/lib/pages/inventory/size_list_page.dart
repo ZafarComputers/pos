@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../services/inventory_service.dart';
 import '../../models/size.dart' as size_model;
 
@@ -11,13 +15,21 @@ class SizeListPage extends StatefulWidget {
 
 class _SizeListPageState extends State<SizeListPage> {
   List<size_model.Size> sizes = [];
+  List<size_model.Size> _filteredSizes = [];
+  List<size_model.Size> _allFilteredSizes =
+      []; // Store all filtered sizes for local pagination
+  List<size_model.Size> _allSizesCache =
+      []; // Cache for all sizes to avoid refetching
   bool isLoading = false;
   String? errorMessage;
   int currentPage = 1;
   int totalPages = 1;
   int totalSizes = 0;
   final int itemsPerPage = 10;
+  Timer? _searchDebounceTimer; // Add debounce timer for search
+  bool _isFilterActive = false; // Track if any filter is currently active
 
+  // Search and filter controllers
   final TextEditingController _searchController = TextEditingController();
   String selectedStatus = 'All';
 
@@ -46,12 +58,14 @@ class _SizeListPageState extends State<SizeListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchSizes();
+    _fetchAllSizesOnInit(); // Fetch all sizes once on page load
+    _setupSearchListener();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounceTimer?.cancel(); // Cancel timer on dispose
     super.dispose();
   }
 
@@ -86,6 +100,118 @@ class _SizeListPageState extends State<SizeListPage> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _fetchAllSizesOnInit() async {
+    if (!mounted) return;
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      // Fetch ALL sizes for client-side filtering
+      List<size_model.Size> allSizes = [];
+      int currentPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        final response = await InventoryService.getSizes(
+          page: currentPage,
+          limit: 100, // Fetch in chunks
+        );
+
+        allSizes.addAll(response.data);
+
+        if (response.currentPage >= response.lastPage) {
+          hasMorePages = false;
+        } else {
+          currentPage++;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _allSizesCache = allSizes;
+        _allFilteredSizes = List.from(allSizes);
+        _filteredSizes = allSizes.take(itemsPerPage).toList();
+        totalSizes = allSizes.length;
+        totalPages = (allSizes.length / itemsPerPage).ceil();
+        currentPage = 1;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      _searchDebounceTimer?.cancel();
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _applyFiltersClientSide();
+      });
+    });
+  }
+
+  void _applyFiltersClientSide() {
+    if (!mounted) return;
+
+    setState(() {
+      _isFilterActive =
+          _searchController.text.trim().isNotEmpty || selectedStatus != 'All';
+      _filterCachedSizes();
+      _paginateFilteredSizes();
+    });
+  }
+
+  void _filterCachedSizes() {
+    if (_allSizesCache.isEmpty) return;
+
+    _allFilteredSizes = _allSizesCache.where((size) {
+      // Search filter
+      final searchTerm = _searchController.text.trim().toLowerCase();
+      final matchesSearch =
+          searchTerm.isEmpty ||
+          size.title.toLowerCase().contains(searchTerm) ||
+          size.status.toLowerCase().contains(searchTerm);
+
+      // Status filter
+      final matchesStatus =
+          selectedStatus == 'All' || size.status == selectedStatus;
+
+      return matchesSearch && matchesStatus;
+    }).toList();
+  }
+
+  void _paginateFilteredSizes() {
+    final startIndex = (currentPage - 1) * itemsPerPage;
+    final endIndex = startIndex + itemsPerPage;
+
+    _filteredSizes = _allFilteredSizes.sublist(
+      startIndex,
+      endIndex > _allFilteredSizes.length ? _allFilteredSizes.length : endIndex,
+    );
+
+    totalPages = (_allFilteredSizes.length / itemsPerPage).ceil();
+    if (totalPages == 0) totalPages = 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+  }
+
+  void _changePage(int page) {
+    if (page < 1 || page > totalPages) return;
+
+    setState(() {
+      currentPage = page;
+      _paginateFilteredSizes();
+    });
   }
 
   void addNewSize() async {
@@ -219,8 +345,8 @@ class _SizeListPageState extends State<SizeListPage> {
 
                       await InventoryService.createSize(createData);
 
-                      // Reload the entire page from page 1
-                      await _fetchSizes(page: 1);
+                      // Refresh cache and reapply filters
+                      await _fetchAllSizesOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -415,8 +541,9 @@ class _SizeListPageState extends State<SizeListPage> {
 
                       await InventoryService.updateSize(size.id, updateData);
 
-                      // Reload the entire page from page 1
-                      await _fetchSizes(page: 1);
+                      // Refresh cache and reapply filters
+                      await _fetchAllSizesOnInit();
+                      _applyFiltersClientSide();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -508,8 +635,8 @@ class _SizeListPageState extends State<SizeListPage> {
 
                   await InventoryService.deleteSize(size.id);
 
-                  // Reload the entire page from page 1
-                  await _fetchSizes(page: 1);
+                  // Refresh cache and reapply filters
+                  await _fetchAllSizesOnInit();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(parentContext).showSnackBar(
@@ -563,6 +690,373 @@ class _SizeListPageState extends State<SizeListPage> {
         );
       },
     );
+  }
+
+  Future<void> exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all sizes...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL sizes from database for export
+      List<size_model.Size> allSizesForExport = [];
+
+      try {
+        // Use the current filtered sizes for export
+        allSizesForExport = List.from(_allFilteredSizes);
+
+        // If no filters are applied, fetch fresh data from server
+        if (_allFilteredSizes.length == _allSizesCache.length &&
+            _searchController.text.trim().isEmpty &&
+            selectedStatus == 'All') {
+          // Fetch ALL sizes with unlimited pagination
+          allSizesForExport = [];
+          int currentPage = 1;
+          bool hasMorePages = true;
+
+          while (hasMorePages) {
+            final pageResponse = await InventoryService.getSizes(
+              page: currentPage,
+              limit: 100, // Fetch in chunks of 100
+            );
+
+            allSizesForExport.addAll(pageResponse.data);
+
+            // Check if there are more pages
+            if (pageResponse.currentPage >= pageResponse.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentPage++;
+            }
+          }
+        }
+      } catch (e) {
+        print('Error fetching all sizes: $e');
+        // Fallback to current data
+        allSizesForExport = sizes.isNotEmpty ? sizes : [];
+      }
+
+      if (allSizesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No sizes to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allSizesForExport.length} sizes...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(111, 66, 193); // Size theme color
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 4);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths for sizes
+      grid.columns[0].width = tableWidth * 0.20; // 20% - Size Name
+      grid.columns[1].width = tableWidth * 0.20; // 20% - Status
+      grid.columns[2].width = tableWidth * 0.30; // 30% - Created Date
+      grid.columns[3].width = tableWidth * 0.30; // 30% - Updated Date
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Size Name';
+      headerRow.cells[1].value = 'Status';
+      headerRow.cells[2].value = 'Created Date';
+      headerRow.cells[3].value = 'Updated Date';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all size data rows
+      for (var size in allSizesForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = size.title;
+        row.cells[1].value = size.status;
+
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(size.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+        row.cells[2].value = formattedCreatedDate;
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(size.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+        row.cells[3].value = formattedUpdatedDate;
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          row.cells[i].style = PdfGridCellStyle(
+            font: smallFont,
+            textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+            format: PdfStringFormat(
+              alignment: i == 1
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.top,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+
+        // Color code status
+        if (size.status == 'Active') {
+          row.cells[1].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[1].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[1].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[1].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Complete Sizes Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
+        ),
+      );
+
+      String filterInfo = 'Filters: ';
+      List<String> filters = [];
+      if (selectedStatus != 'All') filters.add('Status=$selectedStatus');
+      if (_searchController.text.isNotEmpty)
+        filters.add('Search="${_searchController.text}"');
+      if (filters.isEmpty) filters.add('All');
+
+      headerTemplate.graphics.drawString(
+        'Total Sizes: ${allSizesForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | $filterInfo${filters.join(', ')}',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allSizesForExport.length} Total Sizes | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allSizesForExport.length} sizes',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Complete Sizes Database PDF',
+        fileName: 'complete_sizes_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Complete Database Exported!\n📊 ${allSizesForExport.length} sizes across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void viewSizeDetails(size_model.Size size) {
@@ -846,21 +1340,44 @@ class _SizeListPageState extends State<SizeListPage> {
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: addNewSize,
-                    icon: Icon(Icons.add, size: 16),
-                    label: Text('Add Size'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF17A2B8),
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                  Row(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        child: ElevatedButton.icon(
+                          onPressed: exportToPDF,
+                          icon: Icon(Icons.picture_as_pdf, size: 16),
+                          label: Text('Export PDF'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFFDC3545),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      ElevatedButton.icon(
+                        onPressed: addNewSize,
+                        icon: Icon(Icons.add, size: 16),
+                        label: Text('Add Size'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF17A2B8),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -1036,6 +1553,7 @@ class _SizeListPageState extends State<SizeListPage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedStatus = value;
+                                      _applyFiltersClientSide();
                                     });
                                   }
                                 },
@@ -1213,7 +1731,7 @@ class _SizeListPageState extends State<SizeListPage> {
                                   ),
                                 ),
                               ],
-                              rows: sizes.map((size_model.Size size) {
+                              rows: _filteredSizes.map((size_model.Size size) {
                                 return DataRow(
                                   cells: [
                                     DataCell(
@@ -1390,7 +1908,7 @@ class _SizeListPageState extends State<SizeListPage> {
                 children: [
                   ElevatedButton.icon(
                     onPressed: currentPage > 1
-                        ? () => _fetchSizes(page: currentPage - 1)
+                        ? () => _changePage(currentPage - 1)
                         : null,
                     icon: Icon(Icons.chevron_left, size: 14),
                     label: Text('Previous', style: TextStyle(fontSize: 11)),
@@ -1427,7 +1945,7 @@ class _SizeListPageState extends State<SizeListPage> {
                     return Container(
                       margin: EdgeInsets.symmetric(horizontal: 1),
                       child: ElevatedButton(
-                        onPressed: () => _fetchSizes(page: pageNumber),
+                        onPressed: () => _changePage(pageNumber),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: pageNumber == currentPage
                               ? Color(0xFF6F42C1)
@@ -1461,7 +1979,7 @@ class _SizeListPageState extends State<SizeListPage> {
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: currentPage < totalPages
-                        ? () => _fetchSizes(page: currentPage + 1)
+                        ? () => _changePage(currentPage + 1)
                         : null,
                     icon: Icon(Icons.chevron_right, size: 14),
                     label: Text('Next', style: TextStyle(fontSize: 11)),
