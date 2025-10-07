@@ -17,16 +17,23 @@ class CategoryListPage extends StatefulWidget {
 
 class _CategoryListPageState extends State<CategoryListPage> {
   List<Category> categories = [];
-  bool isLoading = true;
+  bool isLoading = false; // Start with false to show UI immediately
   String? errorMessage;
   int currentPage = 1;
   int totalCategories = 0;
   int totalPages = 1;
   final int itemsPerPage = 10;
+  Timer? _searchDebounceTimer; // Add debounce timer for search
+  bool _isFilterActive = false; // Track if any filter is currently active
 
-  String selectedStatus = 'All';
+  // Search and filter controllers
   final TextEditingController _searchController = TextEditingController();
-  Timer? _searchDebounceTimer;
+  String selectedStatus = 'All';
+
+  // Cache for all categories to avoid refetching
+  List<Category> _allCategoriesCache = [];
+  List<Category> _allFilteredCategories =
+      []; // Store all filtered categories for local pagination
 
   // Image-related state variables
   File? _selectedImage;
@@ -35,7 +42,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
   @override
   void initState() {
     super.initState();
-    _fetchCategories(page: 1);
+    _fetchAllCategoriesOnInit(); // Fetch all categories once on page load
     _setupSearchListener();
   }
 
@@ -109,25 +116,241 @@ class _CategoryListPageState extends State<CategoryListPage> {
     }
   }
 
+  // Fetch all categories once when page loads
+  Future<void> _fetchAllCategoriesOnInit() async {
+    try {
+      print('🚀 Initial load: Fetching all categories');
+      setState(() {
+        errorMessage = null;
+      });
+
+      // Fetch all categories from all pages
+      List<Category> allCategories = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        try {
+          print('📡 Fetching page $currentFetchPage');
+          final response = await InventoryService.getCategories(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
+
+          allCategories.addAll(response.data);
+          print(
+            '📦 Page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
+          );
+
+          // Check if there are more pages
+          if (response.meta.currentPage >= response.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allCategoriesCache = allCategories;
+      print('💾 Cached ${_allCategoriesCache.length} total categories');
+
+      // Apply initial filters (which will be no filters, showing all categories)
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _fetchAllCategoriesOnInit: $e');
+      setState(() {
+        errorMessage = 'Failed to load categories. Please refresh the page.';
+        isLoading = false;
+      });
+    }
+  }
+
   void _setupSearchListener() {
     _searchController.addListener(() {
+      // Cancel previous timer
       _searchDebounceTimer?.cancel();
-      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-        // Reset to first page when search changes
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        print('🔍 Search triggered: "${_searchController.text}"');
         setState(() {
-          currentPage = 1;
+          currentPage = 1; // Reset to first page when search changes
         });
-        _fetchCategories(page: 1);
+        // Apply filters when search changes
+        _applyFilters();
       });
     });
   }
 
-  void _changePage(int page) {
-    if (page >= 1 && page <= totalPages) {
+  // Client-side only filter application
+  void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
+    _applyFiltersClientSide();
+  }
+
+  // Pure client-side filtering method
+  void _applyFiltersClientSide() {
+    try {
+      final searchText = _searchController.text.toLowerCase().trim();
+      final hasSearch = searchText.isNotEmpty;
+      final hasStatusFilter = selectedStatus != 'All';
+
+      print(
+        '🎯 Client-side filtering - search: "$searchText", status: "$selectedStatus"',
+      );
+      print('📊 hasSearch: $hasSearch, hasStatusFilter: $hasStatusFilter');
+
       setState(() {
-        currentPage = page;
+        _isFilterActive = hasSearch || hasStatusFilter;
       });
-      _fetchCategories(page: page);
+
+      // Apply filters to cached categories (no API calls)
+      _filterCachedCategories(searchText);
+
+      print('🔄 _isFilterActive: $_isFilterActive');
+      print('📦 _allCategoriesCache.length: ${_allCategoriesCache.length}');
+      print(
+        '🎯 _allFilteredCategories.length: ${_allFilteredCategories.length}',
+      );
+      print('👀 categories.length: ${categories.length}');
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        errorMessage = 'Search error: Please try a different search term';
+        isLoading = false;
+        categories = [];
+      });
+    }
+  }
+
+  // Filter cached categories without any API calls
+  void _filterCachedCategories(String searchText) {
+    try {
+      // Apply filters to cached categories with enhanced error handling
+      _allFilteredCategories = _allCategoriesCache.where((category) {
+        try {
+          // Status filter
+          if (selectedStatus != 'All' && category.status != selectedStatus) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in multiple fields with better null safety and error handling
+          final categoryTitle = (category.title ?? '').toLowerCase();
+          final categoryCode = (category.categoryCode ?? '').toLowerCase();
+
+          return categoryTitle.contains(searchText) ||
+              categoryCode.contains(searchText);
+        } catch (e) {
+          // If there's any error during filtering, exclude this category
+          print('⚠️ Error filtering category ${category.id}: $e');
+          return false;
+        }
+      }).toList();
+
+      print(
+        '🔍 After filtering: ${_allFilteredCategories.length} categories match criteria',
+      );
+      print('📝 Search text: "$searchText", Status filter: "$selectedStatus"');
+
+      // Apply local pagination to filtered results
+      _paginateFilteredCategories();
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Critical error in _filterCachedCategories: $e');
+      setState(() {
+        errorMessage =
+            'Search failed. Please try again with a simpler search term.';
+        isLoading = false;
+        // Fallback: show empty results instead of crashing
+        categories = [];
+        _allFilteredCategories = [];
+      });
+    }
+  }
+
+  // Apply local pagination to filtered categories
+  void _paginateFilteredCategories() {
+    try {
+      // Handle empty results case
+      if (_allFilteredCategories.isEmpty) {
+        setState(() {
+          categories = [];
+          // Update pagination variables for pagination controls
+          totalCategories = 0;
+          totalPages = 1;
+        });
+        return;
+      }
+
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
+
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredCategories.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredCategories(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        categories = _allFilteredCategories.sublist(
+          startIndex,
+          endIndex > _allFilteredCategories.length
+              ? _allFilteredCategories.length
+              : endIndex,
+        );
+
+        // Update pagination variables for pagination controls
+        final calculatedTotalPages =
+            (_allFilteredCategories.length / itemsPerPage).ceil();
+        totalCategories = _allFilteredCategories.length;
+        totalPages = calculatedTotalPages;
+
+        print('📄 Pagination calculation:');
+        print(
+          '   📊 _allFilteredCategories.length: ${_allFilteredCategories.length}',
+        );
+        print('   📝 itemsPerPage: $itemsPerPage');
+        print('   🔢 totalPages: $totalPages');
+        print('   📍 currentPage: $currentPage');
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredCategories: $e');
+      setState(() {
+        categories = [];
+        currentPage = 1;
+        totalCategories = 0;
+        totalPages = 1;
+      });
+    }
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    // Always use client-side pagination when we have cached categories
+    if (_allCategoriesCache.isNotEmpty) {
+      _paginateFilteredCategories();
+    } else {
+      // Fallback to server pagination only if no cached data
+      await _fetchCategories(page: newPage);
     }
   }
 
@@ -684,7 +907,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       await InventoryService.createCategory(createData);
 
                       // Refresh the categories cache and apply current filters
-                      await _fetchCategories(page: 1);
+                      await _fetchAllCategoriesOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1038,7 +1261,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       );
 
                       // Refresh the categories cache and apply current filters
-                      await _fetchCategories(page: 1);
+                      await _fetchAllCategoriesOnInit();
 
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1129,7 +1352,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                   await InventoryService.deleteCategory(category.id);
 
                   // Refresh the categories cache and apply current filters
-                  await _fetchCategories(page: 1);
+                  await _fetchAllCategoriesOnInit();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1786,7 +2009,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                       currentPage =
                                           1; // Reset to first page when filter changes
                                     });
-                                    _fetchCategories(page: 1);
+                                    // Apply filters with new status
+                                    _applyFilters();
                                   }
                                 },
                               ),
