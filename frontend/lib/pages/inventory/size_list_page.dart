@@ -1643,100 +1643,120 @@ class _SizeListPageState extends State<SizeListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.filter_list,
-                        color: Color(0xFF6C757D),
-                        size: 18,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Search & Filter',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF343A40),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      // Search Bar - Takes more space
                       Expanded(
-                        flex: 2,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white,
-                              hintText: 'Search sizes...',
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: Color(0xFF6C757D),
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFFDEE2E6),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFFDEE2E6),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFF6F42C1),
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
+                        flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.filter_alt,
-                                  size: 14,
-                                  color: Color(0xFF6C757D),
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Status',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF343A40),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.manage_search_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Search Sizes',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  hintText: 'Type to search...',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFFADB5BD),
+                                    fontSize: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF0D1845),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 6),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Status Filter - Compact design
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.tune_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Filter by Status',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             Container(
                               decoration: BoxDecoration(
                                 boxShadow: [
@@ -1752,41 +1772,63 @@ class _SizeListPageState extends State<SizeListPage> {
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
+                                  hintText: 'Select status',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFFADB5BD),
+                                    fontSize: 14,
+                                  ),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
-                                      color: Color(0xFF6F42C1),
+                                      color: Color(0xFF0D1845),
                                       width: 2,
                                     ),
                                   ),
                                   contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 12,
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
-                                  isDense: true,
                                 ),
                                 items: ['All', 'Active', 'Inactive']
                                     .map(
                                       (status) => DropdownMenuItem(
                                         value: status,
-                                        child: Text(
-                                          status,
-                                          style: TextStyle(
-                                            color: Color(0xFF343A40),
-                                            fontSize: 13,
-                                          ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              status == 'All'
+                                                  ? Icons.inventory_2_rounded
+                                                  : status == 'Active'
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.cancel_rounded,
+                                              color: status == 'All'
+                                                  ? Color(0xFF6C757D)
+                                                  : status == 'Active'
+                                                  ? Color(0xFF28A745)
+                                                  : Color(0xFFDC3545),
+                                              size: 18,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              status,
+                                              style: TextStyle(
+                                                color: Color(0xFF343A40),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     )
@@ -1795,8 +1837,9 @@ class _SizeListPageState extends State<SizeListPage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedStatus = value;
-                                      _applyFiltersClientSide();
+                                      currentPage = 1;
                                     });
+                                    _applyFiltersClientSide();
                                   }
                                 },
                               ),
