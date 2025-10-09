@@ -5,9 +5,11 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:provider/provider.dart';
 import '../../services/inventory_service.dart';
 import '../../models/category.dart';
 import 'package:excel/excel.dart' as excel_pkg;
+import '../../providers/providers.dart';
 
 class CategoryListPage extends StatefulWidget {
   const CategoryListPage({super.key});
@@ -119,53 +121,67 @@ class _CategoryListPageState extends State<CategoryListPage> {
 
   // Fetch all categories once when page loads
   Future<void> _fetchAllCategoriesOnInit() async {
-    try {
-      print('🚀 Initial load: Fetching all categories');
+    final inventoryProvider = Provider.of<InventoryProvider>(
+      context,
+      listen: false,
+    );
+
+    if (inventoryProvider.categories.isNotEmpty) {
+      print('� Using pre-fetched categories from provider');
       setState(() {
-        errorMessage = null;
+        _allCategoriesCache = inventoryProvider.categories;
       });
-
-      // Fetch all categories from all pages
-      List<Category> allCategories = [];
-      int currentFetchPage = 1;
-      bool hasMorePages = true;
-
-      while (hasMorePages) {
-        try {
-          print('📡 Fetching page $currentFetchPage');
-          final response = await InventoryService.getCategories(
-            page: currentFetchPage,
-            limit: 50, // Use larger page size for efficiency
-          );
-
-          allCategories.addAll(response.data);
-          print(
-            '📦 Page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
-          );
-
-          // Check if there are more pages
-          if (response.meta.currentPage >= response.meta.lastPage) {
-            hasMorePages = false;
-          } else {
-            currentFetchPage++;
-          }
-        } catch (e) {
-          print('❌ Error fetching page $currentFetchPage: $e');
-          hasMorePages = false; // Stop fetching on error
-        }
-      }
-
-      _allCategoriesCache = allCategories;
-      print('💾 Cached ${_allCategoriesCache.length} total categories');
-
-      // Apply initial filters (which will be no filters, showing all categories)
       _applyFiltersClientSide();
-    } catch (e) {
-      print('❌ Critical error in _fetchAllCategoriesOnInit: $e');
-      setState(() {
-        errorMessage = 'Failed to load categories. Please refresh the page.';
-        isLoading = false;
-      });
+    } else {
+      print('🚀 Pre-fetch not available, fetching categories');
+      try {
+        print('�🚀 Initial load: Fetching all categories');
+        setState(() {
+          errorMessage = null;
+        });
+
+        // Fetch all categories from all pages
+        List<Category> allCategories = [];
+        int currentFetchPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          try {
+            print('📡 Fetching page $currentFetchPage');
+            final response = await InventoryService.getCategories(
+              page: currentFetchPage,
+              limit: 50, // Use larger page size for efficiency
+            );
+
+            allCategories.addAll(response.data);
+            print(
+              '📦 Page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
+            );
+
+            // Check if there are more pages
+            if (response.meta.currentPage >= response.meta.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentFetchPage++;
+            }
+          } catch (e) {
+            print('❌ Error fetching page $currentFetchPage: $e');
+            hasMorePages = false; // Stop fetching on error
+          }
+        }
+
+        _allCategoriesCache = allCategories;
+        print('💾 Cached ${_allCategoriesCache.length} total categories');
+
+        // Apply initial filters (which will be no filters, showing all categories)
+        _applyFiltersClientSide();
+      } catch (e) {
+        print('❌ Critical error in _fetchAllCategoriesOnInit: $e');
+        setState(() {
+          errorMessage = 'Failed to load categories. Please refresh the page.';
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -244,8 +260,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
           }
 
           // Search in multiple fields with better null safety and error handling
-          final categoryTitle = (category.title ?? '').toLowerCase();
-          final categoryCode = (category.categoryCode ?? '').toLowerCase();
+          final categoryTitle = category.title.toLowerCase();
+          final categoryCode = category.categoryCode.toLowerCase();
 
           return categoryTitle.contains(searchText) ||
               categoryCode.contains(searchText);

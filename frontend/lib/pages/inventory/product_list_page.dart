@@ -6,10 +6,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:excel/excel.dart' as excel_pkg;
+import 'package:provider/provider.dart';
 import '../../services/inventory_service.dart';
 import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../models/vendor.dart' as vendor;
+import '../../providers/providers.dart';
 import 'add_product_page.dart';
 import 'product_details_page.dart';
 
@@ -218,56 +220,71 @@ class _ProductListPageState extends State<ProductListPage> {
 
   // Fetch all products once when page loads
   Future<void> _fetchAllProductsOnInit() async {
-    try {
-      print('🚀 Initial load: Fetching all products');
+    final inventoryProvider = Provider.of<InventoryProvider>(
+      context,
+      listen: false,
+    );
+
+    if (inventoryProvider.products.isNotEmpty) {
+      print('📦 Using pre-fetched products from provider');
       setState(() {
-        errorMessage = null;
+        _allProductsCache = inventoryProvider.products;
       });
-
-      // Fetch all products from all pages
-      List<Product> allProducts = [];
-      int currentFetchPage = 1;
-      bool hasMorePages = true;
-
-      while (hasMorePages) {
-        try {
-          print('📡 Fetching page $currentFetchPage');
-          final response = await InventoryService.getProducts(
-            page: currentFetchPage,
-            limit: 50, // Use larger page size for efficiency
-          );
-
-          allProducts.addAll(response.data);
-          print(
-            '📦 Page $currentFetchPage: ${response.data.length} products (total: ${allProducts.length})',
-          );
-
-          // Check if there are more pages
-          if (response.meta.currentPage >= response.meta.lastPage) {
-            hasMorePages = false;
-          } else {
-            currentFetchPage++;
-          }
-        } catch (e) {
-          print('❌ Error fetching page $currentFetchPage: $e');
-          hasMorePages = false; // Stop fetching on error
-        }
-      }
-
-      _allProductsCache = allProducts;
-      print('💾 Cached ${_allProductsCache.length} total products');
-
-      // Populate vendor data for all products
       _populateVendorDataForProducts();
-
-      // Apply initial filters (which will be no filters, showing all products)
       _applyFiltersClientSide();
-    } catch (e) {
-      print('❌ Critical error in _fetchAllProductsOnInit: $e');
-      setState(() {
-        errorMessage = 'Failed to load products. Please refresh the page.';
-        isLoading = false;
-      });
+    } else {
+      print('🚀 Pre-fetch not available, fetching products');
+      try {
+        print('🚀 Initial load: Fetching all products');
+        setState(() {
+          errorMessage = null;
+        });
+
+        // Fetch all products from all pages
+        List<Product> allProducts = [];
+        int currentFetchPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          try {
+            print('📡 Fetching page $currentFetchPage');
+            final response = await InventoryService.getProducts(
+              page: currentFetchPage,
+              limit: 50, // Use larger page size for efficiency
+            );
+
+            allProducts.addAll(response.data);
+            print(
+              '📦 Page $currentFetchPage: ${response.data.length} products (total: ${allProducts.length})',
+            );
+
+            // Check if there are more pages
+            if (response.meta.currentPage >= response.meta.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentFetchPage++;
+            }
+          } catch (e) {
+            print('❌ Error fetching page $currentFetchPage: $e');
+            hasMorePages = false; // Stop fetching on error
+          }
+        }
+
+        _allProductsCache = allProducts;
+        print('💾 Cached ${_allProductsCache.length} total products');
+
+        // Populate vendor data for all products
+        _populateVendorDataForProducts();
+
+        // Apply initial filters (which will be no filters, showing all products)
+        _applyFiltersClientSide();
+      } catch (e) {
+        print('❌ Critical error in _fetchAllProductsOnInit: $e');
+        setState(() {
+          errorMessage = 'Failed to load products. Please refresh the page.';
+          isLoading = false;
+        });
+      }
     }
   }
 

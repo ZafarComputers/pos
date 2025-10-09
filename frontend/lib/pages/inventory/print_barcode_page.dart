@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:barcode_widget/barcode_widget.dart';
@@ -19,6 +20,13 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   final int itemsPerPage =
       10; // Load 10 products per page for better performance
 
+  // Caching and filtering
+  List<Product> _allProductsCache = [];
+  List<Product> _allFilteredProducts = [];
+  List<Product> _filteredProducts = [];
+  Timer? _searchDebounceTimer;
+  bool _isFilterActive = false;
+
   String selectedCategory = 'All';
   String selectedVendor = 'All';
   final TextEditingController _searchController = TextEditingController();
@@ -30,13 +38,282 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   @override
   void initState() {
     super.initState();
-    _fetchProducts();
+    _fetchAllProductsOnInit(); // Fetch all products once on page load
+    _setupSearchListener();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounceTimer?.cancel(); // Cancel timer on dispose
     super.dispose();
+  }
+
+  // Fetch all products once when page loads
+  Future<void> _fetchAllProductsOnInit() async {
+    try {
+      print('🚀 Initial load: Fetching all products');
+      setState(() {
+        errorMessage = null;
+      });
+
+      // Fetch all products from all pages
+      List<Product> allProducts = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        try {
+          print('📡 Fetching page $currentFetchPage');
+          final response = await InventoryService.getProducts(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
+
+          allProducts.addAll(response.data);
+          print(
+            '📦 Page $currentFetchPage: ${response.data.length} products (total: ${allProducts.length})',
+          );
+
+          // Check if there are more pages
+          if (response.meta.currentPage >= response.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allProductsCache = allProducts;
+      print('💾 Cached ${_allProductsCache.length} total products');
+
+      // Apply initial filters (which will be no filters, showing all products)
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _fetchAllProductsOnInit: $e');
+      setState(() {
+        errorMessage = 'Failed to load products. Please refresh the page.';
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      // Cancel previous timer
+      _searchDebounceTimer?.cancel();
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        print('🔍 Search triggered: "${_searchController.text}"');
+        setState(() {
+          currentPage = 1; // Reset to first page when search changes
+        });
+        // Apply filters when search changes
+        _applyFilters();
+      });
+    });
+  }
+
+  // Client-side only filter application
+  void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
+    _applyFiltersClientSide();
+  }
+
+  // Pure client-side filtering method
+  void _applyFiltersClientSide() {
+    try {
+      final searchText = _searchController.text.toLowerCase().trim();
+      final hasSearch = searchText.isNotEmpty;
+      final hasCategoryFilter = selectedCategory != 'All';
+      final hasVendorFilter = selectedVendor != 'All';
+
+      print(
+        '🎯 Client-side filtering - search: "$searchText", category: "$selectedCategory", vendor: "$selectedVendor"',
+      );
+      print(
+        '🎯 hasSearch: $hasSearch, hasCategoryFilter: $hasCategoryFilter, hasVendorFilter: $hasVendorFilter',
+      );
+
+      setState(() {
+        _isFilterActive = hasSearch || hasCategoryFilter || hasVendorFilter;
+      });
+
+      // Apply filters to cached products (no API calls)
+      _filterCachedProducts(searchText);
+
+      print('🔄 _isFilterActive: $_isFilterActive');
+      print('📦 _allProductsCache.length: ${_allProductsCache.length}');
+      print('🎯 _allFilteredProducts.length: ${_allFilteredProducts.length}');
+      print('👀 _filteredProducts.length: ${_filteredProducts.length}');
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        errorMessage = 'Search error: Please try a different search term';
+      });
+    }
+  }
+
+  // Filter cached products without any API calls
+  void _filterCachedProducts(String searchText) {
+    try {
+      // Apply filters to cached products with enhanced error handling
+      _allFilteredProducts = _allProductsCache.where((product) {
+        try {
+          // Category filter
+          if (selectedCategory != 'All' &&
+              product.subCategoryId != selectedCategory) {
+            return false;
+          }
+
+          // Vendor filter
+          if (selectedVendor != 'All' &&
+              product.vendor.name != selectedVendor) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in multiple fields with better null safety and error handling
+          final productTitle = product.title.toLowerCase();
+          final productDesignCode = product.designCode.toLowerCase();
+          final productBarcode = product.barcode.toLowerCase();
+          final vendorName = product.vendor.name?.toLowerCase() ?? '';
+          final subCategoryId = product.subCategoryId.toLowerCase();
+
+          return productTitle.contains(searchText) ||
+              productDesignCode.contains(searchText) ||
+              productBarcode.contains(searchText) ||
+              vendorName.contains(searchText) ||
+              subCategoryId.contains(searchText);
+        } catch (e) {
+          // If there's any error during filtering, exclude this product
+          print('⚠️ Error filtering product ${product.id}: $e');
+          return false;
+        }
+      }).toList();
+
+      print(
+        '🔍 After filtering: ${_allFilteredProducts.length} products match criteria',
+      );
+      print(
+        '📝 Search text: "$searchText", Category filter: "$selectedCategory", Vendor filter: "$selectedVendor"',
+      );
+
+      // Apply local pagination to filtered results
+      _paginateFilteredProducts();
+
+      setState(() {
+        errorMessage = null;
+      });
+    } catch (e) {
+      print('❌ Critical error in _filterCachedProducts: $e');
+      setState(() {
+        errorMessage =
+            'Search failed. Please try again with a simpler search term.';
+        // Fallback: show empty results instead of crashing
+        _filteredProducts = [];
+        _allFilteredProducts = [];
+      });
+    }
+  }
+
+  // Apply local pagination to filtered products
+  void _paginateFilteredProducts() {
+    try {
+      // Handle empty results case
+      if (_allFilteredProducts.isEmpty) {
+        setState(() {
+          _filteredProducts = [];
+          // Update productResponse meta for pagination controls
+          productResponse = ProductResponse(
+            data: [],
+            links: Links(),
+            meta: Meta(
+              currentPage: 1,
+              lastPage: 1,
+              links: [],
+              path: "/products",
+              perPage: itemsPerPage,
+              total: 0,
+            ),
+          );
+        });
+        return;
+      }
+
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
+
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredProducts.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredProducts(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        _filteredProducts = _allFilteredProducts.sublist(
+          startIndex,
+          endIndex > _allFilteredProducts.length
+              ? _allFilteredProducts.length
+              : endIndex,
+        );
+
+        // Update productResponse meta for pagination controls
+        final totalPages = (_allFilteredProducts.length / itemsPerPage).ceil();
+        print('📄 Pagination calculation:');
+        print(
+          '   📊 _allFilteredProducts.length: ${_allFilteredProducts.length}',
+        );
+        print('   📝 itemsPerPage: $itemsPerPage');
+        print('   🔢 totalPages: $totalPages');
+        print('   📍 currentPage: $currentPage');
+
+        productResponse = ProductResponse(
+          data: _filteredProducts,
+          links: Links(), // Empty links for local pagination
+          meta: Meta(
+            currentPage: currentPage,
+            lastPage: totalPages,
+            links: [], // Empty links array for local pagination
+            path: "/products", // Default path
+            perPage: itemsPerPage,
+            total: _allFilteredProducts.length,
+          ),
+        );
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredProducts: $e');
+      setState(() {
+        _filteredProducts = [];
+        currentPage = 1;
+      });
+    }
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    // Always use client-side pagination when we have cached products
+    if (_allProductsCache.isNotEmpty) {
+      _paginateFilteredProducts();
+    } else {
+      // Fallback to server pagination only if no cached data
+      await _fetchProducts(page: newPage);
+    }
   }
 
   Future<void> _fetchProducts({int page = 1}) async {
@@ -70,25 +347,15 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
     }
   }
 
-  Future<void> _changePage(int newPage) async {
-    if (!mounted) return;
-
-    setState(() {
-      currentPage = newPage;
-    });
-
-    await _fetchProducts(page: newPage);
-  }
-
   void toggleSelectAll() {
-    if (productResponse == null) return;
+    if (_filteredProducts.isEmpty) return;
 
     setState(() {
       if (selectAll) {
         selectedProductIds.clear();
         selectAll = false;
       } else {
-        selectedProductIds = productResponse!.data
+        selectedProductIds = _filteredProducts
             .map((product) => product.id)
             .toSet();
         selectAll = true;
@@ -103,7 +370,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       } else {
         selectedProductIds.add(productId);
       }
-      selectAll = selectedProductIds.length == productResponse?.data.length;
+      selectAll = selectedProductIds.length == _filteredProducts.length;
     });
   }
 
@@ -515,100 +782,120 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.filter_list,
-                        color: Color(0xFF6C757D),
-                        size: 18,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Search & Filter',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF343A40),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      // Search Bar - Takes more space
                       Expanded(
-                        flex: 2,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white,
-                              hintText: 'Search products...',
-                              prefixIcon: Icon(
-                                Icons.search,
-                                color: Color(0xFF6C757D),
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFFDEE2E6),
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFFDEE2E6),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(
-                                  color: Color(0xFF17A2B8),
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
+                        flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.category,
-                                  size: 14,
-                                  color: Color(0xFF6C757D),
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Category',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF343A40),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.manage_search_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Search Products',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  hintText: 'Type to search...',
+                                  hintStyle: TextStyle(
+                                    color: Color(0xFFADB5BD),
+                                    fontSize: 14,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF0D1845),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 6),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Category Filter - Compact design
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.category_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Filter by Category',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             Container(
                               decoration: BoxDecoration(
                                 boxShadow: [
@@ -620,32 +907,32 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                initialValue: selectedCategory,
+                                value: selectedCategory,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
-                                      color: Color(0xFF17A2B8),
+                                      color: Color(0xFF0D1845),
                                       width: 2,
                                     ),
                                   ),
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 12,
-                                    vertical: 12,
+                                    vertical: 16,
                                   ),
                                   isDense: true,
                                 ),
@@ -654,12 +941,30 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                         .map(
                                           (category) => DropdownMenuItem(
                                             value: category,
-                                            child: Text(
-                                              category,
-                                              style: TextStyle(
-                                                color: Color(0xFF343A40),
-                                                fontSize: 13,
-                                              ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  category == 'All'
+                                                      ? Icons.clear_all
+                                                      : category == 'Computers'
+                                                      ? Icons.computer
+                                                      : category ==
+                                                            'Electronics'
+                                                      ? Icons
+                                                            .electrical_services
+                                                      : Icons.shopping_bag,
+                                                  size: 16,
+                                                  color: Color(0xFF6C757D),
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  category,
+                                                  style: TextStyle(
+                                                    color: Color(0xFF343A40),
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         )
@@ -668,7 +973,9 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedCategory = value;
+                                      currentPage = 1; // Reset to first page
                                     });
+                                    _applyFilters();
                                   }
                                 },
                               ),
@@ -676,30 +983,37 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 20),
+                      // Vendor Filter - Compact design
                       Expanded(
+                        flex: 2,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.business,
-                                  size: 14,
-                                  color: Color(0xFF6C757D),
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Vendor',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF343A40),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.business_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
                                   ),
-                                ),
-                              ],
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Filter by Vendor',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 6),
                             Container(
                               decoration: BoxDecoration(
                                 boxShadow: [
@@ -711,32 +1025,32 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                 ],
                               ),
                               child: DropdownButtonFormField<String>(
-                                initialValue: selectedVendor,
+                                value: selectedVendor,
                                 decoration: InputDecoration(
                                   filled: true,
                                   fillColor: Colors.white,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
                                       color: Color(0xFFDEE2E6),
                                     ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     borderSide: BorderSide(
-                                      color: Color(0xFF17A2B8),
+                                      color: Color(0xFF0D1845),
                                       width: 2,
                                     ),
                                   ),
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 12,
-                                    vertical: 12,
+                                    vertical: 16,
                                   ),
                                   isDense: true,
                                 ),
@@ -750,14 +1064,26 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                           'Apple',
                                         ]
                                         .map(
-                                          (brand) => DropdownMenuItem(
-                                            value: brand,
-                                            child: Text(
-                                              brand,
-                                              style: TextStyle(
-                                                color: Color(0xFF343A40),
-                                                fontSize: 13,
-                                              ),
+                                          (vendor) => DropdownMenuItem(
+                                            value: vendor,
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  vendor == 'All'
+                                                      ? Icons.clear_all
+                                                      : Icons.business,
+                                                  size: 16,
+                                                  color: Color(0xFF6C757D),
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  vendor,
+                                                  style: TextStyle(
+                                                    color: Color(0xFF343A40),
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         )
@@ -766,7 +1092,9 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                   if (value != null) {
                                     setState(() {
                                       selectedVendor = value;
+                                      currentPage = 1; // Reset to first page
                                     });
+                                    _applyFilters();
                                   }
                                 },
                               ),
@@ -977,7 +1305,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                               DataColumn(label: Text('Unit')),
                               DataColumn(label: Text('Qty')),
                             ],
-                            rows: (productResponse?.data ?? []).map((product) {
+                            rows: _filteredProducts.map((product) {
                               final quantity =
                                   int.tryParse(product.openingStockQuantity) ??
                                   0;

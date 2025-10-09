@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import 'dart:io';
+import '../models/product.dart';
+import '../models/vendor.dart' as vendor;
+import '../models/category.dart' as category;
+import '../models/sub_category.dart' as subCategory;
+import '../models/color.dart' as colorModel;
+import '../models/size.dart' as sizeModel;
+import '../models/season.dart' as seasonModel;
+import '../models/material.dart' as materialModel;
+import '../services/inventory_service.dart';
 
 class AuthProvider with ChangeNotifier {
   User? _user;
@@ -322,5 +332,269 @@ class AuthProvider with ChangeNotifier {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+  }
+}
+
+class InventoryProvider with ChangeNotifier {
+  // Data lists
+  List<category.Category> _categories = [];
+  List<subCategory.SubCategory> _subCategories = [];
+  List<Product> _products = [];
+  List<vendor.Vendor> _vendors = [];
+  List<colorModel.Color> _colors = [];
+  List<sizeModel.Size> _sizes = [];
+  List<seasonModel.Season> _seasons = [];
+  List<materialModel.Material> _materials = [];
+
+  // Loading states
+  bool _isLoadingCategories = false;
+  bool _isLoadingSubCategories = false;
+  bool _isLoadingProducts = false;
+  bool _isLoadingVendors = false;
+  bool _isLoadingColors = false;
+  bool _isLoadingSizes = false;
+  bool _isLoadingSeasons = false;
+  bool _isLoadingMaterials = false;
+  bool _isPreFetching = false;
+
+  // Getters
+  List<category.Category> get categories => _categories;
+  List<subCategory.SubCategory> get subCategories => _subCategories;
+  List<Product> get products => _products;
+  List<vendor.Vendor> get vendors => _vendors;
+  List<colorModel.Color> get colors => _colors;
+  List<sizeModel.Size> get sizes => _sizes;
+  List<seasonModel.Season> get seasons => _seasons;
+  List<materialModel.Material> get materials => _materials;
+
+  bool get isLoadingCategories => _isLoadingCategories;
+  bool get isLoadingSubCategories => _isLoadingSubCategories;
+  bool get isLoadingProducts => _isLoadingProducts;
+  bool get isLoadingVendors => _isLoadingVendors;
+  bool get isLoadingColors => _isLoadingColors;
+  bool get isLoadingSizes => _isLoadingSizes;
+  bool get isLoadingSeasons => _isLoadingSeasons;
+  bool get isLoadingMaterials => _isLoadingMaterials;
+  bool get isPreFetching => _isPreFetching;
+
+  // Pre-fetch all data
+  Future<void> preFetchAllData() async {
+    _isPreFetching = true;
+    notifyListeners();
+
+    try {
+      print('🚀 InventoryProvider: Starting pre-fetch of all data');
+
+      // Fetch all data in parallel
+      final futures = <Future>[];
+      futures.add(_fetchCategories());
+      futures.add(_fetchSubCategories());
+      futures.add(_fetchProducts());
+      futures.add(_fetchVendors());
+      futures.add(_fetchColors());
+      futures.add(_fetchSizes());
+      futures.add(_fetchSeasons());
+      futures.add(_fetchMaterials());
+
+      await Future.wait(futures);
+
+      print('✅ InventoryProvider: Pre-fetch completed successfully');
+    } catch (e) {
+      print('❌ InventoryProvider: Pre-fetch failed: $e');
+      // Don't throw, just log - app should still work
+    } finally {
+      _isPreFetching = false;
+      notifyListeners();
+    }
+  }
+
+  // Individual fetch methods
+  Future<void> _fetchCategories() async {
+    _isLoadingCategories = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getCategories(
+        limit: 1000,
+      ); // Fetch all
+      _categories = response.data;
+      print('📂 InventoryProvider: Fetched ${_categories.length} categories');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch categories: $e');
+    } finally {
+      _isLoadingCategories = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchSubCategories() async {
+    _isLoadingSubCategories = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getSubCategories(limit: 1000);
+      _subCategories = response.data;
+      print(
+        '📂 InventoryProvider: Fetched ${_subCategories.length} subcategories',
+      );
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch subcategories: $e');
+    } finally {
+      _isLoadingSubCategories = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchProducts() async {
+    _isLoadingProducts = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getProducts(limit: 1000);
+      _products = response.data;
+      print('📦 InventoryProvider: Fetched ${_products.length} products');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch products: $e');
+    } finally {
+      _isLoadingProducts = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchVendors() async {
+    _isLoadingVendors = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getVendors(limit: 1000);
+      _vendors = response.data;
+      print('🏪 InventoryProvider: Fetched ${_vendors.length} vendors');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch vendors: $e');
+    } finally {
+      _isLoadingVendors = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchColors() async {
+    _isLoadingColors = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getColors(limit: 1000);
+      _colors = response.data;
+      print('🎨 InventoryProvider: Fetched ${_colors.length} colors');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch colors: $e');
+    } finally {
+      _isLoadingColors = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchSizes() async {
+    _isLoadingSizes = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getSizes(limit: 1000);
+      _sizes = response.data;
+      print('📏 InventoryProvider: Fetched ${_sizes.length} sizes');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch sizes: $e');
+    } finally {
+      _isLoadingSizes = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchSeasons() async {
+    _isLoadingSeasons = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getSeasons(limit: 1000);
+      _seasons = response.data;
+      print('🌤️ InventoryProvider: Fetched ${_seasons.length} seasons');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch seasons: $e');
+    } finally {
+      _isLoadingSeasons = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchMaterials() async {
+    _isLoadingMaterials = true;
+    notifyListeners();
+
+    try {
+      final response = await InventoryService.getMaterials(limit: 1000);
+      _materials = response.data;
+      print('🧵 InventoryProvider: Fetched ${_materials.length} materials');
+    } catch (e) {
+      print('❌ InventoryProvider: Failed to fetch materials: $e');
+    } finally {
+      _isLoadingMaterials = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh methods for individual data
+  Future<void> refreshCategories() => _fetchCategories();
+  Future<void> refreshSubCategories() => _fetchSubCategories();
+  Future<void> refreshProducts() => _fetchProducts();
+  Future<void> refreshVendors() => _fetchVendors();
+  Future<void> refreshColors() => _fetchColors();
+  Future<void> refreshSizes() => _fetchSizes();
+  Future<void> refreshSeasons() => _fetchSeasons();
+  Future<void> refreshMaterials() => _fetchMaterials();
+
+  // Clear all data (for logout)
+  void clearAllData() {
+    _categories.clear();
+    _subCategories.clear();
+    _products.clear();
+    _vendors.clear();
+    _colors.clear();
+    _sizes.clear();
+    _seasons.clear();
+    _materials.clear();
+    notifyListeners();
+  }
+}
+
+class WindowProvider with ChangeNotifier {
+  bool _isFullScreen = false;
+  bool get isFullScreen => _isFullScreen;
+
+  Future<void> toggleFullScreen() async {
+    try {
+      if (_isFullScreen) {
+        await windowManager.setFullScreen(false);
+        await windowManager.setSize(const Size(1200, 700));
+        await windowManager.center();
+        _isFullScreen = false;
+      } else {
+        await windowManager.setFullScreen(true);
+        _isFullScreen = true;
+      }
+      notifyListeners();
+    } catch (e) {
+      print('Error toggling full screen: $e');
+    }
+  }
+
+  Future<void> exitFullScreen() async {
+    if (_isFullScreen) {
+      await toggleFullScreen();
+    }
+  }
+
+  Future<void> initWindow() async {
+    // Check initial state
+    _isFullScreen = await windowManager.isFullScreen();
+    notifyListeners();
   }
 }

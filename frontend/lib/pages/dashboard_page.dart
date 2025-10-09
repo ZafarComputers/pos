@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import '../providers/providers.dart';
@@ -16,6 +17,12 @@ import 'inventory/low_stock_products_page.dart';
 import 'inventory/vendors_page.dart';
 import 'inventory/print_barcode_page.dart';
 import 'profile/user_profile_page.dart';
+import 'sales_return_page.dart';
+import 'sales_page.dart';
+import 'invoices_page.dart';
+import 'purchase_listing_page.dart';
+import 'create_purchase_page.dart';
+import 'purchase_return_page.dart';
 import '../services/services.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -34,6 +41,7 @@ class _DashboardPageState extends State<DashboardPage>
   Map<String, AnimationController> _animationControllers = {};
   String selectedTimeRange = '1M'; // Default time range
   String selectedTopSellingPeriod = 'Today'; // Default period for top selling
+  late FocusNode _focusNode;
 
   Future<Uint8List?> _loadImageBytes(String path) async {
     try {
@@ -46,6 +54,8 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode();
+    _focusNode.requestFocus();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -70,6 +80,7 @@ class _DashboardPageState extends State<DashboardPage>
     for (var controller in _animationControllers.values) {
       controller.dispose();
     }
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -137,6 +148,24 @@ class _DashboardPageState extends State<DashboardPage>
         return VendorsPage();
       case 'Print Barcode':
         return PrintBarcodePage();
+      case 'Sales Return':
+        return const SalesReturnPage();
+      case 'Sales':
+        return const SalesPage();
+      case 'Invoices':
+        return const InvoicesPage();
+      case 'Purchase Listing':
+        return const PurchaseListingPage();
+      case 'Purchase Create':
+        return const CreatePurchasePage();
+      case 'Purchase Return':
+        return const PurchaseReturnPage();
+      case 'POS':
+        // Navigate to POS page instead of showing content
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pushNamed(context, '/pos');
+        });
+        return _buildDashboardContent(); // Show dashboard temporarily
       default:
         return _buildDashboardContent();
     }
@@ -540,6 +569,22 @@ class _DashboardPageState extends State<DashboardPage>
           ],
         ),
         actions: [
+          Consumer<WindowProvider>(
+            builder: (context, windowProvider, child) {
+              return IconButton(
+                icon: Icon(
+                  windowProvider.isFullScreen
+                      ? Icons.fullscreen_exit
+                      : Icons.fullscreen,
+                  color: const Color(0xFF6C757D),
+                ),
+                onPressed: () => windowProvider.toggleFullScreen(),
+                tooltip: windowProvider.isFullScreen
+                    ? 'Exit Full Screen'
+                    : 'Enter Full Screen',
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.notifications, color: Color(0xFF6C757D)),
             onPressed: () {},
@@ -707,298 +752,339 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Row(
-            children: [
-              // Sidebar
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: _isSidebarOpen ? 280 : 60,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+      body: RawKeyboardListener(
+        focusNode: _focusNode,
+        onKey: (event) {
+          if (event is RawKeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            final windowProvider = Provider.of<WindowProvider>(
+              context,
+              listen: false,
+            );
+            windowProvider.exitFullScreen();
+          }
+        },
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                // Sidebar
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: _isSidebarOpen ? 280 : 60,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
-                ),
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  children: [
-                    // Header - Always visible
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: AnimatedCrossFade(
-                        duration: const Duration(milliseconds: 300),
-                        crossFadeState: _isSidebarOpen
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        firstChild: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.dashboard,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ],
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    children: [
+                      // Header - Always visible
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
                         ),
-                        secondChild: Row(
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.dashboard,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Admin Dashboard',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: AnimatedCrossFade(
+                          duration: const Duration(milliseconds: 300),
+                          crossFadeState: _isSidebarOpen
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          firstChild: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.dashboard,
                                   color: Colors.white,
-                                  letterSpacing: 0.5,
+                                  size: 16,
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          secondChild: Row(
+                            mainAxisSize: MainAxisSize.max,
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.dashboard,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Admin Dashboard',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
-                    // Section Divider
-                    if (_isSidebarOpen) _buildSectionDivider(),
+                      // Section Divider
+                      if (_isSidebarOpen) _buildSectionDivider(),
 
-                    // Inventory Section
-                    _buildMainSectionTile(Icons.inventory_2, 'Inventory', [
-                      _buildPrimarySubTile('Products', Icons.inventory),
-                      _buildPrimarySubTile('Create Product', Icons.add_circle),
-                      _buildPrimarySubTile(
-                        'Low Stock Products',
-                        Icons.warning_amber,
-                      ),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildPrimarySubTile('Category', Icons.category),
-                      _buildPrimarySubTile(
-                        'Sub Category',
-                        Icons.subdirectory_arrow_right,
-                      ),
-                      _buildPrimarySubTile('Vendor', Icons.business_center),
-                      _buildPrimarySubTile(
-                        'Print Barcode',
-                        Icons.qr_code_scanner,
-                      ),
-                      _buildSectionDivider(isSubDivider: true),
-                      // Variants Subsection
-                      _buildSubHeaderTile('Variants', Icons.palette),
-                      _buildSecondarySubTile('Color', Icons.color_lens),
-                      _buildSecondarySubTile('Sizes', Icons.straighten),
-                      _buildSecondarySubTile('Seasons', Icons.wb_sunny),
-                      _buildSecondarySubTile('Material', Icons.texture),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Sales Section
-                    _buildMainSectionTile(Icons.shopping_cart, 'Sales', [
-                      _buildPrimarySubTile('Sales', Icons.point_of_sale),
-                      _buildPrimarySubTile('Invoices', Icons.receipt_long),
-                      _buildPrimarySubTile('Sales Return', Icons.undo),
-                      _buildPrimarySubTile('POS', Icons.smartphone),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Purchase Section
-                    _buildMainSectionTile(Icons.shopping_bag, 'Purchase', [
-                      _buildPrimarySubTile('Purchase Listing', Icons.list_alt),
-                      _buildPrimarySubTile('Purchases', Icons.shopping_bag),
-                      _buildPrimarySubTile(
-                        'Purchase Create',
-                        Icons.add_shopping_cart,
-                      ),
-                      _buildPrimarySubTile(
-                        'Purchase Return',
-                        Icons.assignment_return,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Finance Section
-                    _buildMainSectionTile(
-                      Icons.account_balance_wallet,
-                      'Finance & Accounts',
-                      [
-                        _buildPrimarySubTile('Expenses', Icons.money_off),
-                        _buildPrimarySubTile('Income', Icons.trending_up),
+                      // Inventory Section
+                      _buildMainSectionTile(Icons.inventory_2, 'Inventory', [
+                        _buildPrimarySubTile('Products', Icons.inventory),
                         _buildPrimarySubTile(
-                          'Bank Accounts',
+                          'Create Product',
+                          Icons.add_circle,
+                        ),
+                        _buildPrimarySubTile(
+                          'Low Stock Products',
+                          Icons.warning_amber,
+                        ),
+                        _buildSectionDivider(isSubDivider: true),
+                        _buildPrimarySubTile('Category', Icons.category),
+                        _buildPrimarySubTile(
+                          'Sub Category',
+                          Icons.subdirectory_arrow_right,
+                        ),
+                        _buildPrimarySubTile('Vendor', Icons.business_center),
+                        _buildPrimarySubTile(
+                          'Print Barcode',
+                          Icons.qr_code_scanner,
+                        ),
+                        _buildSectionDivider(isSubDivider: true),
+                        // Variants Subsection
+                        _buildSubHeaderTile('Variants', Icons.palette),
+                        _buildSecondarySubTile('Color', Icons.color_lens),
+                        _buildSecondarySubTile('Sizes', Icons.straighten),
+                        _buildSecondarySubTile('Seasons', Icons.wb_sunny),
+                        _buildSecondarySubTile('Material', Icons.texture),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Sales Section
+                      _buildMainSectionTile(Icons.shopping_cart, 'Sales', [
+                        _buildPrimarySubTile('Sales', Icons.point_of_sale),
+                        _buildPrimarySubTile('Invoices', Icons.receipt_long),
+                        _buildPrimarySubTile('Sales Return', Icons.undo),
+                        _buildPrimarySubTile('POS', Icons.smartphone),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Purchase Section
+                      _buildMainSectionTile(Icons.shopping_bag, 'Purchase', [
+                        _buildPrimarySubTile(
+                          'Purchase Listing',
+                          Icons.list_alt,
+                        ),
+                        _buildPrimarySubTile('Purchases', Icons.shopping_bag),
+                        _buildPrimarySubTile(
+                          'Purchase Create',
+                          Icons.add_shopping_cart,
+                        ),
+                        _buildPrimarySubTile(
+                          'Purchase Return',
+                          Icons.assignment_return,
+                        ),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Finance Section
+                      _buildMainSectionTile(
+                        Icons.account_balance_wallet,
+                        'Finance & Accounts',
+                        [
+                          _buildPrimarySubTile('Expenses', Icons.money_off),
+                          _buildPrimarySubTile('Income', Icons.trending_up),
+                          _buildPrimarySubTile(
+                            'Bank Accounts',
+                            Icons.account_balance,
+                          ),
+                          _buildPrimarySubTile('Trial Balance', Icons.balance),
+                          _buildPrimarySubTile(
+                            'Account Statement',
+                            Icons.description,
+                          ),
+                          _buildPrimarySubTile(
+                            'Cashflow',
+                            Icons.account_balance_wallet,
+                          ),
+                        ],
+                      ),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // People Section
+                      _buildMainSectionTile(Icons.people_alt, 'Peoples', [
+                        _buildPrimarySubTile('Customer', Icons.people),
+                        _buildPrimarySubTile('Suppliers', Icons.business),
+                        _buildPrimarySubTile('Employees (HRM)', Icons.badge),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Reports Section
+                      _buildMainSectionTile(Icons.analytics, 'Reports', [
+                        _buildBulletPointTile('Sales Report'),
+                        _buildBulletPointTile('Best Seller'),
+                        _buildSectionDivider(isSubDivider: true),
+                        _buildSecondarySubTile(
+                          'Purchase Report',
+                          Icons.bar_chart,
+                        ),
+                        _buildSecondarySubTile(
+                          'Inventory Report',
+                          Icons.inventory_2,
+                        ),
+                        _buildSecondarySubTile('Invoice Report', Icons.receipt),
+                        _buildSecondarySubTile(
+                          'Supplier Report',
+                          Icons.business,
+                        ),
+                        _buildSecondarySubTile('Customer Report', Icons.people),
+                        _buildSecondarySubTile(
+                          'Product Report',
+                          Icons.inventory,
+                        ),
+                        _buildSecondarySubTile(
+                          'Expense Report',
+                          Icons.money_off,
+                        ),
+                        _buildSecondarySubTile(
+                          'Income Report',
+                          Icons.trending_up,
+                        ),
+                        _buildSecondarySubTile(
+                          'Tax Report',
                           Icons.account_balance,
                         ),
-                        _buildPrimarySubTile('Trial Balance', Icons.balance),
-                        _buildPrimarySubTile(
-                          'Account Statement',
-                          Icons.description,
+                        _buildSecondarySubTile(
+                          'Profit & Loss',
+                          Icons.show_chart,
                         ),
+                        _buildSecondarySubTile(
+                          'Annual Report',
+                          Icons.calendar_today,
+                        ),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Users Section
+                      _buildMainSectionTile(
+                        Icons.admin_panel_settings,
+                        'Users',
+                        [
+                          _buildPrimarySubTile('Users', Icons.group),
+                          _buildPrimarySubTile(
+                            'Roles & Permissions',
+                            Icons.security,
+                          ),
+                          _buildPrimarySubTile(
+                            'Delete Account Request',
+                            Icons.delete_forever,
+                          ),
+                        ],
+                      ),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Settings Section
+                      _buildMainSectionTile(Icons.settings, 'Settings', [
                         _buildPrimarySubTile(
-                          'Cashflow',
+                          'General Settings',
+                          Icons.settings,
+                        ),
+                        _buildPrimarySubTile('System Settings', Icons.computer),
+                        _buildPrimarySubTile(
+                          'Financial Settings',
                           Icons.account_balance_wallet,
                         ),
-                      ],
+                        _buildPrimarySubTile(
+                          'Other Settings',
+                          Icons.more_horiz,
+                        ),
+                        _buildSectionDivider(isSubDivider: true),
+                        _buildLogoutTile('Logout', Icons.logout),
+                      ]),
+
+                      if (_isSidebarOpen) _buildSectionDivider(),
+
+                      // Quick Actions
+                      _buildQuickActionTile(Icons.point_of_sale, 'POS', [
+                        _buildPrimarySubTile('Cash', Icons.payments),
+                        _buildPrimarySubTile('Card', Icons.credit_card),
+                        _buildPrimarySubTile('Bank', Icons.account_balance),
+                      ]),
+                    ],
+                  ),
+                ),
+                // Main Content
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: _buildMainContent(),
+                  ),
+                ),
+              ],
+            ),
+            // Toggle Button - Always on top
+            Positioned(
+              left: (_isSidebarOpen ? 280 : 60) - 15,
+              top: 40,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1845),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // People Section
-                    _buildMainSectionTile(Icons.people_alt, 'Peoples', [
-                      _buildPrimarySubTile('Customer', Icons.people),
-                      _buildPrimarySubTile('Suppliers', Icons.business),
-                      _buildPrimarySubTile('Employees (HRM)', Icons.badge),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Reports Section
-                    _buildMainSectionTile(Icons.analytics, 'Reports', [
-                      _buildBulletPointTile('Sales Report'),
-                      _buildBulletPointTile('Best Seller'),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildSecondarySubTile(
-                        'Purchase Report',
-                        Icons.bar_chart,
-                      ),
-                      _buildSecondarySubTile(
-                        'Inventory Report',
-                        Icons.inventory_2,
-                      ),
-                      _buildSecondarySubTile('Invoice Report', Icons.receipt),
-                      _buildSecondarySubTile('Supplier Report', Icons.business),
-                      _buildSecondarySubTile('Customer Report', Icons.people),
-                      _buildSecondarySubTile('Product Report', Icons.inventory),
-                      _buildSecondarySubTile('Expense Report', Icons.money_off),
-                      _buildSecondarySubTile(
-                        'Income Report',
-                        Icons.trending_up,
-                      ),
-                      _buildSecondarySubTile(
-                        'Tax Report',
-                        Icons.account_balance,
-                      ),
-                      _buildSecondarySubTile('Profit & Loss', Icons.show_chart),
-                      _buildSecondarySubTile(
-                        'Annual Report',
-                        Icons.calendar_today,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Users Section
-                    _buildMainSectionTile(Icons.admin_panel_settings, 'Users', [
-                      _buildPrimarySubTile('Users', Icons.group),
-                      _buildPrimarySubTile(
-                        'Roles & Permissions',
-                        Icons.security,
-                      ),
-                      _buildPrimarySubTile(
-                        'Delete Account Request',
-                        Icons.delete_forever,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Settings Section
-                    _buildMainSectionTile(Icons.settings, 'Settings', [
-                      _buildPrimarySubTile('General Settings', Icons.settings),
-                      _buildPrimarySubTile('System Settings', Icons.computer),
-                      _buildPrimarySubTile(
-                        'Financial Settings',
-                        Icons.account_balance_wallet,
-                      ),
-                      _buildPrimarySubTile('Other Settings', Icons.more_horiz),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildLogoutTile('Logout', Icons.logout),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Quick Actions
-                    _buildQuickActionTile(Icons.point_of_sale, 'POS', [
-                      _buildPrimarySubTile('Cash', Icons.payments),
-                      _buildPrimarySubTile('Card', Icons.credit_card),
-                      _buildPrimarySubTile('Bank', Icons.account_balance),
-                    ]),
                   ],
                 ),
-              ),
-              // Main Content
-              Expanded(
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: _buildMainContent(),
-                ),
-              ),
-            ],
-          ),
-          // Toggle Button - Always on top
-          Positioned(
-            left: (_isSidebarOpen ? 280 : 60) - 15,
-            top: 40,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D1845),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black45,
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: AnimatedRotation(
+                    turns: _isSidebarOpen ? 0.0 : 0.5,
+                    duration: const Duration(milliseconds: 300),
+                    child: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                ],
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: AnimatedRotation(
-                  turns: _isSidebarOpen ? 0.0 : 0.5,
-                  duration: const Duration(milliseconds: 300),
-                  child: const Icon(
-                    Icons.chevron_left,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  onPressed: toggleSidebar,
                 ),
-                onPressed: toggleSidebar,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

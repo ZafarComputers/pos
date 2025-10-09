@@ -15,7 +15,6 @@ void main() async {
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1200, 700),
     minimumSize: Size(1200, 700),
-    maximumSize: Size(1200, 700),
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
@@ -30,13 +29,22 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => InventoryProvider()),
+        ChangeNotifierProvider(create: (_) => WindowProvider()),
+      ],
       child: MaterialApp(
         title: 'POS Dashboard',
         theme: ThemeData(

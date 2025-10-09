@@ -205,7 +205,16 @@ class _LoginPageState extends State<LoginPage> {
       final success = await authProvider.login(email, password);
 
       if (success && mounted) {
-        print('✅ LoginPage: Login successful, navigating to dashboard');
+        print('✅ LoginPage: Login successful, pre-fetching data');
+
+        // Pre-fetch all inventory data
+        final inventoryProvider = Provider.of<InventoryProvider>(
+          context,
+          listen: false,
+        );
+        await inventoryProvider.preFetchAllData();
+
+        print('✅ LoginPage: Pre-fetch completed, navigating to dashboard');
         // Navigate to dashboard
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
