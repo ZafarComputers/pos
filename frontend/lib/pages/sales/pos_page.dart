@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
-import '../providers/providers.dart';
-import '../widgets/pos_navbar.dart';
-import '../widgets/pos_order_list.dart';
-import '../widgets/pos_payment_methods.dart';
-import '../models/category.dart';
-import '../models/product.dart';
-import '../models/sub_category.dart';
-import '../services/inventory_service.dart';
+import '../../providers/providers.dart';
+import '../../widgets/pos_navbar.dart';
+import '../../widgets/pos_order_list.dart';
+import '../../widgets/pos_payment_methods.dart';
+import '../../models/category.dart';
+import '../../models/product.dart';
+import '../../models/sub_category.dart';
+import '../../services/inventory_service.dart';
 
 class PosPage extends StatefulWidget {
   const PosPage({super.key});
@@ -343,13 +343,13 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
           Expanded(
             child: Row(
               children: [
-                // Left Side - Categories Only
+                // Left Side - Subcategories Only
                 Container(
                   width: 220,
                   color: Colors.white,
                   child: Column(
                     children: [
-                      // Categories Header
+                      // Subcategories Header
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
@@ -378,14 +378,14 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(
-                                Icons.category,
+                                Icons.subdirectory_arrow_right,
                                 color: Colors.white,
                                 size: 18,
                               ),
                             ),
                             const SizedBox(width: 12),
                             const Text(
-                              'Categories',
+                              'Subcategories',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -397,9 +397,9 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
 
-                      // Categories List
+                      // Subcategories List
                       Expanded(
-                        child: isLoadingCategories
+                        child: isLoadingSubCategories
                             ? const Center(
                                 child: CircularProgressIndicator(
                                   valueColor: AlwaysStoppedAnimation<Color>(
@@ -407,37 +407,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                   ),
                                 ),
                               )
-                            : ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                  horizontal: 8,
-                                ),
-                                physics:
-                                    const BouncingScrollPhysics(), // Changed for smoother scrolling
-                                itemCount:
-                                    categories.length +
-                                    1, // +1 for "All" category
-                                itemBuilder: (context, index) {
-                                  if (index == 0) {
-                                    // "All" category
-                                    return _buildCategoryItem(
-                                      'all',
-                                      'All',
-                                      Icons.grid_view,
-                                      selectedCategory == 'all',
-                                    );
-                                  } else {
-                                    final category = categories[index - 1];
-                                    return _buildCategoryItem(
-                                      category.id.toString(),
-                                      category.title,
-                                      _getCategoryIcon(category.title),
-                                      selectedCategory ==
-                                          category.id.toString(),
-                                    );
-                                  }
-                                },
-                              ),
+                            : _buildSubCategoriesList(),
                       ),
                     ],
                   ),
@@ -558,7 +528,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                 ),
                         ),
 
-                        // Subcategories Section at Bottom
+                        // Categories Section at Bottom
                         Container(
                           height: 95, // Slightly more bigger
                           decoration: BoxDecoration(
@@ -569,7 +539,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                           ),
                           child: Column(
                             children: [
-                              // Subcategories Header
+                              // Categories Header
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -578,13 +548,13 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                 child: Row(
                                   children: [
                                     Icon(
-                                      Icons.subdirectory_arrow_right,
+                                      Icons.category,
                                       color: Colors.grey[600],
                                       size: 14, // Bigger icon
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      'Subcategories',
+                                      'Categories',
                                       style: TextStyle(
                                         color: Colors.grey[700],
                                         fontSize: 13, // Bigger font
@@ -595,9 +565,9 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                 ),
                               ),
 
-                              // Subcategories Horizontal List
+                              // Categories Horizontal List
                               Expanded(
-                                child: isLoadingSubCategories
+                                child: isLoadingCategories
                                     ? const Center(
                                         child: SizedBox(
                                           width: 20,
@@ -607,7 +577,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                           ),
                                         ),
                                       )
-                                    : _buildSubCategoriesList(),
+                                    : _buildCategoriesList(),
                               ),
                             ],
                           ),
@@ -663,26 +633,11 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildSubCategoriesList() {
-    // Filter subcategories based on selected category
-    List<SubCategory> filteredSubCategories;
-    if (selectedCategory == 'all') {
-      // When "All" is selected, show all unique subcategories
-      filteredSubCategories = subCategories
-          .toSet()
-          .toList(); // Remove duplicates
-    } else {
-      // When a specific category is selected, show only its subcategories
-      filteredSubCategories = subCategories
-          .where((sub) => sub.categoryId.toString() == selectedCategory)
-          .toSet() // Remove duplicates
-          .toList();
-    }
-
-    if (filteredSubCategories.isEmpty) {
+  Widget _buildCategoriesList() {
+    if (categories.isEmpty) {
       return const Center(
         child: Text(
-          'No subcategories',
+          'No categories',
           style: TextStyle(
             color: Colors.grey,
             fontSize: 10, // Smaller font for empty state
@@ -700,71 +655,58 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
         physics:
             const BouncingScrollPhysics(), // Changed for smoother scrolling
         child: Row(
-          children: filteredSubCategories.map((subCategory) {
-            return _buildSubCategoryItem(subCategory);
-          }).toList(),
+          children: [
+            // "All" category
+            _buildCategoryItemForBottom(
+              'all',
+              'All',
+              Icons.grid_view,
+              selectedCategory == 'all',
+            ),
+            // Other categories
+            ...categories.map((category) {
+              return _buildCategoryItemForBottom(
+                category.id.toString(),
+                category.title,
+                _getCategoryIcon(category.title),
+                selectedCategory == category.id.toString(),
+              );
+            }).toList(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSubCategoryItem(SubCategory subCategory) {
-    final isSelected = selectedCategory == subCategory.id.toString();
-
-    return Container(
-      width: 90, // Reduced width
-      margin: const EdgeInsets.only(right: 6), // Reduced margin
-      child: Material(
-        elevation: isSelected ? 2 : 0,
-        borderRadius: BorderRadius.circular(6), // Smaller border radius
-        child: InkWell(
-          onTap: () => onCategorySelected(subCategory.id.toString()),
-          borderRadius: BorderRadius.circular(6),
-          splashColor: const Color(0xFF0D1845).withOpacity(0.1),
-          highlightColor: const Color(0xFF0D1845).withOpacity(0.05),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: 6,
-              horizontal: 8,
-            ), // Reduced padding
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF0D1845) : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isSelected ? const Color(0xFF0D1845) : Colors.grey[300]!,
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.subdirectory_arrow_right,
-                  size: 12, // Smaller icon
-                  color: isSelected ? Colors.white : Colors.grey[600],
-                ),
-                const SizedBox(height: 2), // Reduced spacing
-                Text(
-                  subCategory.title,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
-                    fontSize: 9, // Smaller font
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Widget _buildSubCategoriesList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      physics: const BouncingScrollPhysics(),
+      itemCount: subCategories.length + 1, // +1 for "All" subcategory
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          // "All" subcategory
+          return _buildSubCategoryItemForSidebar(
+            'all',
+            'All',
+            Icons.grid_view,
+            selectedCategory == 'all',
+          );
+        } else {
+          final subCategory = subCategories[index - 1];
+          return _buildSubCategoryItemForSidebar(
+            subCategory.id.toString(),
+            subCategory.title,
+            Icons.subdirectory_arrow_right,
+            selectedCategory == subCategory.id.toString(),
+          );
+        }
+      },
     );
   }
 
-  Widget _buildCategoryItem(
-    String categoryId,
+  Widget _buildSubCategoryItemForSidebar(
+    String subCategoryId,
     String title,
     IconData icon,
     bool isSelected,
@@ -778,7 +720,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
             ? const Color(0xFF0D1845).withOpacity(0.3)
             : Colors.grey.withOpacity(0.2),
         child: InkWell(
-          onTap: () => onCategorySelected(categoryId),
+          onTap: () => onCategorySelected(subCategoryId),
           borderRadius: BorderRadius.circular(12),
           splashColor: const Color(0xFF0D1845).withOpacity(0.1),
           highlightColor: const Color(0xFF0D1845).withOpacity(0.05),
@@ -847,6 +789,64 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                       color: Colors.white,
                     ),
                   ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryItemForBottom(
+    String categoryId,
+    String title,
+    IconData icon,
+    bool isSelected,
+  ) {
+    return Container(
+      width: 90, // Reduced width
+      margin: const EdgeInsets.only(right: 6), // Reduced margin
+      child: Material(
+        elevation: isSelected ? 2 : 0,
+        borderRadius: BorderRadius.circular(6), // Smaller border radius
+        child: InkWell(
+          onTap: () => onCategorySelected(categoryId),
+          borderRadius: BorderRadius.circular(6),
+          splashColor: const Color(0xFF0D1845).withOpacity(0.1),
+          highlightColor: const Color(0xFF0D1845).withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              vertical: 6,
+              horizontal: 8,
+            ), // Reduced padding
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF0D1845) : Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isSelected ? const Color(0xFF0D1845) : Colors.grey[300]!,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 12, // Smaller icon
+                  color: isSelected ? Colors.white : Colors.grey[600],
+                ),
+                const SizedBox(height: 2), // Reduced spacing
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.black87,
+                    fontSize: 9, // Smaller font
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),

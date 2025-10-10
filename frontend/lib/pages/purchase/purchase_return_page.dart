@@ -148,7 +148,8 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
   List<Map<String, dynamic>> _getFilteredReturns() {
     return _purchaseReturns.where((purchaseReturn) {
       final statusMatch =
-          _selectedStatus == 'All' || purchaseReturn['status'] == _selectedStatus;
+          _selectedStatus == 'All' ||
+          purchaseReturn['status'] == _selectedStatus;
 
       // Date filtering based on sortBy
       bool dateMatch = true;
@@ -576,7 +577,9 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                                 child: Text(
                                   purchaseReturn['status'],
                                   style: TextStyle(
-                                    color: _getStatusColor(purchaseReturn['status']),
+                                    color: _getStatusColor(
+                                      purchaseReturn['status'],
+                                    ),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -743,7 +746,9 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
 
   void _updateProductQuantity(String productId, int quantity) {
     setState(() {
-      final productIndex = _selectedProducts.indexWhere((p) => p['id'] == productId);
+      final productIndex = _selectedProducts.indexWhere(
+        (p) => p['id'] == productId,
+      );
       if (productIndex >= 0) {
         _selectedProducts[productIndex]['quantityToReturn'] = quantity;
         _selectedProducts[productIndex]['total'] =
@@ -759,7 +764,10 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
   }
 
   double _calculateTotalReturnAmount() {
-    return _selectedProducts.fold(0.0, (sum, product) => sum + product['total']);
+    return _selectedProducts.fold(
+      0.0,
+      (sum, product) => sum + product['total'],
+    );
   }
 
   @override
@@ -989,7 +997,9 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          DateFormat('dd MMM yyyy').format(_selectedDate),
+                                          DateFormat(
+                                            'dd MMM yyyy',
+                                          ).format(_selectedDate),
                                           style: const TextStyle(
                                             color: Color(0xFF343A40),
                                           ),
@@ -1050,11 +1060,16 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                                 ),
                               ),
                               items: _availablePurchases
-                                  .where((purchase) => purchase['vendor'] == _selectedVendor)
+                                  .where(
+                                    (purchase) =>
+                                        purchase['vendor'] == _selectedVendor,
+                                  )
                                   .map(
                                     (purchase) => DropdownMenuItem<String>(
                                       value: purchase['reference'] as String,
-                                      child: Text(purchase['reference'] as String),
+                                      child: Text(
+                                        purchase['reference'] as String,
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -1074,7 +1089,8 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                 ),
 
                 // Products Table (only show when reference is selected)
-                if (_selectedReference != null && _selectedProducts.isNotEmpty) ...[
+                if (_selectedReference != null &&
+                    _selectedProducts.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   Container(
                     decoration: BoxDecoration(
@@ -1157,12 +1173,18 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                                     ),
                                   ),
                                   DataCell(Text(product['name'])),
-                                  DataCell(Text(product['quantityPurchased'].toString())),
+                                  DataCell(
+                                    Text(
+                                      product['quantityPurchased'].toString(),
+                                    ),
+                                  ),
                                   DataCell(
                                     SizedBox(
                                       width: 100,
                                       child: TextFormField(
-                                        initialValue: product['quantityToReturn'].toString(),
+                                        initialValue:
+                                            product['quantityToReturn']
+                                                .toString(),
                                         keyboardType: TextInputType.number,
                                         decoration: const InputDecoration(
                                           border: OutlineInputBorder(),
@@ -1172,17 +1194,25 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                                           ),
                                         ),
                                         onChanged: (value) {
-                                          final quantity = int.tryParse(value) ?? 0;
-                                          _updateProductQuantity(product['id'], quantity);
+                                          final quantity =
+                                              int.tryParse(value) ?? 0;
+                                          _updateProductQuantity(
+                                            product['id'],
+                                            quantity,
+                                          );
                                         },
                                       ),
                                     ),
                                   ),
                                   DataCell(
-                                    Text('Rs. ${product['unitPrice'].toStringAsFixed(2)}'),
+                                    Text(
+                                      'Rs. ${product['unitPrice'].toStringAsFixed(2)}',
+                                    ),
                                   ),
                                   DataCell(
-                                    Text('Rs. ${product['total'].toStringAsFixed(2)}'),
+                                    Text(
+                                      'Rs. ${product['total'].toStringAsFixed(2)}',
+                                    ),
                                   ),
                                   DataCell(
                                     IconButton(
@@ -1190,7 +1220,8 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                                         Icons.delete,
                                         color: Color(0xFFDC3545),
                                       ),
-                                      onPressed: () => _removeProduct(product['id']),
+                                      onPressed: () =>
+                                          _removeProduct(product['id']),
                                       tooltip: 'Remove Product',
                                     ),
                                   ),
@@ -1216,7 +1247,9 @@ class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
                             // TODO: Implement save purchase return
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Purchase return created successfully!'),
+                                content: Text(
+                                  'Purchase return created successfully!',
+                                ),
                                 backgroundColor: Colors.green,
                               ),
                             );

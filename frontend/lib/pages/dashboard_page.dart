@@ -17,13 +17,26 @@ import 'inventory/low_stock_products_page.dart';
 import 'inventory/vendors_page.dart';
 import 'inventory/print_barcode_page.dart';
 import 'profile/user_profile_page.dart';
-import 'sales_return_page.dart';
-import 'sales_page.dart';
-import 'invoices_page.dart';
-import 'purchase_listing_page.dart';
-import 'create_purchase_page.dart';
-import 'purchase_return_page.dart';
+import 'sales/sales_return_page.dart';
+import 'sales/sales_page.dart';
+import 'sales/invoices_page.dart';
+import 'purchase/purchase_listing_page.dart';
+import 'purchase/purchase_return_page.dart';
 import '../services/services.dart';
+import 'reportings/sales_report_page.dart';
+import 'reportings/best_seller_report_page.dart';
+import 'reportings/purchase_report_page.dart';
+import 'reportings/inventory_report_page.dart';
+import 'reportings/vendor_report_page.dart';
+import 'reportings/invoice_report_page.dart';
+import 'reportings/supplier_report_page.dart';
+import 'reportings/product_report_page.dart';
+import 'reportings/expense_report_page.dart';
+import 'reportings/income_report_page.dart';
+import 'reportings/tax_report_page.dart';
+import 'reportings/profit_loss_report_page.dart';
+import 'reportings/annual_report_page.dart';
+import 'peoples/credit_customer_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -156,10 +169,36 @@ class _DashboardPageState extends State<DashboardPage>
         return const InvoicesPage();
       case 'Purchase Listing':
         return const PurchaseListingPage();
-      case 'Purchase Create':
-        return const CreatePurchasePage();
       case 'Purchase Return':
         return const PurchaseReturnPage();
+      case 'Credit Customers':
+        return const CreditCustomerPage();
+      case 'Sales Report':
+        return const SalesReportPage();
+      case 'Best Seller':
+        return const BestSellerReportPage();
+      case 'Purchase Report':
+        return const PurchaseReportPage();
+      case 'Inventory Report':
+        return const InventoryReportPage();
+      case 'Vendor Report':
+        return const VendorReportPage();
+      case 'Invoice Report':
+        return const InvoiceReportPage();
+      case 'Supplier Report':
+        return const SupplierReportPage();
+      case 'Product Report':
+        return const ProductReportPage();
+      case 'Expense Report':
+        return const ExpenseReportPage();
+      case 'Income Report':
+        return const IncomeReportPage();
+      case 'Tax Report':
+        return const TaxReportPage();
+      case 'Profit & Loss':
+        return const ProfitLossReportPage();
+      case 'Annual Report':
+        return const AnnualReportPage();
       case 'POS':
         // Navigate to POS page instead of showing content
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -897,10 +936,9 @@ class _DashboardPageState extends State<DashboardPage>
                           'Purchase Listing',
                           Icons.list_alt,
                         ),
-                        _buildPrimarySubTile('Purchases', Icons.shopping_bag),
                         _buildPrimarySubTile(
-                          'Purchase Create',
-                          Icons.add_shopping_cart,
+                          'Purchase Order',
+                          Icons.shopping_bag,
                         ),
                         _buildPrimarySubTile(
                           'Purchase Return',
@@ -937,7 +975,7 @@ class _DashboardPageState extends State<DashboardPage>
 
                       // People Section
                       _buildMainSectionTile(Icons.people_alt, 'Peoples', [
-                        _buildPrimarySubTile('Customer', Icons.people),
+                        _buildPrimarySubTile('Credit Customers', Icons.people),
                         _buildPrimarySubTile('Suppliers', Icons.business),
                         _buildPrimarySubTile('Employees (HRM)', Icons.badge),
                       ]),
@@ -962,7 +1000,7 @@ class _DashboardPageState extends State<DashboardPage>
                           'Supplier Report',
                           Icons.business,
                         ),
-                        _buildSecondarySubTile('Customer Report', Icons.people),
+                        _buildSecondarySubTile('Vendor Report', Icons.people),
                         _buildSecondarySubTile(
                           'Product Report',
                           Icons.inventory,
