@@ -239,11 +239,6 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'Back to POS',
-        ),
         title: const Text('Credit Customers'),
         backgroundColor: const Color(0xFF0D1845),
         foregroundColor: Colors.white,
