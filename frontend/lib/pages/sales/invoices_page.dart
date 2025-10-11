@@ -243,12 +243,14 @@ class _InvoicesPageState extends State<InvoicesPage> {
       bool dateMatch = true;
       final now = DateTime.now();
       if (_selectedTimeFilter == 'Day') {
-        dateMatch = invoice['date'].year == now.year &&
-                   invoice['date'].month == now.month &&
-                   invoice['date'].day == now.day;
+        dateMatch =
+            invoice['date'].year == now.year &&
+            invoice['date'].month == now.month &&
+            invoice['date'].day == now.day;
       } else if (_selectedTimeFilter == 'Month') {
-        dateMatch = invoice['date'].year == now.year &&
-                   invoice['date'].month == now.month;
+        dateMatch =
+            invoice['date'].year == now.year &&
+            invoice['date'].month == now.month;
       } else if (_selectedTimeFilter == 'Year') {
         dateMatch = invoice['date'].year == now.year;
       }
@@ -300,11 +302,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.receipt_long,
-                        color: Colors.white,
-                        size: 28,
-                      ),
+                      Icon(Icons.receipt_long, color: Colors.white, size: 28),
                       SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -363,7 +361,11 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               SizedBox(height: 12),
                               Row(
                                 children: [
-                                  Icon(Icons.person, color: Color(0xFF0D1845), size: 20),
+                                  Icon(
+                                    Icons.person,
+                                    color: Color(0xFF0D1845),
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 8),
                                   Text(
                                     invoice['customer'],
@@ -374,19 +376,23 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   ),
                                   SizedBox(width: 16),
                                   Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: invoice['customerType'] == 'Credit' 
-                                        ? Color(0xFFFFA726).withOpacity(0.1)
-                                        : Color(0xFF28A745).withOpacity(0.1),
+                                      color: invoice['customerType'] == 'Credit'
+                                          ? Color(0xFFFFA726).withOpacity(0.1)
+                                          : Color(0xFF28A745).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       invoice['customerType'],
                                       style: TextStyle(
-                                        color: invoice['customerType'] == 'Credit' 
-                                          ? Color(0xFFFFA726)
-                                          : Color(0xFF28A745),
+                                        color:
+                                            invoice['customerType'] == 'Credit'
+                                            ? Color(0xFFFFA726)
+                                            : Color(0xFF28A745),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -397,10 +403,16 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               SizedBox(height: 8),
                               Row(
                                 children: [
-                                  Icon(Icons.calendar_today, color: Color(0xFF0D1845), size: 20),
+                                  Icon(
+                                    Icons.calendar_today,
+                                    color: Color(0xFF0D1845),
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 8),
                                   Text(
-                                    DateFormat('dd MMM yyyy').format(invoice['date']),
+                                    DateFormat(
+                                      'dd MMM yyyy',
+                                    ).format(invoice['date']),
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
@@ -431,7 +443,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             children: [
                               // Header
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade100,
                                   borderRadius: BorderRadius.only(
@@ -490,10 +505,15 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               // Products List
                               ...(invoice['products'] as List).map((product) {
                                 return Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                   decoration: BoxDecoration(
                                     border: Border(
-                                      top: BorderSide(color: Colors.grey.shade200),
+                                      top: BorderSide(
+                                        color: Colors.grey.shade200,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -547,7 +567,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           child: Column(
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Total Amount:',
@@ -567,7 +588,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               ),
                               SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Paid Amount:',
@@ -589,14 +611,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               ),
                               SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Due Amount:',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: invoice['dueAmount'] > 0 ? Colors.red : Colors.grey,
+                                      color: invoice['dueAmount'] > 0
+                                          ? Colors.red
+                                          : Colors.grey,
                                     ),
                                   ),
                                   Text(
@@ -604,7 +629,9 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: invoice['dueAmount'] > 0 ? Colors.red : Colors.grey,
+                                      color: invoice['dueAmount'] > 0
+                                          ? Colors.red
+                                          : Colors.grey,
                                     ),
                                   ),
                                 ],
@@ -613,7 +640,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               Divider(),
                               SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Status:',
@@ -623,15 +651,22 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     ),
                                   ),
                                   Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: _getStatusColor(invoice['status']).withOpacity(0.1),
+                                      color: _getStatusColor(
+                                        invoice['status'],
+                                      ).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
                                       invoice['status'],
                                       style: TextStyle(
-                                        color: _getStatusColor(invoice['status']),
+                                        color: _getStatusColor(
+                                          invoice['status'],
+                                        ),
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -651,7 +686,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               onPressed: () => Navigator.of(context).pop(),
                               child: Text('Close'),
                               style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                             SizedBox(width: 12),
@@ -666,7 +704,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Color(0xFF0D1845),
                                 foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -1048,17 +1089,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: invoice['customerType'] == 'Credit' 
-                                    ? Color(0xFFFFA726).withOpacity(0.1)
-                                    : Color(0xFF28A745).withOpacity(0.1),
+                                  color: invoice['customerType'] == 'Credit'
+                                      ? Color(0xFFFFA726).withOpacity(0.1)
+                                      : Color(0xFF28A745).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   invoice['customerType'],
                                   style: TextStyle(
-                                    color: invoice['customerType'] == 'Credit' 
-                                      ? Color(0xFFFFA726)
-                                      : Color(0xFF28A745),
+                                    color: invoice['customerType'] == 'Credit'
+                                        ? Color(0xFFFFA726)
+                                        : Color(0xFF28A745),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
