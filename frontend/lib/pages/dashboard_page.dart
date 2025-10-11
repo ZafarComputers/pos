@@ -922,7 +922,6 @@ class _DashboardPageState extends State<DashboardPage>
 
                       // Sales Section
                       _buildMainSectionTile(Icons.shopping_cart, 'Sales', [
-                        _buildPrimarySubTile('Sales', Icons.point_of_sale),
                         _buildPrimarySubTile('Invoices', Icons.receipt_long),
                         _buildPrimarySubTile('Sales Return', Icons.undo),
                         _buildPrimarySubTile('POS', Icons.smartphone),
@@ -935,10 +934,6 @@ class _DashboardPageState extends State<DashboardPage>
                         _buildPrimarySubTile(
                           'Purchase Listing',
                           Icons.list_alt,
-                        ),
-                        _buildPrimarySubTile(
-                          'Purchase Order',
-                          Icons.shopping_bag,
                         ),
                         _buildPrimarySubTile(
                           'Purchase Return',

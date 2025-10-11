@@ -44,7 +44,10 @@ class User {
       cellNo1: json['cell_no1'],
       cellNo2: json['cell_no2'],
       imgPath: json['img_path'],
-      roleId: json['role_id'] ?? json['role']?['id']?.toString() ?? '',
+      roleId:
+          json['role_id'] ??
+          (json['role'] is Map ? json['role']['id']?.toString() : '') ??
+          '',
       emailVerifiedAt: json['email_verified_at'],
       twoFactorSecret: json['two_factor_secret'],
       twoFactorRecoveryCodes: json['two_factor_recovery_codes'],

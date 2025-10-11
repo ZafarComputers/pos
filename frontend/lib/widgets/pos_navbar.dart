@@ -154,7 +154,11 @@ class _PosNavbarState extends State<PosNavbar> {
             icon: Icons.dashboard,
             tooltip: 'Dashboard',
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/dashboard');
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/dashboard',
+                (route) => false, // Remove all routes from stack
+              );
             },
           ),
 

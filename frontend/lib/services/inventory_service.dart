@@ -331,8 +331,52 @@ class InventoryService {
           ),
         );
       } else if (decoded is Map<String, dynamic>) {
-        // Standard paginated response
-        return category.CategoryResponse.fromJson(decoded);
+        // Check if response has success/message/data structure
+        if (decoded.containsKey('data') && decoded['data'] is List) {
+          // API returns wrapped response - extract data array
+          final dataList = decoded['data'] as List;
+          final allCategories = dataList
+              .map((item) => category.Category.fromJson(item))
+              .toList();
+          final totalItems = allCategories.length;
+          final totalPages = (totalItems / limit).ceil();
+          final startIndex = (page - 1) * limit;
+          final endIndex = (startIndex + limit).clamp(0, totalItems);
+          final pageData = allCategories.sublist(startIndex, endIndex);
+          final from = startIndex + 1;
+          final to = endIndex;
+
+          return category.CategoryResponse(
+            data: pageData,
+            links: category.Links(
+              first: totalPages > 0
+                  ? '$baseUrl/categories?page=1&per_page=$limit'
+                  : null,
+              last: totalPages > 0
+                  ? '$baseUrl/categories?page=$totalPages&per_page=$limit'
+                  : null,
+              prev: page > 1
+                  ? '$baseUrl/categories?page=${page - 1}&per_page=$limit'
+                  : null,
+              next: page < totalPages
+                  ? '$baseUrl/categories?page=${page + 1}&per_page=$limit'
+                  : null,
+            ),
+            meta: category.Meta(
+              currentPage: page,
+              from: from,
+              lastPage: totalPages,
+              links: [],
+              path: '$baseUrl/categories',
+              perPage: limit,
+              to: to,
+              total: totalItems,
+            ),
+          );
+        } else {
+          // Standard paginated response
+          return category.CategoryResponse.fromJson(decoded);
+        }
       } else {
         throw Exception('Unexpected response format');
       }

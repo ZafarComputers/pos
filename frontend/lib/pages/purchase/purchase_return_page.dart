@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'create_purchase_return_page.dart';
 
 class PurchaseReturnPage extends StatefulWidget {
   const PurchaseReturnPage({super.key});
@@ -11,8 +12,6 @@ class PurchaseReturnPage extends StatefulWidget {
 class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
   // Mock data for demonstration - in real app this would come from API
   List<Map<String, dynamic>> _purchaseReturns = [];
-  List<Map<String, dynamic>> _selectedReturns = [];
-  bool _selectAll = false;
 
   // Filter states
   String _selectedStatus = 'All';
@@ -34,6 +33,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Tech Supplies Inc.',
         'status': 'Completed',
         'totalReturnedAmount': 2500.0,
+        'paid': 2500.0,
+        'due': 0.0,
+        'paymentStatus': 'returned',
+        'productImage': 'assets/images/products/laptop.jpg',
       },
       {
         'id': '2',
@@ -42,6 +45,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Global Electronics Ltd.',
         'status': 'Pending',
         'totalReturnedAmount': 1800.0,
+        'paid': 900.0,
+        'due': 900.0,
+        'paymentStatus': 'pending',
+        'productImage': 'assets/images/products/phone.jpg',
       },
       {
         'id': '3',
@@ -50,6 +57,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Fashion Wholesale Co.',
         'status': 'Completed',
         'totalReturnedAmount': 3200.0,
+        'paid': 3200.0,
+        'due': 0.0,
+        'paymentStatus': 'returned',
+        'productImage': 'assets/images/products/clothing.jpg',
       },
       {
         'id': '4',
@@ -58,6 +69,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Home Goods Distributors',
         'status': 'Pending',
         'totalReturnedAmount': 1500.0,
+        'paid': 750.0,
+        'due': 750.0,
+        'paymentStatus': 'pending',
+        'productImage': 'assets/images/products/furniture.jpg',
       },
       {
         'id': '5',
@@ -66,6 +81,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Sports Equipment Corp.',
         'status': 'Completed',
         'totalReturnedAmount': 950.0,
+        'paid': 950.0,
+        'due': 0.0,
+        'paymentStatus': 'returned',
+        'productImage': 'assets/images/products/sports.jpg',
       },
       {
         'id': '6',
@@ -74,6 +93,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Beauty Products Ltd.',
         'status': 'Pending',
         'totalReturnedAmount': 2100.0,
+        'paid': 1050.0,
+        'due': 1050.0,
+        'paymentStatus': 'pending',
+        'productImage': 'assets/images/products/beauty.jpg',
       },
       {
         'id': '7',
@@ -82,6 +105,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Office Supplies Plus',
         'status': 'Completed',
         'totalReturnedAmount': 1750.0,
+        'paid': 1750.0,
+        'due': 0.0,
+        'paymentStatus': 'returned',
+        'productImage': 'assets/images/products/office.jpg',
       },
       {
         'id': '8',
@@ -90,6 +117,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Industrial Parts Co.',
         'status': 'Pending',
         'totalReturnedAmount': 2800.0,
+        'paid': 1400.0,
+        'due': 1400.0,
+        'paymentStatus': 'pending',
+        'productImage': 'assets/images/products/industrial.jpg',
       },
       {
         'id': '9',
@@ -98,6 +129,10 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Food & Beverage Distributors',
         'status': 'Completed',
         'totalReturnedAmount': 1200.0,
+        'paid': 1200.0,
+        'due': 0.0,
+        'paymentStatus': 'returned',
+        'productImage': 'assets/images/products/food.jpg',
       },
       {
         'id': '10',
@@ -106,43 +141,12 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
         'vendor': 'Medical Supplies Inc.',
         'status': 'Pending',
         'totalReturnedAmount': 850.0,
+        'paid': 425.0,
+        'due': 425.0,
+        'paymentStatus': 'pending',
+        'productImage': 'assets/images/products/medical.jpg',
       },
     ];
-  }
-
-  void _toggleReturnSelection(Map<String, dynamic> purchaseReturn) {
-    setState(() {
-      final returnId = purchaseReturn['id'];
-      final existingIndex = _selectedReturns.indexWhere(
-        (r) => r['id'] == returnId,
-      );
-
-      if (existingIndex >= 0) {
-        _selectedReturns.removeAt(existingIndex);
-      } else {
-        _selectedReturns.add(Map<String, dynamic>.from(purchaseReturn));
-      }
-
-      _updateSelectAllState();
-    });
-  }
-
-  void _toggleSelectAll() {
-    setState(() {
-      if (_selectAll) {
-        _selectedReturns.clear();
-      } else {
-        _selectedReturns = List.from(_getFilteredReturns());
-      }
-      _selectAll = !_selectAll;
-    });
-  }
-
-  void _updateSelectAllState() {
-    final filteredReturns = _getFilteredReturns();
-    _selectAll =
-        filteredReturns.isNotEmpty &&
-        _selectedReturns.length == filteredReturns.length;
   }
 
   List<Map<String, dynamic>> _getFilteredReturns() {
@@ -167,6 +171,17 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
       case 'Completed':
         return Colors.green;
       case 'Pending':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getPaymentStatusColor(String paymentStatus) {
+    switch (paymentStatus) {
+      case 'returned':
+        return Colors.green;
+      case 'pending':
         return Colors.orange;
       default:
         return Colors.grey;
@@ -250,7 +265,8 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AddPurchaseReturnPage(),
+                          builder: (context) =>
+                              const CreatePurchaseReturnPage(),
                         ),
                       );
                     },
@@ -402,7 +418,6 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                                   if (value != null) {
                                     setState(() {
                                       _selectedStatus = value;
-                                      _updateSelectAllState();
                                     });
                                   }
                                 },
@@ -438,12 +453,6 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        Checkbox(
-                          value: _selectAll,
-                          onChanged: (value) => _toggleSelectAll(),
-                          activeColor: Color(0xFF0D1845),
-                        ),
-                        SizedBox(width: 8),
                         Icon(
                           Icons.assignment_return,
                           color: Color(0xFF0D1845),
@@ -505,29 +514,44 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                         return Colors.white;
                       }),
                       columns: const [
-                        DataColumn(label: Text('Select')),
-                        DataColumn(label: Text('Vendor Name')),
-                        DataColumn(label: Text('Reference Number')),
+                        DataColumn(label: Text('Product Image')),
                         DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Total Returned Amount')),
+                        DataColumn(label: Text('Vendor Name')),
+                        DataColumn(label: Text('Reference')),
                         DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Actions')),
+                        DataColumn(label: Text('Total')),
+                        DataColumn(label: Text('Paid')),
+                        DataColumn(label: Text('Due')),
+                        DataColumn(label: Text('Payment Status')),
                       ],
                       rows: filteredReturns.map((purchaseReturn) {
-                        final isSelected = _selectedReturns.any(
-                          (r) => r['id'] == purchaseReturn['id'],
-                        );
                         return DataRow(
-                          selected: isSelected,
                           cells: [
+                            // Product Image
                             DataCell(
-                              Checkbox(
-                                value: isSelected,
-                                onChanged: (value) =>
-                                    _toggleReturnSelection(purchaseReturn),
-                                activeColor: Color(0xFF0D1845),
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.inventory_2,
+                                  color: Colors.grey,
+                                  size: 24,
+                                ),
                               ),
                             ),
+                            // Date
+                            DataCell(
+                              Text(
+                                DateFormat(
+                                  'dd MMM yyyy',
+                                ).format(purchaseReturn['date']),
+                              ),
+                            ),
+                            // Vendor Name
                             DataCell(
                               Row(
                                 children: [
@@ -549,19 +573,9 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                                 ],
                               ),
                             ),
+                            // Reference
                             DataCell(Text(purchaseReturn['reference'])),
-                            DataCell(
-                              Text(
-                                DateFormat(
-                                  'dd MMM yyyy',
-                                ).format(purchaseReturn['date']),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                'Rs. ${purchaseReturn['totalReturnedAmount'].toStringAsFixed(2)}',
-                              ),
-                            ),
+                            // Status
                             DataCell(
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -586,43 +600,47 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                                 ),
                               ),
                             ),
+                            // Total
                             DataCell(
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.visibility,
-                                      color: Color(0xFF0D1845),
-                                      size: 18,
+                              Text(
+                                'Rs. ${purchaseReturn['totalReturnedAmount'].toStringAsFixed(2)}',
+                              ),
+                            ),
+                            // Paid
+                            DataCell(
+                              Text(
+                                'Rs. ${purchaseReturn['paid'].toStringAsFixed(2)}',
+                              ),
+                            ),
+                            // Due
+                            DataCell(
+                              Text(
+                                'Rs. ${purchaseReturn['due'].toStringAsFixed(2)}',
+                              ),
+                            ),
+                            // Payment Status
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getPaymentStatusColor(
+                                    purchaseReturn['paymentStatus'],
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  purchaseReturn['paymentStatus'],
+                                  style: TextStyle(
+                                    color: _getPaymentStatusColor(
+                                      purchaseReturn['paymentStatus'],
                                     ),
-                                    onPressed: () {
-                                      // TODO: Implement view purchase return details
-                                    },
-                                    tooltip: 'View Details',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.edit,
-                                      color: Color(0xFF007BFF),
-                                      size: 18,
-                                    ),
-                                    onPressed: () {
-                                      // TODO: Implement edit purchase return
-                                    },
-                                    tooltip: 'Edit',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.delete,
-                                      color: Color(0xFFDC3545),
-                                      size: 18,
-                                    ),
-                                    onPressed: () {
-                                      // TODO: Implement delete purchase return
-                                    },
-                                    tooltip: 'Delete',
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ],
@@ -634,662 +652,6 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class AddPurchaseReturnPage extends StatefulWidget {
-  const AddPurchaseReturnPage({super.key});
-
-  @override
-  State<AddPurchaseReturnPage> createState() => _AddPurchaseReturnPageState();
-}
-
-class _AddPurchaseReturnPageState extends State<AddPurchaseReturnPage> {
-  final _formKey = GlobalKey<FormState>();
-  String? _selectedVendor;
-  String? _selectedReference;
-  DateTime _selectedDate = DateTime.now();
-  List<Map<String, dynamic>> _availablePurchases = [];
-  List<Map<String, dynamic>> _selectedProducts = [];
-
-  // Mock vendors and purchases data
-  final List<String> _vendors = [
-    'Tech Supplies Inc.',
-    'Global Electronics Ltd.',
-    'Fashion Wholesale Co.',
-    'Home Goods Distributors',
-    'Sports Equipment Corp.',
-    'Beauty Products Ltd.',
-    'Office Supplies Plus',
-    'Industrial Parts Co.',
-    'Food & Beverage Distributors',
-    'Medical Supplies Inc.',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMockPurchases();
-  }
-
-  void _loadMockPurchases() {
-    _availablePurchases = [
-      {
-        'reference': 'PUR-2025-001',
-        'vendor': 'Tech Supplies Inc.',
-        'products': [
-          {
-            'id': '1',
-            'name': 'Wireless Mouse',
-            'image': 'assets/images/products/mouse.jpg',
-            'quantityPurchased': 50,
-            'quantityToReturn': 5,
-            'unitPrice': 25.0,
-            'total': 125.0,
-          },
-          {
-            'id': '2',
-            'name': 'Mechanical Keyboard',
-            'image': 'assets/images/products/keyboard.jpg',
-            'quantityPurchased': 30,
-            'quantityToReturn': 3,
-            'unitPrice': 75.0,
-            'total': 225.0,
-          },
-        ],
-      },
-      {
-        'reference': 'PUR-2025-002',
-        'vendor': 'Global Electronics Ltd.',
-        'products': [
-          {
-            'id': '3',
-            'name': 'USB Cable',
-            'image': 'assets/images/products/cable.jpg',
-            'quantityPurchased': 100,
-            'quantityToReturn': 10,
-            'unitPrice': 5.0,
-            'total': 50.0,
-          },
-        ],
-      },
-    ];
-  }
-
-  void _onVendorChanged(String? vendor) {
-    setState(() {
-      _selectedVendor = vendor;
-      _selectedReference = null;
-      _selectedProducts.clear();
-    });
-  }
-
-  void _onReferenceChanged(String? reference) {
-    setState(() {
-      _selectedReference = reference;
-      _selectedProducts.clear();
-
-      // Auto-populate products based on selected reference
-      final purchase = _availablePurchases.firstWhere(
-        (p) => p['reference'] == reference,
-        orElse: () => {},
-      );
-
-      if (purchase.isNotEmpty) {
-        _selectedProducts = List.from(purchase['products']);
-      }
-    });
-  }
-
-  void _updateProductQuantity(String productId, int quantity) {
-    setState(() {
-      final productIndex = _selectedProducts.indexWhere(
-        (p) => p['id'] == productId,
-      );
-      if (productIndex >= 0) {
-        _selectedProducts[productIndex]['quantityToReturn'] = quantity;
-        _selectedProducts[productIndex]['total'] =
-            quantity * _selectedProducts[productIndex]['unitPrice'];
-      }
-    });
-  }
-
-  void _removeProduct(String productId) {
-    setState(() {
-      _selectedProducts.removeWhere((p) => p['id'] == productId);
-    });
-  }
-
-  double _calculateTotalReturnAmount() {
-    return _selectedProducts.fold(
-      0.0,
-      (sum, product) => sum + product['total'],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1845),
-        title: const Text('Add Purchase Return'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, const Color(0xFFF8F9FA)],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFF0D1845).withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.assignment_return,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Create Purchase Return',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Return products from existing purchases',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withOpacity(0.8),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Form Fields
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Return Information',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF343A40),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Vendor Selection
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Vendor Name',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<String>(
-                                  value: _selectedVendor,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    hintText: 'Select vendor',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFDEE2E6),
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFDEE2E6),
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFF0D1845),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 16,
-                                    ),
-                                  ),
-                                  items: _vendors
-                                      .map(
-                                        (vendor) => DropdownMenuItem(
-                                          value: vendor,
-                                          child: Text(vendor),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: _onVendorChanged,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please select a vendor';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          // Date Picker
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Date',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () async {
-                                    final pickedDate = await showDatePicker(
-                                      context: context,
-                                      initialDate: _selectedDate,
-                                      firstDate: DateTime(2020),
-                                      lastDate: DateTime(2030),
-                                    );
-                                    if (pickedDate != null) {
-                                      setState(() {
-                                        _selectedDate = pickedDate;
-                                      });
-                                    }
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: const Color(0xFFDEE2E6),
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.calendar_today,
-                                          color: Color(0xFF6C757D),
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          DateFormat(
-                                            'dd MMM yyyy',
-                                          ).format(_selectedDate),
-                                          style: const TextStyle(
-                                            color: Color(0xFF343A40),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Reference Number (auto-populated based on vendor)
-                      if (_selectedVendor != null) ...[
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Reference Number',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF343A40),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              value: _selectedReference,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white,
-                                hintText: 'Select purchase reference',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFDEE2E6),
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFDEE2E6),
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF0D1845),
-                                    width: 2,
-                                  ),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                              ),
-                              items: _availablePurchases
-                                  .where(
-                                    (purchase) =>
-                                        purchase['vendor'] == _selectedVendor,
-                                  )
-                                  .map(
-                                    (purchase) => DropdownMenuItem<String>(
-                                      value: purchase['reference'] as String,
-                                      child: Text(
-                                        purchase['reference'] as String,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: _onReferenceChanged,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please select a reference number';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Products Table (only show when reference is selected)
-                if (_selectedReference != null &&
-                    _selectedProducts.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Row(
-                            children: [
-                              const Text(
-                                'Products to Return',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF343A40),
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE3F2FD),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  'Total: Rs. ${_calculateTotalReturnAmount().toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: Color(0xFF1976D2),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: MaterialStateProperty.all(
-                              const Color(0xFFF8F9FA),
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('Product Image')),
-                              DataColumn(label: Text('Product Name')),
-                              DataColumn(label: Text('Quantity Purchased')),
-                              DataColumn(label: Text('Quantity to Return')),
-                              DataColumn(label: Text('Unit Price')),
-                              DataColumn(label: Text('Total')),
-                              DataColumn(label: Text('Actions')),
-                            ],
-                            rows: _selectedProducts.map((product) {
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Icon(
-                                        Icons.image,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(Text(product['name'])),
-                                  DataCell(
-                                    Text(
-                                      product['quantityPurchased'].toString(),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 100,
-                                      child: TextFormField(
-                                        initialValue:
-                                            product['quantityToReturn']
-                                                .toString(),
-                                        keyboardType: TextInputType.number,
-                                        decoration: const InputDecoration(
-                                          border: OutlineInputBorder(),
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                        ),
-                                        onChanged: (value) {
-                                          final quantity =
-                                              int.tryParse(value) ?? 0;
-                                          _updateProductQuantity(
-                                            product['id'],
-                                            quantity,
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      'Rs. ${product['unitPrice'].toStringAsFixed(2)}',
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Text(
-                                      'Rs. ${product['total'].toStringAsFixed(2)}',
-                                    ),
-                                  ),
-                                  DataCell(
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete,
-                                        color: Color(0xFFDC3545),
-                                      ),
-                                      onPressed: () =>
-                                          _removeProduct(product['id']),
-                                      tooltip: 'Remove Product',
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            // TODO: Implement save purchase return
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Purchase return created successfully!',
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                            Navigator.of(context).pop();
-                          }
-                        },
-                        icon: const Icon(Icons.save),
-                        label: const Text('Save Purchase Return'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF28A745),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFF6C757D)),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

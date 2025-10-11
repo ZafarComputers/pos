@@ -9,15 +9,13 @@ class SalesReturnPage extends StatefulWidget {
 }
 
 class _SalesReturnPageState extends State<SalesReturnPage> {
-  final TextEditingController _orderIdController = TextEditingController();
+  final TextEditingController _cnicController = TextEditingController();
+  final TextEditingController _invoiceNumberController =
+      TextEditingController();
   final TextEditingController _returnReasonController = TextEditingController();
 
   // Mock data for demonstration - in real app this would come from API
   List<Map<String, dynamic>> _salesReturns = [];
-  Map<String, dynamic>? _orderDetails;
-  bool _isLoadingOrder = false;
-  bool _isOrderEligible = false;
-  String _eligibilityMessage = '';
   List<Map<String, dynamic>> _selectedProducts = [];
   bool _isSubmittingReturn = false;
   bool _showAddReturnDialog = false;
@@ -28,35 +26,12 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
   String _selectedPaymentStatus = 'All';
   String _sortBy = 'Last 7 Days';
 
-  // Mock order data for demonstration
-  final Map<String, dynamic> _mockOrderData = {
-    'orderId': 'INV-12345',
-    'customerName': 'John Doe',
-    'purchaseDate': DateTime(2025, 10, 1), // Within 7 days from Oct 5, 2025
-    'products': [
-      {
-        'id': '1',
-        'name': 'Wireless Headphones',
-        'price': 99.99,
-        'quantity': 1,
-        'image': null,
-      },
-      {
-        'id': '2',
-        'name': 'Bluetooth Speaker',
-        'price': 49.99,
-        'quantity': 2,
-        'image': null,
-      },
-      {
-        'id': '3',
-        'name': 'USB Cable',
-        'price': 9.99,
-        'quantity': 1,
-        'image': null,
-      },
-    ],
-  };
+  // New state variables for the updated form
+  String _selectedCustomerType = 'Normal Customer';
+  DateTime _selectedReturnDate = DateTime.now();
+  List<Map<String, dynamic>> _invoiceProducts = [];
+  bool _isLoadingInvoice = false;
+  String _invoiceError = '';
 
   @override
   void initState() {
@@ -66,8 +41,9 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
 
   @override
   void dispose() {
-    _orderIdController.dispose();
     _returnReasonController.dispose();
+    _cnicController.dispose();
+    _invoiceNumberController.dispose();
     super.dispose();
   }
 
@@ -297,71 +273,83 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
     ];
   }
 
-  Future<void> _fetchOrderDetails() async {
-    final orderId = _orderIdController.text.trim();
-    if (orderId.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter an Order ID')));
+  Future<void> _fetchInvoiceDetails() async {
+    final invoiceNumber = _invoiceNumberController.text.trim();
+    if (invoiceNumber.isEmpty) {
+      setState(() {
+        _invoiceError = 'Please enter an invoice number';
+        _invoiceProducts.clear();
+      });
       return;
     }
 
+    if (_selectedCustomerType == 'Credit Customer') {
+      final cnic = _cnicController.text.trim();
+      if (cnic.isEmpty) {
+        setState(() {
+          _invoiceError = 'Please enter customer CNIC';
+          _invoiceProducts.clear();
+        });
+        return;
+      }
+    }
+
     setState(() {
-      _isLoadingOrder = true;
-      _orderDetails = null;
-      _isOrderEligible = false;
-      _eligibilityMessage = '';
+      _isLoadingInvoice = true;
+      _invoiceError = '';
+      _invoiceProducts.clear();
       _selectedProducts.clear();
     });
 
     // Simulate API call delay
     await Future.delayed(const Duration(seconds: 2));
 
-    // Mock validation - in real app this would be API call
-    if (orderId == _mockOrderData['orderId']) {
-      final orderData = Map<String, dynamic>.from(_mockOrderData);
-      final purchaseDate = orderData['purchaseDate'] as DateTime;
-      final daysDifference = DateTime.now().difference(purchaseDate).inDays;
-
-      // Check return policy (7 days)
-      const returnPeriodDays = 7;
-      final isEligible = daysDifference <= returnPeriodDays;
-
+    // Mock invoice data - in real app this would be API call
+    if (invoiceNumber == 'INV-12345') {
       setState(() {
-        _orderDetails = orderData;
-        _isOrderEligible = isEligible;
-        _eligibilityMessage = isEligible
-            ? 'Order is eligible for return'
-            : 'Order is not eligible for return (purchase date: ${DateFormat('MMM dd, yyyy').format(purchaseDate)})';
-        _isLoadingOrder = false;
+        _invoiceProducts = [
+          {
+            'id': '1',
+            'name': 'Wireless Headphones',
+            'quantity': 1,
+            'price': 99.99,
+            'isSelected': false,
+            'returnQuantityController': TextEditingController(text: '1'),
+          },
+          {
+            'id': '2',
+            'name': 'Bluetooth Speaker',
+            'quantity': 2,
+            'price': 49.99,
+            'isSelected': false,
+            'returnQuantityController': TextEditingController(text: '1'),
+          },
+          {
+            'id': '3',
+            'name': 'USB Cable',
+            'quantity': 1,
+            'price': 9.99,
+            'isSelected': false,
+            'returnQuantityController': TextEditingController(text: '1'),
+          },
+        ];
+        _isLoadingInvoice = false;
       });
     } else {
       setState(() {
-        _isLoadingOrder = false;
+        _invoiceError = 'Invoice not found or no products available for return';
+        _isLoadingInvoice = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Order not found')));
     }
   }
 
-  void _toggleProductSelection(Map<String, dynamic> product) {
-    setState(() {
-      final productId = product['id'];
-      final existingIndex = _selectedProducts.indexWhere(
-        (p) => p['id'] == productId,
-      );
-
-      if (existingIndex >= 0) {
-        _selectedProducts.removeAt(existingIndex);
-      } else {
-        _selectedProducts.add(Map<String, dynamic>.from(product));
-      }
-    });
-  }
-
   Future<void> _submitReturn() async {
-    if (!_isOrderEligible || _selectedProducts.isEmpty) {
+    // Get selected products from invoice products
+    final selectedProducts = _invoiceProducts
+        .where((p) => p['isSelected'] == true)
+        .toList();
+
+    if (selectedProducts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select products to return')),
       );
@@ -383,22 +371,29 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
     // Simulate API call delay
     await Future.delayed(const Duration(seconds: 2));
 
+    // Calculate totals for selected products
+    double totalAmount = 0.0;
+    for (var product in selectedProducts) {
+      final quantity =
+          int.tryParse(product['returnQuantityController'].text) ??
+          product['quantity'];
+      totalAmount += product['price'] * quantity;
+    }
+
     // Add to sales returns list
     final newReturn = {
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'product': {'name': _selectedProducts.first['name'], 'image': null},
-      'date': DateTime.now(),
-      'customer': _orderDetails!['customerName'],
-      'status': 'Pending', // Initial status for new returns
-      'grandTotal': _selectedProducts.fold(
-        0.0,
-        (sum, p) => sum + (p['price'] * p['quantity']),
-      ),
+      'product': {'name': selectedProducts.first['name'], 'image': null},
+      'date': _selectedReturnDate,
+      'customer': _selectedCustomerType == 'Credit Customer'
+          ? 'Credit Customer'
+          : 'Normal Customer',
+      'customerType': _selectedCustomerType,
+      'status': 'Pending',
+      'totalPaid': 0.0,
+      'dueAmount': totalAmount,
+      'grandTotal': totalAmount,
       'paidAmount': 0.0,
-      'dueAmount': _selectedProducts.fold(
-        0.0,
-        (sum, p) => sum + (p['price'] * p['quantity']),
-      ),
       'paymentStatus': 'Unpaid',
     };
 
@@ -412,18 +407,20 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
     _resetForm();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Return submitted successfully')),
+      const SnackBar(content: Text('Return invoice generated successfully')),
     );
   }
 
   void _resetForm() {
     setState(() {
-      _orderIdController.clear();
       _returnReasonController.clear();
-      _orderDetails = null;
-      _isOrderEligible = false;
-      _eligibilityMessage = '';
+      _cnicController.clear();
+      _invoiceNumberController.clear();
       _selectedProducts.clear();
+      _selectedCustomerType = 'Normal Customer';
+      _selectedReturnDate = DateTime.now();
+      _invoiceProducts.clear();
+      _invoiceError = '';
     });
   }
 
@@ -530,7 +527,7 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                           });
                         },
                         icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Process Return'),
+                        label: const Text('Add Sales Return'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0D1845),
                           foregroundColor: Colors.white,
@@ -1062,18 +1059,19 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                 return Colors.white;
                               }),
                           columns: const [
+                            DataColumn(label: Text('Return ID')),
                             DataColumn(label: Text('Product')),
                             DataColumn(label: Text('Date')),
-                            DataColumn(label: Text('Customer')),
+                            DataColumn(label: Text('Customer Name')),
+                            DataColumn(label: Text('Customer Type')),
                             DataColumn(label: Text('Status')),
-                            DataColumn(label: Text('Grand Total')),
-                            DataColumn(label: Text('Paid')),
-                            DataColumn(label: Text('Due')),
-                            DataColumn(label: Text('Payment Status')),
+                            DataColumn(label: Text('Total Paid')),
+                            DataColumn(label: Text('Due Amount')),
                           ],
                           rows: filteredReturns.map((returnItem) {
                             return DataRow(
                               cells: [
+                                DataCell(Text(returnItem['id'])),
                                 DataCell(
                                   Row(
                                     children: [
@@ -1114,6 +1112,35 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
+                                      color:
+                                          (returnItem['customerType'] ==
+                                                      'Credit Customer'
+                                                  ? Colors.blue
+                                                  : Colors.green)
+                                              .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      returnItem['customerType'] ?? 'Normal',
+                                      style: TextStyle(
+                                        color:
+                                            returnItem['customerType'] ==
+                                                'Credit Customer'
+                                            ? Colors.blue[800]
+                                            : Colors.green[800],
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
                                       color: _getStatusColor(
                                         returnItem['status'],
                                       ).withOpacity(0.1),
@@ -1133,41 +1160,12 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                 ),
                                 DataCell(
                                   Text(
-                                    'Rs. ${returnItem['grandTotal'].toStringAsFixed(2)}',
-                                  ),
-                                ),
-                                DataCell(
-                                  Text(
                                     'Rs. ${returnItem['paidAmount'].toStringAsFixed(2)}',
                                   ),
                                 ),
                                 DataCell(
                                   Text(
                                     'Rs. ${returnItem['dueAmount'].toStringAsFixed(2)}',
-                                  ),
-                                ),
-                                DataCell(
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getPaymentStatusColor(
-                                        returnItem['paymentStatus'],
-                                      ).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      returnItem['paymentStatus'],
-                                      style: TextStyle(
-                                        color: _getPaymentStatusColor(
-                                          returnItem['paymentStatus'],
-                                        ),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
                                   ),
                                 ),
                               ],
@@ -1187,19 +1185,6 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
         ],
       ),
     );
-  }
-
-  Color _getPaymentStatusColor(String status) {
-    switch (status) {
-      case 'Paid':
-        return Colors.green;
-      case 'Unpaid':
-        return Colors.red;
-      case 'Overdue':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
   }
 
   Color _getStatusColor(String status) {
@@ -1244,7 +1229,7 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                 child: Row(
                   children: [
                     const Text(
-                      'Process Sales Return',
+                      'Add Sales Return',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -1272,9 +1257,131 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Order ID Input
+                      // Customer Type Selection
                       const Text(
-                        'Step 1: Enter Order ID',
+                        'Customer Type',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _selectedCustomerType,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                        items: ['Normal Customer', 'Credit Customer']
+                            .map(
+                              (type) => DropdownMenuItem<String>(
+                                value: type,
+                                child: Text(type),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _selectedCustomerType = value;
+                              _cnicController.clear();
+                              _invoiceProducts.clear();
+                              _invoiceError = '';
+                            });
+                          }
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Conditional Fields based on Customer Type
+                      if (_selectedCustomerType == 'Credit Customer') ...[
+                        const Text(
+                          'Customer CNIC',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0D1845),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _cnicController,
+                          decoration: InputDecoration(
+                            labelText: 'CNIC',
+                            hintText: 'e.g., 12345-6789012-3',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            prefixIcon: const Icon(Icons.credit_card),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // Date Selection
+                      const Text(
+                        'Return Date',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () async {
+                          final DateTime? picked = await showDatePicker(
+                            context: context,
+                            initialDate: _selectedReturnDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                            builder: (context, child) {
+                              return Theme(
+                                data: Theme.of(context).copyWith(
+                                  colorScheme: ColorScheme.light(
+                                    primary: Color(0xFF0D1845),
+                                    onPrimary: Colors.white,
+                                    onSurface: Color(0xFF343A40),
+                                  ),
+                                ),
+                                child: child!,
+                              );
+                            },
+                          );
+                          if (picked != null && picked != _selectedReturnDate) {
+                            setState(() {
+                              _selectedReturnDate = picked;
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Date',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            suffixIcon: const Icon(Icons.calendar_today),
+                          ),
+                          child: Text(
+                            DateFormat(
+                              'dd MMM yyyy',
+                            ).format(_selectedReturnDate),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Invoice Number
+                      const Text(
+                        'Invoice Number / Reference',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1286,9 +1393,9 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                         children: [
                           Expanded(
                             child: TextField(
-                              controller: _orderIdController,
+                              controller: _invoiceNumberController,
                               decoration: InputDecoration(
-                                labelText: 'Order ID',
+                                labelText: 'Invoice Number',
                                 hintText: 'e.g., INV-12345',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -1299,10 +1406,10 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                           ),
                           const SizedBox(width: 16),
                           ElevatedButton.icon(
-                            onPressed: _isLoadingOrder
+                            onPressed: _isLoadingInvoice
                                 ? null
-                                : _fetchOrderDetails,
-                            icon: _isLoadingOrder
+                                : _fetchInvoiceDetails,
+                            icon: _isLoadingInvoice
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
@@ -1315,7 +1422,9 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                   )
                                 : const Icon(Icons.search),
                             label: Text(
-                              _isLoadingOrder ? 'Searching...' : 'Find Order',
+                              _isLoadingInvoice
+                                  ? 'Searching...'
+                                  : 'Find Invoice',
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0D1845),
@@ -1327,106 +1436,38 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
 
                       const SizedBox(height: 24),
 
-                      // Order Details
-                      if (_orderDetails != null) ...[
+                      // Invoice Error Display
+                      if (_invoiceError.isNotEmpty) ...[
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
+                            color: Colors.red.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: _isOrderEligible
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
+                            border: Border.all(color: Colors.red.shade200),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Order Details',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: _isOrderEligible
-                                          ? Colors.green
-                                          : Colors.red,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _isOrderEligible
-                                          ? Colors.green
-                                          : Colors.red,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      _isOrderEligible
-                                          ? 'Eligible'
-                                          : 'Not Eligible',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.red.shade700,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _eligibilityMessage,
-                                style: TextStyle(
-                                  color: _isOrderEligible
-                                      ? Colors.green
-                                      : Colors.red,
-                                  fontSize: 14,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _invoiceError,
+                                  style: TextStyle(color: Colors.red.shade700),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildInfoItem(
-                                      'Order ID',
-                                      _orderDetails!['orderId'],
-                                      Icons.receipt_long,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildInfoItem(
-                                      'Customer',
-                                      _orderDetails!['customerName'],
-                                      Icons.person,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _buildInfoItem(
-                                      'Purchase Date',
-                                      DateFormat(
-                                        'MMM dd, yyyy',
-                                      ).format(_orderDetails!['purchaseDate']),
-                                      Icons.calendar_today,
-                                    ),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 24),
+                      ],
 
-                        // Products Selection
+                      // Products Section
+                      if (_invoiceProducts.isNotEmpty) ...[
                         const Text(
-                          'Step 2: Select Products to Return',
+                          'Select Products to Return',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1434,83 +1475,83 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ...(_orderDetails!['products'] as List).map((product) {
-                          final isSelected = _selectedProducts.any(
-                            (p) => p['id'] == product['id'],
-                          );
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFF0D1845).withOpacity(0.05)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF0D1845)
-                                    : Colors.grey[300]!,
-                              ),
+                        Container(
+                          height: 300,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: SingleChildScrollView(
+                            child: DataTable(
+                              columns: const [
+                                DataColumn(label: Text('Select')),
+                                DataColumn(label: Text('Product')),
+                                DataColumn(label: Text('Quantity')),
+                                DataColumn(label: Text('Price')),
+                                DataColumn(label: Text('Total')),
+                              ],
+                              rows: _invoiceProducts.map((product) {
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                      Checkbox(
+                                        value: product['isSelected'],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            product['isSelected'] =
+                                                value ?? false;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    DataCell(Text(product['name'])),
+                                    DataCell(
+                                      product['isSelected']
+                                          ? TextField(
+                                              controller:
+                                                  product['returnQuantityController'],
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                hintText: 'Qty',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              onChanged: (value) {
+                                                final qty =
+                                                    int.tryParse(value) ?? 0;
+                                                if (qty > product['quantity']) {
+                                                  product['returnQuantityController']
+                                                          .text =
+                                                      product['quantity']
+                                                          .toString();
+                                                }
+                                              },
+                                            )
+                                          : Text(
+                                              product['quantity'].toString(),
+                                            ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        'Rs. ${product['price'].toStringAsFixed(2)}',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        'Rs. ${(product['price'] * product['quantity']).toStringAsFixed(2)}',
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
                             ),
-                            child: InkWell(
-                              onTap: _isOrderEligible
-                                  ? () => _toggleProductSelection(product)
-                                  : null,
-                              child: Row(
-                                children: [
-                                  Checkbox(
-                                    value: isSelected,
-                                    onChanged: _isOrderEligible
-                                        ? (value) =>
-                                              _toggleProductSelection(product)
-                                        : null,
-                                    activeColor: const Color(0xFF0D1845),
-                                  ),
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.inventory_2,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          product['name'],
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Qty: ${product['quantity']} • Rs. ${product['price']}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-
+                          ),
+                        ),
                         const SizedBox(height: 24),
 
                         // Return Reason
                         const Text(
-                          'Step 3: Return Reason',
+                          'Return Reason',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1522,74 +1563,76 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                           controller: _returnReasonController,
                           maxLines: 3,
                           decoration: InputDecoration(
+                            labelText: 'Reason for return',
                             hintText:
-                                'Please provide a reason for the return...',
+                                'Please provide a reason for this return...',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          enabled: _isOrderEligible,
                         ),
 
                         const SizedBox(height: 24),
+                      ],
 
-                        // Action Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed:
-                                    (_isOrderEligible &&
-                                        _selectedProducts.isNotEmpty &&
-                                        !_isSubmittingReturn)
-                                    ? _submitReturn
-                                    : null,
-                                icon: _isSubmittingReturn
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.white,
-                                              ),
-                                        ),
-                                      )
-                                    : const Icon(Icons.assignment_return),
-                                label: Text(
-                                  _isSubmittingReturn
-                                      ? 'Submitting...'
-                                      : 'Submit Return',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0D1845),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  foregroundColor: Colors.white,
-                                ),
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  (_invoiceProducts.isNotEmpty &&
+                                      _invoiceProducts.any(
+                                        (p) => p['isSelected'],
+                                      ) &&
+                                      !_isSubmittingReturn)
+                                  ? _submitReturn
+                                  : null,
+                              icon: _isSubmittingReturn
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : const Icon(Icons.assignment_return),
+                              label: Text(
+                                _isSubmittingReturn
+                                    ? 'Submitting...'
+                                    : 'Submit Return',
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            OutlinedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _showAddReturnDialog = false;
-                                  _resetForm();
-                                });
-                              },
-                              style: OutlinedButton.styleFrom(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0D1845),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
                                   vertical: 16,
                                 ),
+                                foregroundColor: Colors.white,
                               ),
-                              child: const Text('Cancel'),
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(width: 16),
+                          OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAddReturnDialog = false;
+                                _resetForm();
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 16,
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1597,45 +1640,6 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0D1845),
-            ),
-          ),
-        ],
       ),
     );
   }

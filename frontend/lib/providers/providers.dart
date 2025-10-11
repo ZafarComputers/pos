@@ -95,8 +95,8 @@ class AuthProvider with ChangeNotifier {
         // The response has 'data' with user and profile
         final actualData = profileData['data'];
         if (actualData != null) {
-          // Update user if needed
-          if (actualData['role'] != null) {
+          // Update user if needed - only if the data contains user fields
+          if (actualData['role'] != null && actualData['email'] != null) {
             // Update user role if changed
             _user = User.fromJson(actualData);
           }
