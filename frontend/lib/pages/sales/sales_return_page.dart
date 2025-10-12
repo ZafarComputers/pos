@@ -450,23 +450,27 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
   Widget build(BuildContext context) {
     final filteredReturns = _getFilteredReturns();
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, const Color(0xFFF8F9FA)],
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sales Returns'),
+        backgroundColor: const Color(0xFF0D1845),
+        foregroundColor: Colors.white,
       ),
-      child: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Column(
               children: [
-                // Enhanced Header - Matching Product List Page Design
+                // Header with margin
                 Container(
+                  margin: const EdgeInsets.all(24),
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -543,10 +547,10 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
 
-                // Enhanced Filters Section - Matching Product List Page Design
+                // Filters Section
                 Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -562,7 +566,6 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 16),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -975,214 +978,298 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
 
-                // Enhanced Table Section - Matching Product List Page Design
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.assignment_return,
-                              color: Color(0xFF0D1845),
-                              size: 18,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Returns List',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF343A40),
-                              ),
-                            ),
-                            Spacer(),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Color(0xFFE3F2FD),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.assignment_return,
-                                    color: Color(0xFF1976D2),
-                                    size: 12,
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    '${filteredReturns.length} Returns',
-                                    style: TextStyle(
-                                      color: Color(0xFF1976D2),
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                // Table Section
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          headingRowColor: MaterialStateProperty.all(
-                            Color(0xFFF8F9FA),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // Table Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                          dataRowColor:
-                              MaterialStateProperty.resolveWith<Color>((
-                                Set<MaterialState> states,
-                              ) {
-                                if (states.contains(MaterialState.selected)) {
-                                  return Color(0xFF0D1845).withOpacity(0.1);
-                                }
-                                return Colors.white;
-                              }),
-                          columns: const [
-                            DataColumn(label: Text('Return ID')),
-                            DataColumn(label: Text('Product')),
-                            DataColumn(label: Text('Date')),
-                            DataColumn(label: Text('Customer Name')),
-                            DataColumn(label: Text('Customer Type')),
-                            DataColumn(label: Text('Status')),
-                            DataColumn(label: Text('Total Paid')),
-                            DataColumn(label: Text('Due Amount')),
-                          ],
-                          rows: filteredReturns.map((returnItem) {
-                            return DataRow(
-                              cells: [
-                                DataCell(Text(returnItem['id'])),
-                                DataCell(
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border.all(
-                                            color: Color(0xFFDEE2E6),
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.inventory_2,
-                                          color: Color(0xFF6C757D),
-                                          size: 18,
-                                        ),
-                                      ),
-                                      SizedBox(width: 12),
-                                      Text(returnItem['product']['name']),
-                                    ],
-                                  ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[300]!),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 1,
+                                child: Text('Return ID', style: _headerStyle()),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text('Product', style: _headerStyle()),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text('Date', style: _headerStyle()),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Customer Name',
+                                  style: _headerStyle(),
                                 ),
-                                DataCell(
-                                  Text(
-                                    DateFormat(
-                                      'dd MMM yyyy',
-                                    ).format(returnItem['date']),
-                                  ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Customer Type',
+                                  style: _headerStyle(),
                                 ),
-                                DataCell(Text(returnItem['customer'])),
-                                DataCell(
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          (returnItem['customerType'] ==
-                                                      'Credit Customer'
-                                                  ? Colors.blue
-                                                  : Colors.green)
-                                              .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      returnItem['customerType'] ?? 'Normal',
-                                      style: TextStyle(
-                                        color:
-                                            returnItem['customerType'] ==
-                                                'Credit Customer'
-                                            ? Colors.blue[800]
-                                            : Colors.green[800],
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
+                              ),
+                              Expanded(
+                                flex: 1,
+                                child: Text('Status', style: _headerStyle()),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Total Paid',
+                                  style: _headerStyle(),
                                 ),
-                                DataCell(
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getStatusColor(
-                                        returnItem['status'],
-                                      ).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      returnItem['status'],
-                                      style: TextStyle(
-                                        color: _getStatusColor(
-                                          returnItem['status'],
-                                        ),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'Due Amount',
+                                  style: _headerStyle(),
                                 ),
-                                DataCell(
-                                  Text(
-                                    'Rs. ${returnItem['paidAmount'].toStringAsFixed(2)}',
-                                  ),
-                                ),
-                                DataCell(
-                                  Text(
-                                    'Rs. ${returnItem['dueAmount'].toStringAsFixed(2)}',
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList(),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text('Actions', style: _headerStyle()),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+
+                        // Table Body
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: filteredReturns.length,
+                            itemBuilder: (context, index) {
+                              final returnItem = filteredReturns[index];
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey[200]!,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        returnItem['id'],
+                                        style: _cellStyle(),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: Color(0xFFDEE2E6),
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              Icons.inventory_2,
+                                              color: Color(0xFF6C757D),
+                                              size: 18,
+                                            ),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Text(
+                                            returnItem['product']['name'],
+                                            style: _cellStyle(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        DateFormat(
+                                          'dd MMM yyyy',
+                                        ).format(returnItem['date']),
+                                        style: _cellStyle(),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        returnItem['customer'],
+                                        style: _cellStyle(),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              (returnItem['customerType'] ==
+                                                          'Credit Customer'
+                                                      ? Colors.blue
+                                                      : Colors.green)
+                                                  .withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          returnItem['customerType'] ??
+                                              'Normal',
+                                          style: TextStyle(
+                                            color:
+                                                returnItem['customerType'] ==
+                                                    'Credit Customer'
+                                                ? Colors.blue[800]
+                                                : Colors.green[800],
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _getStatusColor(
+                                            returnItem['status'],
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          returnItem['status'],
+                                          style: TextStyle(
+                                            color: _getStatusColor(
+                                              returnItem['status'],
+                                            ),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        'Rs. ${returnItem['paidAmount'].toStringAsFixed(2)}',
+                                        style: _cellStyle(),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        'Rs. ${returnItem['dueAmount'].toStringAsFixed(2)}',
+                                        style: _cellStyle(),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.visibility,
+                                              color: const Color(0xFF0D1845),
+                                              size: 18,
+                                            ),
+                                            onPressed: () =>
+                                                _viewReturnDetails(returnItem),
+                                            tooltip: 'View Details',
+                                            padding: const EdgeInsets.all(6),
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.edit,
+                                              color: Colors.blue,
+                                              size: 18,
+                                            ),
+                                            onPressed: () =>
+                                                _editReturn(returnItem),
+                                            tooltip: 'Edit',
+                                            padding: const EdgeInsets.all(6),
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.delete,
+                                              color: Colors.red,
+                                              size: 18,
+                                            ),
+                                            onPressed: () =>
+                                                _deleteReturn(returnItem['id']),
+                                            tooltip: 'Delete',
+                                            padding: const EdgeInsets.all(6),
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
 
-          // Add Return Dialog
-          if (_showAddReturnDialog) _buildAddReturnDialog(),
-        ],
+            // Add Return Dialog
+            ...(_showAddReturnDialog ? [_buildAddReturnDialog()] : []),
+          ],
+        ),
       ),
     );
   }
@@ -1200,6 +1287,39 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
       default:
         return Colors.grey;
     }
+  }
+
+  TextStyle _headerStyle() {
+    return const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.bold,
+      color: Color(0xFF343A40),
+    );
+  }
+
+  TextStyle _cellStyle() {
+    return const TextStyle(fontSize: 13, color: Color(0xFF6C757D));
+  }
+
+  void _viewReturnDetails(Map<String, dynamic> returnItem) {
+    // TODO: Implement view return details
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Viewing details for return ${returnItem['id']}')),
+    );
+  }
+
+  void _editReturn(Map<String, dynamic> returnItem) {
+    // TODO: Implement edit return
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Editing return ${returnItem['id']}')),
+    );
+  }
+
+  void _deleteReturn(String returnId) {
+    // TODO: Implement delete return
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Deleting return $returnId')));
   }
 
   Widget _buildAddReturnDialog() {

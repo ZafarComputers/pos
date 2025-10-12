@@ -546,7 +546,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                         }
                                         return Colors.white;
                                       }),
-                                  columnSpacing: 24.0,
+                                  columnSpacing: 16.0,
                                   dataRowMinHeight: 60.0,
                                   dataRowMaxHeight: 80.0,
                                   headingRowHeight: 50.0,
@@ -723,7 +723,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 220,
+                                              width: 180,
                                               child: DropdownButtonFormField<int>(
                                                 value: item.productId,
                                                 decoration: InputDecoration(
@@ -774,7 +774,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 80,
+                                              width: 70,
                                               child: TextFormField(
                                                 initialValue: item.quantity
                                                     .toString(),
@@ -818,7 +818,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 120,
+                                              width: 100,
                                               child: TextFormField(
                                                 initialValue: item.purchasePrice
                                                     .toString(),
@@ -863,7 +863,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 100,
+                                              width: 90,
                                               child: TextFormField(
                                                 initialValue: item.discount
                                                     .toString(),
@@ -909,7 +909,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 80,
+                                              width: 70,
                                               child: TextFormField(
                                                 initialValue: item.taxPercentage
                                                     .toString(),
@@ -955,7 +955,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: Container(
-                                              width: 100,
+                                              width: 90,
                                               alignment: Alignment.center,
                                               child: Text(
                                                 'Rs. ${item.taxAmount.toStringAsFixed(2)}',
@@ -972,7 +972,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: Container(
-                                              width: 100,
+                                              width: 90,
                                               alignment: Alignment.center,
                                               child: Text(
                                                 'Rs. ${item.unitCost.toStringAsFixed(2)}',
@@ -989,7 +989,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: Container(
-                                              width: 120,
+                                              width: 100,
                                               alignment: Alignment.center,
                                               child: Text(
                                                 'Rs. ${(item.unitCost * item.quantity).toStringAsFixed(2)}',
@@ -1006,7 +1006,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: SizedBox(
-                                              width: 120,
+                                              width: 100,
                                               child: TextFormField(
                                                 initialValue: item
                                                     .pendingPayment
