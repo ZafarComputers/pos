@@ -1493,126 +1493,145 @@ class _SizeListPageState extends State<SizeListPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF8F9FA)],
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+    );
+  }
+
+  TextStyle _headerStyle() {
+    return const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF0D1845),
+    );
+  }
+
+  TextStyle _cellStyle() {
+    return const TextStyle(fontSize: 12, color: Color(0xFF6C757D));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sizes'),
+        backgroundColor: const Color(0xFF0D1845),
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Enhanced Header
+            // Header with Summary Cards
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6F42C1), Color(0xFF8A2BE2)],
+                  colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF6F42C1).withOpacity(0.3),
+                    color: Color(0xFF0D1845).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
                 ],
               ),
-              child: Row(
+              margin: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.straighten,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sizes',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Manage product sizes for better organization',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   Row(
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToPDF,
-                          icon: Icon(Icons.picture_as_pdf, size: 16),
-                          label: Text('Export PDF'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFFDC3545),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.straighten,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToExcel,
-                          icon: Icon(Icons.table_chart, size: 16),
-                          label: Text('Export Excel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF28A745),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sizes',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Manage product sizes for better organization',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                       ElevatedButton.icon(
                         onPressed: addNewSize,
-                        icon: Icon(Icons.add, size: 16),
-                        label: Text('Add Size'),
+                        icon: const Icon(Icons.add, size: 14),
+                        label: const Text('Add New Size'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF17A2B8),
+                          backgroundColor: const Color(0xFF0D1845),
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1621,689 +1640,578 @@ class _SizeListPageState extends State<SizeListPage> {
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Enhanced Filters Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  // Summary Cards
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Search Bar - Takes more space
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 4,
-                                bottom: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.manage_search_rounded,
-                                    size: 16,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Search Sizes',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  hintText: 'Type to search...',
-                                  hintStyle: TextStyle(
-                                    color: Color(0xFFADB5BD),
-                                    fontSize: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF0D1845),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildSummaryCard(
+                        'Total Sizes',
+                        totalSizes.toString(),
+                        Icons.straighten,
+                        Colors.blue,
                       ),
-                      const SizedBox(width: 20),
-                      // Status Filter - Compact design
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 4,
-                                bottom: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.tune_rounded,
-                                    size: 16,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Filter by Status',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: DropdownButtonFormField<String>(
-                                value: selectedStatus,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  hintText: 'Select status',
-                                  hintStyle: TextStyle(
-                                    color: Color(0xFFADB5BD),
-                                    fontSize: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF0D1845),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                ),
-                                items: ['All', 'Active', 'Inactive']
-                                    .map(
-                                      (status) => DropdownMenuItem(
-                                        value: status,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              status == 'All'
-                                                  ? Icons.inventory_2_rounded
-                                                  : status == 'Active'
-                                                  ? Icons.check_circle_rounded
-                                                  : Icons.cancel_rounded,
-                                              color: status == 'All'
-                                                  ? Color(0xFF6C757D)
-                                                  : status == 'Active'
-                                                  ? Color(0xFF28A745)
-                                                  : Color(0xFFDC3545),
-                                              size: 18,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              status,
-                                              style: TextStyle(
-                                                color: Color(0xFF343A40),
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      selectedStatus = value;
-                                      currentPage = 1;
-                                    });
-                                    _applyFiltersClientSide();
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(width: 16),
+                      _buildSummaryCard(
+                        'Active Sizes',
+                        _filteredSizes
+                            .where((s) => s.status == 'Active')
+                            .length
+                            .toString(),
+                        Icons.check_circle,
+                        Colors.green,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildSummaryCard(
+                        'Inactive Sizes',
+                        _filteredSizes
+                            .where((s) => s.status != 'Active')
+                            .length
+                            .toString(),
+                        Icons.cancel,
+                        Colors.red,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
 
-            // Enhanced Table Section
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.list_alt,
-                          color: Color(0xFF6F42C1),
-                          size: 18,
+            // Search and Table
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Search and Filters Bar
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Sizes List',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        Spacer(),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE7F3FF),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
                             children: [
-                              Icon(
-                                Icons.straighten,
-                                color: Color(0xFF0066CC),
-                                size: 12,
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search by size name...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                  ),
+                                ),
                               ),
-                              SizedBox(width: 3),
-                              Text(
-                                '$totalSizes Sizes',
-                                style: TextStyle(
-                                  color: Color(0xFF0066CC),
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 11,
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButton<String>(
+                                  value: selectedStatus,
+                                  underline: const SizedBox(),
+                                  items: ['All', 'Active', 'Inactive']
+                                      .map(
+                                        (status) => DropdownMenuItem<String>(
+                                          value: status,
+                                          child: Text(status),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedStatus = value;
+                                      });
+                                      _applyFiltersClientSide();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton.icon(
+                                onPressed: exportToPDF,
+                                icon: const Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 16,
+                                ),
+                                label: const Text('Export PDF'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: exportToExcel,
+                                icon: const Icon(Icons.table_chart, size: 16),
+                                label: const Text('Export Excel'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          if (_isFilterActive) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0D1845).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.filter_list,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Filters applied',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF0D1845),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _searchController.clear();
+                                        selectedStatus = 'All';
+                                        _isFilterActive = false;
+                                      });
+                                      _applyFiltersClientSide();
+                                    },
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Color(0xFF0D1845),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                  ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: RefreshIndicator(
-                      onRefresh: () async {
-                        await _fetchSizes(page: 1);
-                      },
-                      color: Color(0xFF6F42C1),
-                      child: errorMessage != null
-                          ? Container(
-                              padding: const EdgeInsets.all(40),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline,
-                                      color: Color(0xFFDC3545),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Failed to load sizes',
-                                      style: TextStyle(
-                                        color: Color(0xFFDC3545),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      errorMessage!,
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                        fontSize: 14,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton(
-                                      onPressed: _fetchSizes,
-                                      child: Text('Retry'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Color(0xFF6F42C1),
-                                        foregroundColor: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+
+                    // Table Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[300]!),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Preview Column - Fixed width
+                          SizedBox(
+                            width: 80,
+                            child: Text('Preview', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Size Name Column
+                          Expanded(
+                            flex: 3,
+                            child: Text('Size Name', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Status Column - Centered
+                          Expanded(
+                            flex: 1,
+                            child: Center(
+                              child: Text('Status', style: _headerStyle()),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Created Date Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Created Date', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Actions Column - Fixed width
+                          SizedBox(
+                            width: 120,
+                            child: Text('Actions', style: _headerStyle()),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Table Body
+                    Expanded(
+                      child: isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : errorMessage != null
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    errorMessage!,
+                                    style: const TextStyle(color: Colors.grey),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: _fetchSizes,
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
                               ),
                             )
-                          : DataTable(
-                              headingRowColor: MaterialStateProperty.all(
-                                Color(0xFFF8F9FA),
+                          : _filteredSizes.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.straighten_outlined,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _isFilterActive
+                                        ? 'No sizes match your filters'
+                                        : 'No sizes found',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                  if (_isFilterActive) ...[
+                                    const SizedBox(height: 8),
+                                    TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _searchController.clear();
+                                          selectedStatus = 'All';
+                                          _isFilterActive = false;
+                                        });
+                                        _applyFiltersClientSide();
+                                      },
+                                      child: const Text('Clear Filters'),
+                                    ),
+                                  ],
+                                ],
                               ),
-                              dataRowColor:
-                                  MaterialStateProperty.resolveWith<Color>((
-                                    Set<MaterialState> states,
-                                  ) {
-                                    if (states.contains(
-                                      MaterialState.selected,
-                                    )) {
-                                      return Color(0xFF6F42C1).withOpacity(0.1);
-                                    }
-                                    return Colors.white;
-                                  }),
-                              columns: const [
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 85,
-                                    child: Text('Preview'),
+                            )
+                          : ListView.builder(
+                              itemCount: _filteredSizes.length,
+                              itemBuilder: (context, index) {
+                                final size = _filteredSizes[index];
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
                                   ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 175,
-                                    child: Text('Size Name'),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 85,
-                                    child: Text('Status'),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 115,
-                                    child: Text('Created'),
-                                  ),
-                                ),
-                                DataColumn(
-                                  label: SizedBox(
-                                    width: 85,
-                                    child: Text('Actions'),
-                                  ),
-                                ),
-                              ],
-                              rows: _filteredSizes.map((size_model.Size size) {
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      Container(
-                                        width: 50,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: Color(0xFFE9ECEF),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border.all(
-                                            color: Color(0xFFDEE2E6),
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            size.title.length > 4
-                                                ? size.title.substring(0, 4) +
-                                                      '...'
-                                                : size.title,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF343A40),
-                                            ),
-                                          ),
-                                        ),
+                                  decoration: BoxDecoration(
+                                    color: index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50],
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey[200]!,
                                       ),
                                     ),
-                                    DataCell(
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Preview Column - Fixed width
                                       SizedBox(
-                                        width: 180,
-                                        child: Text(
-                                          size.title,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF343A40),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 90,
+                                        width: 80,
                                         child: Container(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
+                                          width: 50,
+                                          height: 40,
                                           decoration: BoxDecoration(
-                                            color: size.status == 'Active'
-                                                ? Color(0xFFD4EDDA)
-                                                : Color(0xFFF8D7DA),
+                                            color: const Color(0xFFE9ECEF),
                                             borderRadius: BorderRadius.circular(
                                               6,
                                             ),
+                                            border: Border.all(
+                                              color: Colors.grey.shade300,
+                                            ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                size.status == 'Active'
-                                                    ? Icons.check_circle
-                                                    : Icons.cancel,
-                                                color: size.status == 'Active'
-                                                    ? Color(0xFF28A745)
-                                                    : Color(0xFFDC3545),
-                                                size: 12,
+                                          child: Center(
+                                            child: Text(
+                                              size.title.length > 4
+                                                  ? '${size.title.substring(0, 4)}...'
+                                                  : size.title,
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF343A40),
                                               ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                size.status,
-                                                style: TextStyle(
-                                                  color: size.status == 'Active'
-                                                      ? Color(0xFF155724)
-                                                      : Color(0xFF721C24),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                    DataCell(
-                                      SizedBox(
-                                        width: 120,
+                                      const SizedBox(width: 16),
+                                      // Size Name Column
+                                      Expanded(
+                                        flex: 3,
+                                        child: Text(
+                                          size.title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF343A40),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Status Column - Centered
+                                      Expanded(
+                                        flex: 1,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            constraints: const BoxConstraints(
+                                              minWidth: 60,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: size.status == 'Active'
+                                                  ? Colors.green.withOpacity(
+                                                      0.1,
+                                                    )
+                                                  : Colors.red.withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              size.status,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: size.status == 'Active'
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Created Date Column
+                                      Expanded(
+                                        flex: 2,
                                         child: Text(
                                           _formatDate(size.createdAt),
-                                          style: TextStyle(
-                                            color: Color(0xFF6C757D),
-                                            fontSize: 12,
-                                          ),
+                                          style: _cellStyle(),
                                         ),
                                       ),
-                                    ),
-                                    DataCell(
+                                      const SizedBox(width: 16),
+                                      // Actions Column
                                       SizedBox(
-                                        width: 90,
+                                        width: 120,
                                         child: Row(
                                           mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          mainAxisSize: MainAxisSize.min,
+                                              MainAxisAlignment.start,
                                           children: [
                                             IconButton(
-                                              onPressed: () =>
-                                                  viewSizeDetails(size),
                                               icon: Icon(
                                                 Icons.visibility,
-                                                color: Color(0xFF17A2B8),
+                                                color: const Color(0xFF0D1845),
                                                 size: 16,
                                               ),
+                                              onPressed: () =>
+                                                  viewSizeDetails(size),
                                               tooltip: 'View Details',
-                                              padding: EdgeInsets.all(4),
-                                              constraints: BoxConstraints(),
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
                                             ),
-                                            SizedBox(width: 2),
                                             IconButton(
-                                              onPressed: () => editSize(size),
                                               icon: Icon(
                                                 Icons.edit,
-                                                color: Color(0xFF28A745),
+                                                color: Colors.blue,
                                                 size: 16,
                                               ),
-                                              tooltip: 'Edit Size',
-                                              padding: EdgeInsets.all(4),
-                                              constraints: BoxConstraints(),
+                                              onPressed: () => editSize(size),
+                                              tooltip: 'Edit',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
                                             ),
-                                            SizedBox(width: 2),
                                             IconButton(
-                                              onPressed: () => deleteSize(size),
                                               icon: Icon(
                                                 Icons.delete,
-                                                color: Color(0xFFDC3545),
+                                                color: Colors.red,
                                                 size: 16,
                                               ),
-                                              tooltip: 'Delete Size',
-                                              padding: EdgeInsets.all(4),
-                                              constraints: BoxConstraints(),
+                                              onPressed: () => deleteSize(size),
+                                              tooltip: 'Delete',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
                                             ),
                                           ],
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 );
-                              }).toList(),
+                              },
                             ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
-            // Enhanced Pagination
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: currentPage > 1
-                        ? () => _changePage(currentPage - 1)
-                        : null,
-                    icon: Icon(Icons.chevron_left, size: 14),
-                    label: Text('Previous', style: TextStyle(fontSize: 11)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: currentPage > 1
-                          ? Color(0xFF6C757D)
-                          : Color(0xFFADB5BD),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+            // Pagination Controls
+            if (_filteredSizes.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous button
+                    ElevatedButton.icon(
+                      onPressed: currentPage > 1
+                          ? () => _changePage(currentPage - 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left, size: 16),
+                      label: const Text('Previous'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage > 1
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage > 1
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage > 1 ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Dynamic page buttons based on total pages
-                  ...List.generate(totalPages > 5 ? 5 : totalPages, (index) {
-                    int pageNumber;
-                    if (totalPages <= 5) {
-                      pageNumber = index + 1;
-                    } else if (currentPage <= 3) {
-                      pageNumber = index + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + index;
-                    } else {
-                      pageNumber = currentPage - 2 + index;
-                    }
+                    const SizedBox(width: 16),
 
-                    return Container(
-                      margin: EdgeInsets.symmetric(horizontal: 1),
-                      child: ElevatedButton(
-                        onPressed: () => _changePage(pageNumber),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: pageNumber == currentPage
-                              ? Color(0xFF6F42C1)
-                              : Colors.white,
-                          foregroundColor: pageNumber == currentPage
-                              ? Colors.white
-                              : Color(0xFF6C757D),
-                          elevation: pageNumber == currentPage ? 2 : 0,
-                          side: pageNumber == currentPage
-                              ? null
-                              : BorderSide(color: Color(0xFFDEE2E6)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          minimumSize: Size(32, 32),
-                        ),
-                        child: Text(
-                          pageNumber.toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11,
-                          ),
+                    // Page info
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Page $currentPage of ${totalPages} (${totalSizes} total)',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6C757D),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    );
-                  }),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: currentPage < totalPages
-                        ? () => _changePage(currentPage + 1)
-                        : null,
-                    icon: Icon(Icons.chevron_right, size: 14),
-                    label: Text('Next', style: TextStyle(fontSize: 11)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: currentPage < totalPages
-                          ? Color(0xFF6C757D)
-                          : Color(0xFFADB5BD),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
                     ),
-                  ),
-                  // Page info
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Page $currentPage of $totalPages (${totalSizes} total)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF6C757D),
-                        fontWeight: FontWeight.w500,
+
+                    const SizedBox(width: 16),
+
+                    // Next button
+                    ElevatedButton.icon(
+                      onPressed: currentPage < totalPages
+                          ? () => _changePage(currentPage + 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right, size: 16),
+                      label: const Text('Next'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage < totalPages
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage < totalPages
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage < totalPages ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

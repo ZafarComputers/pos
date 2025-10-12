@@ -1376,682 +1376,635 @@ class _VendorsPageState extends State<VendorsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Vendors'),
+            backgroundColor: const Color(0xFF0D1845),
+            foregroundColor: Colors.white,
+          ),
+          body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Colors.white, Color(0xFFF8F9FA)],
+                colors: [Colors.white, const Color(0xFFF8F9FA)],
               ),
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Enhanced Header
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF17A2B8), Color(0xFF20B2AA)],
+            child: Column(
+              children: [
+                // Header with Summary Cards
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF0D1845).withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0xFF17A2B8).withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.business,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vendors',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Manage your supplier relationships and vendor information',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white.withOpacity(0.8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.only(right: 16),
-                              child: ElevatedButton.icon(
-                                onPressed: exportToPDF,
-                                icon: Icon(Icons.picture_as_pdf, size: 16),
-                                label: Text('Export PDF'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Color(0xFFDC3545),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(right: 16),
-                              child: ElevatedButton.icon(
-                                onPressed: exportToExcel,
-                                icon: Icon(Icons.table_chart, size: 16),
-                                label: Text('Export Excel'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Color(0xFF28A745),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: addNewVendor,
-                              icon: Icon(Icons.add, size: 16),
-                              label: Text('Add Vendor'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFF0D1845),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
+                  margin: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.business,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Vendors',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Manage your supplier relationships and vendor information',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withOpacity(0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton.icon(
+                            onPressed: addNewVendor,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Add Vendor'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF0D1845),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Summary Cards
+                      Row(
+                        children: [
+                          _buildSummaryCard(
+                            'Total Vendors',
+                            _allVendorsCache.length.toString(),
+                            Icons.business,
+                            Colors.blue,
+                          ),
+                          const SizedBox(width: 16),
+                          _buildSummaryCard(
+                            'Active Vendors',
+                            _allVendorsCache
+                                .where((v) => v.status == 'Active')
+                                .length
+                                .toString(),
+                            Icons.check_circle,
+                            Colors.green,
+                          ),
+                          const SizedBox(width: 16),
+                          _buildSummaryCard(
+                            'Inactive Vendors',
+                            _allVendorsCache
+                                .where((v) => v.status != 'Active')
+                                .length
+                                .toString(),
+                            Icons.cancel,
+                            Colors.red,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
 
-                  // Enhanced Filters Section
-                  Container(
-                    padding: const EdgeInsets.all(16),
+                // Search and Table
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.08),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 16),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // Search Bar - Takes more space
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        // Search and Filters Bar
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
+                              topRight: Radius.circular(16),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
                                 children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      bottom: 6,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.manage_search_rounded,
-                                          size: 16,
-                                          color: Color(0xFF0D1845),
-                                        ),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Search Vendors',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF343A40),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
+                                  Expanded(
                                     child: TextField(
                                       controller: _searchController,
                                       decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        hintText: 'Type to search...',
-                                        hintStyle: TextStyle(
-                                          color: Color(0xFFADB5BD),
-                                          fontSize: 14,
-                                        ),
+                                        hintText:
+                                            'Search by vendor name, code...',
+                                        prefixIcon: const Icon(Icons.search),
                                         border: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFFDEE2E6),
+                                            8,
                                           ),
                                         ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFFDEE2E6),
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFF17A2B8),
-                                            width: 2,
-                                          ),
-                                        ),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 16,
-                                        ),
+                                        filled: true,
+                                        fillColor: Colors.white,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      bottom: 6,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.tune_rounded,
-                                          size: 16,
-                                          color: Color(0xFF0D1845),
-                                        ),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Filter by Status',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF343A40),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                  const SizedBox(width: 16),
                                   Container(
-                                    decoration: BoxDecoration(
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
                                     ),
-                                    child: DropdownButtonFormField<String>(
-                                      value: selectedStatus,
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFFDEE2E6),
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFFDEE2E6),
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Color(0xFF17A2B8),
-                                            width: 2,
-                                          ),
-                                        ),
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 16,
-                                        ),
-                                        isDense: true,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
                                       ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.white,
+                                    ),
+                                    child: DropdownButton<String>(
+                                      value: selectedStatus,
+                                      underline: const SizedBox(),
                                       items: ['All', 'Active', 'Inactive']
                                           .map(
-                                            (status) => DropdownMenuItem(
-                                              value: status,
-                                              child: Text(
-                                                status,
-                                                style: TextStyle(
-                                                  color: Color(0xFF343A40),
-                                                  fontSize: 14,
+                                            (status) =>
+                                                DropdownMenuItem<String>(
+                                                  value: status,
+                                                  child: Text(status),
                                                 ),
-                                              ),
-                                            ),
                                           )
                                           .toList(),
                                       onChanged: (value) {
                                         if (value != null) {
                                           setState(() {
                                             selectedStatus = value;
-                                            currentPage =
-                                                1; // Reset to first page when filter changes
                                           });
-                                          // Apply filters with new status
                                           _applyFilters();
                                         }
                                       },
                                     ),
                                   ),
+                                  const SizedBox(width: 16),
+                                  ElevatedButton.icon(
+                                    onPressed: exportToPDF,
+                                    icon: const Icon(
+                                      Icons.picture_as_pdf,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Export PDF'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton.icon(
+                                    onPressed: exportToExcel,
+                                    icon: const Icon(
+                                      Icons.table_chart,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Export Excel'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
 
-                  // Enhanced Table Section
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
+                        // Table Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[300]!),
+                            ),
+                          ),
                           child: Row(
                             children: [
-                              Icon(
-                                Icons.business,
-                                color: Color(0xFF17A2B8),
-                                size: 18,
+                              // Image Column - Fixed width to match body
+                              SizedBox(
+                                width: 60,
+                                child: Text('Image', style: _headerStyle()),
                               ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Vendors List',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF343A40),
+                              const SizedBox(width: 100),
+                              // Vendor Details Column
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  'Vendor Details',
+                                  style: _headerStyle(),
                                 ),
                               ),
-                              Spacer(),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                              const SizedBox(width: 16),
+                              // Address Column
+                              Expanded(
+                                flex: 2,
+                                child: Text('Address', style: _headerStyle()),
+                              ),
+                              const SizedBox(width: 16),
+                              // CNIC Column - Centered
+                              Expanded(
+                                flex: 1,
+                                child: Center(
+                                  child: Text('CNIC', style: _headerStyle()),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFE3F2FD),
-                                  borderRadius: BorderRadius.circular(12),
+                              ),
+                              const SizedBox(width: 16),
+                              // City Column
+                              Expanded(
+                                flex: 1,
+                                child: Text('City', style: _headerStyle()),
+                              ),
+                              const SizedBox(width: 16),
+                              // Status Column - Centered
+                              Expanded(
+                                flex: 1,
+                                child: Center(
+                                  child: Text('Status', style: _headerStyle()),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.business_center,
-                                      color: Color(0xFF1976D2),
-                                      size: 12,
-                                    ),
-                                    SizedBox(width: 3),
-                                    Text(
-                                      '${_filteredVendors.length} Vendors',
-                                      style: TextStyle(
-                                        color: Color(0xFF1976D2),
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              // Actions Column - Fixed width to match body
+                              SizedBox(
+                                width: 120,
+                                child: Text('Actions', style: _headerStyle()),
                               ),
                             ],
                           ),
                         ),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: MaterialStateProperty.all(
-                              Color(0xFFF8F9FA),
-                            ),
-                            dataRowColor:
-                                MaterialStateProperty.resolveWith<Color>((
-                                  Set<MaterialState> states,
-                                ) {
-                                  if (states.contains(MaterialState.selected)) {
-                                    return Color(0xFF17A2B8).withOpacity(0.1);
-                                  }
-                                  return Colors.white;
-                                }),
-                            columns: const [
-                              DataColumn(label: Text('Image')),
-                              DataColumn(label: Text('Vendor Code')),
-                              DataColumn(label: Text('Vendor Name')),
-                              DataColumn(label: Text('Address')),
-                              DataColumn(label: Text('CNIC')),
-                              DataColumn(label: Text('City')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Actions')),
-                            ],
-                            rows: _filteredVendors.map((vendor) {
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color: _getVendorColor(
-                                          vendor.city.title,
-                                        ),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: Color(0xFFDEE2E6),
-                                        ),
+
+                        // Table Body
+                        Expanded(
+                          child: isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : errorMessage != null
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        size: 48,
+                                        color: Colors.grey,
                                       ),
-                                      child: Icon(
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        errorMessage!,
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton(
+                                        onPressed: _fetchAllVendorsOnInit,
+                                        child: const Text('Retry'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _filteredVendors.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
                                         Icons.business,
-                                        color: Colors.white,
-                                        size: 16,
+                                        size: 48,
+                                        color: Colors.grey,
                                       ),
-                                    ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'No vendors found',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
                                   ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
+                                )
+                              : ListView.builder(
+                                  itemCount: _filteredVendors.length,
+                                  itemBuilder: (context, index) {
+                                    final vendor = _filteredVendors[index];
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Color(0xFFF8F9FA),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        vendor.vendorCode,
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF17A2B8),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 140,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            vendor.fullName,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF343A40),
-                                              fontSize: 12,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
+                                        color: index % 2 == 0
+                                            ? Colors.white
+                                            : Colors.grey[50],
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Colors.grey[200]!,
                                           ),
-                                          Text(
-                                            vendor.vendorCode,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Color(0xFF6C757D),
-                                              fontFamily: 'monospace',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 160,
-                                      child: Text(
-                                        vendor.address ?? 'N/A',
-                                        style: TextStyle(
-                                          color: Color(0xFF6C757D),
-                                          fontSize: 11,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 2,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFFE3F2FD),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        vendor.cnic,
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF1976D2),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFFE3F2FD),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        vendor.city.title,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF1976D2),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: vendor.status == 'Active'
-                                            ? Color(0xFFD4EDDA)
-                                            : Color(0xFFF8D7DA),
-                                        borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Row(
-                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(
-                                            vendor.status == 'Active'
-                                                ? Icons.check_circle
-                                                : Icons.cancel,
-                                            color: vendor.status == 'Active'
-                                                ? Color(0xFF28A745)
-                                                : Color(0xFFDC3545),
-                                            size: 10,
+                                          // Image Column - Fixed width to match header
+                                          SizedBox(
+                                            width: 60,
+                                            height: 40,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: _getVendorColor(
+                                                  vendor.city.title,
+                                                ).withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(
+                                                Icons.business,
+                                                color: _getVendorColor(
+                                                  vendor.city.title,
+                                                ),
+                                                size: 20,
+                                              ),
+                                            ),
                                           ),
-                                          SizedBox(width: 2),
-                                          Text(
-                                            vendor.status,
-                                            style: TextStyle(
-                                              color: vendor.status == 'Active'
-                                                  ? Color(0xFF155724)
-                                                  : Color(0xFF721C24),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
+                                          const SizedBox(width: 100),
+                                          // Vendor Details Column
+                                          Expanded(
+                                            flex: 3,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  vendor.fullName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF0D1845),
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  'Code: ${vendor.vendorCode}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // Address Column
+                                          Expanded(
+                                            flex: 2,
+                                            child: Text(
+                                              vendor.address ?? 'N/A',
+                                              style: _cellStyle(),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 2,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // CNIC Column - Centered
+                                          Expanded(
+                                            flex: 1,
+                                            child: Center(
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFF8F9FA,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                                child: Text(
+                                                  vendor.cnic,
+                                                  style: TextStyle(
+                                                    fontFamily: 'monospace',
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(
+                                                      0xFF0D1845,
+                                                    ),
+                                                    fontSize: 11,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // City Column
+                                          Expanded(
+                                            flex: 1,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: _getVendorColor(
+                                                  vendor.city.title,
+                                                ).withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
+                                              child: Text(
+                                                vendor.city.title,
+                                                style: _cellStyle(),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // Status Column - Centered
+                                          Expanded(
+                                            flex: 1,
+                                            child: Center(
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      minWidth: 60,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      vendor.status == 'Active'
+                                                      ? Colors.green
+                                                            .withOpacity(0.1)
+                                                      : Colors.red.withOpacity(
+                                                          0.1,
+                                                        ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  vendor.status,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w500,
+                                                    color:
+                                                        vendor.status ==
+                                                            'Active'
+                                                        ? Colors.green
+                                                        : Colors.red,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // Actions Column
+                                          SizedBox(
+                                            width: 120,
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.start,
+                                              children: [
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.visibility,
+                                                    color: const Color(
+                                                      0xFF17A2B8,
+                                                    ),
+                                                    size: 16,
+                                                  ),
+                                                  onPressed: () =>
+                                                      viewVendor(vendor),
+                                                  tooltip: 'View Details',
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.edit,
+                                                    color: Colors.blue,
+                                                    size: 16,
+                                                  ),
+                                                  onPressed: () =>
+                                                      editVendor(vendor),
+                                                  tooltip: 'Edit',
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.delete,
+                                                    color: Colors.red,
+                                                    size: 16,
+                                                  ),
+                                                  onPressed: () =>
+                                                      deleteVendor(vendor),
+                                                  tooltip: 'Delete',
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          onPressed: () => viewVendor(vendor),
-                                          icon: Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'View Details',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                        SizedBox(width: 4),
-                                        IconButton(
-                                          onPressed: () => editVendor(vendor),
-                                          icon: Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'Edit Vendor',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                        SizedBox(width: 4),
-                                        IconButton(
-                                          onPressed: () => deleteVendor(vendor),
-                                          icon: Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'Delete Vendor',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ),
                   ),
+                ),
 
-                  // Enhanced Pagination
-                  const SizedBox(height: 20),
+                // Pagination Controls
+                if (_filteredVendors.isNotEmpty) ...[
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.08),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
@@ -2063,33 +2016,48 @@ class _VendorsPageState extends State<VendorsPage> {
                           onPressed: currentPage > 1
                               ? () => _changePage(currentPage - 1)
                               : null,
-                          icon: Icon(Icons.chevron_left, size: 14),
-                          label: Text(
-                            'Previous',
-                            style: TextStyle(fontSize: 11),
-                          ),
+                          icon: const Icon(Icons.chevron_left, size: 16),
+                          label: const Text('Previous'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: currentPage > 1
+                                ? const Color(0xFF0D1845)
+                                : Colors.grey.shade300,
                             foregroundColor: currentPage > 1
-                                ? Color(0xFF17A2B8)
-                                : Color(0xFF6C757D),
-                            elevation: 0,
-                            side: BorderSide(color: Color(0xFFDEE2E6)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(5),
+                                ? Colors.white
+                                : Colors.grey.shade600,
+                            elevation: currentPage > 1 ? 2 : 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
                             ),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 16),
 
-                        // Page numbers
-                        ..._buildPageButtons(),
+                        // Page info
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Page $currentPage of ${(vendorResponse?.meta != null ? vendorResponse!.meta.lastPage : 1)} (${vendorResponse?.meta != null ? vendorResponse!.meta.total : _filteredVendors.length} total)',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6C757D),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
 
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 16),
 
                         // Next button
                         ElevatedButton.icon(
@@ -2098,13 +2066,13 @@ class _VendorsPageState extends State<VendorsPage> {
                                   currentPage < vendorResponse!.meta.lastPage)
                               ? () => _changePage(currentPage + 1)
                               : null,
-                          icon: Icon(Icons.chevron_right, size: 14),
-                          label: Text('Next', style: TextStyle(fontSize: 11)),
+                          icon: const Icon(Icons.chevron_right, size: 16),
+                          label: const Text('Next'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 (vendorResponse?.meta != null &&
                                     currentPage < vendorResponse!.meta.lastPage)
-                                ? Color(0xFF17A2B8)
+                                ? const Color(0xFF0D1845)
                                 : Colors.grey.shade300,
                             foregroundColor:
                                 (vendorResponse?.meta != null &&
@@ -2116,153 +2084,119 @@ class _VendorsPageState extends State<VendorsPage> {
                                     currentPage < vendorResponse!.meta.lastPage)
                                 ? 2
                                 : 0,
-                            side:
-                                (vendorResponse?.meta != null &&
-                                    currentPage < vendorResponse!.meta.lastPage)
-                                ? null
-                                : BorderSide(color: Color(0xFFDEE2E6)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
                             ),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
-
-                        // Page info
-                        if (vendorResponse != null) ...[
-                          const SizedBox(width: 16),
-                          Builder(
-                            builder: (context) {
-                              final meta = vendorResponse!.meta;
-                              return Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8F9FA),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'Page $currentPage of ${meta.lastPage} (${meta.total} total)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF6C757D),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
                       ],
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
           ),
+        ),
 
-          // Loading overlay for delete operation
-          if (_isDeletingVendor)
-            Container(
-              color: Colors.black.withOpacity(0.5),
-              child: Center(
-                child: Container(
-                  padding: EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 12,
-                        offset: Offset(0, 6),
+        // Loading overlay for delete operation
+        if (_isDeletingVendor)
+          Container(
+            color: Colors.black.withOpacity(0.5),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF17A2B8),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF17A2B8),
-                        ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Deleting vendor...',
+                      style: TextStyle(
+                        color: const Color(0xFF343A40),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
                       ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Deleting vendor...',
-                        style: TextStyle(
-                          color: Color(0xFF343A40),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  List<Widget> _buildPageButtons() {
-    if (vendorResponse?.meta == null) {
-      return [];
-    }
+  TextStyle _headerStyle() {
+    return const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF0D1845),
+    );
+  }
 
-    final meta = vendorResponse!.meta;
-    final totalPages = meta.lastPage;
-    final current = meta.currentPage;
-
-    // Show max 5 page buttons centered around current page
-    const maxButtons = 5;
-    final halfRange = maxButtons ~/ 2; // 2
-
-    // Calculate desired start and end
-    int startPage = (current - halfRange).clamp(1, totalPages);
-    int endPage = (startPage + maxButtons - 1).clamp(1, totalPages);
-
-    // If endPage exceeds totalPages, adjust startPage
-    if (endPage > totalPages) {
-      endPage = totalPages;
-      startPage = (endPage - maxButtons + 1).clamp(1, totalPages);
-    }
-
-    List<Widget> buttons = [];
-
-    for (int i = startPage; i <= endPage; i++) {
-      buttons.add(
-        Container(
-          margin: EdgeInsets.symmetric(horizontal: 1),
-          child: ElevatedButton(
-            onPressed: i == current ? null : () => _changePage(i),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: i == current ? Color(0xFF17A2B8) : Colors.white,
-              foregroundColor: i == current ? Colors.white : Color(0xFF6C757D),
-              elevation: i == current ? 2 : 0,
-              side: i == current ? null : BorderSide(color: Color(0xFFDEE2E6)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size(32, 32),
-            ),
-            child: Text(
-              i.toString(),
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return buttons;
+  TextStyle _cellStyle() {
+    return const TextStyle(fontSize: 12, color: Color(0xFF6C757D));
   }
 
   Color _getVendorColor(String city) {

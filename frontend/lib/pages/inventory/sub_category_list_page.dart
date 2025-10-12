@@ -262,7 +262,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             content: Row(
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
                 ),
                 SizedBox(width: 16),
                 Text('Fetching all sub-categories...'),
@@ -334,7 +334,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             content: Row(
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
                 ),
                 SizedBox(width: 16),
                 Text(
@@ -632,7 +632,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             content: Row(
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
                 ),
                 SizedBox(width: 16),
                 Text('Fetching all sub-categories...'),
@@ -704,7 +704,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             content: Row(
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F42C1)),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
                 ),
                 SizedBox(width: 16),
                 Text(
@@ -1662,7 +1662,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                         children: [
                           CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF6F42C1),
+                              Color(0xFF0D1845),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -1766,7 +1766,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                   return Center(
                                     child: CircularProgressIndicator(
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF6F42C1),
+                                        Color(0xFF0D1845),
                                       ),
                                     ),
                                   );
@@ -1880,979 +1880,872 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF8F9FA)],
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sub Categories'),
+        backgroundColor: const Color(0xFF0D1845),
+        foregroundColor: Colors.white,
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Enhanced Header
+            // Header with Summary Cards
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6F42C1), Color(0xFF8A2BE2)],
+                  colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF6F42C1).withOpacity(0.3),
+                    color: Color(0xFF0D1845).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 6),
                   ),
                 ],
               ),
-              child: Row(
+              margin: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.category_outlined,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sub Categories',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Organize products within categories for better management',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                   Row(
                     children: [
                       Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToPDF,
-                          icon: Icon(Icons.picture_as_pdf, size: 16),
-                          label: Text('Export PDF'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFFDC3545),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.category_outlined,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        child: ElevatedButton.icon(
-                          onPressed: exportToExcel,
-                          icon: Icon(Icons.table_chart, size: 16),
-                          label: Text('Export Excel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF28A745),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sub Categories',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Organize products within categories for better management',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: 16),
                       ElevatedButton.icon(
                         onPressed: addNewSubCategory,
-                        icon: Icon(Icons.add, size: 16),
-                        label: Text('Add Sub Category'),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Sub Category'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF17A2B8),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF0D1845),
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 12,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
+                          elevation: 2,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Enhanced Filters Section
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  // Summary Cards
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Search Bar - Takes more space
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 4,
-                                bottom: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.manage_search_rounded,
-                                    size: 16,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Search Sub Categories',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  hintText: 'Type to search...',
-                                  hintStyle: TextStyle(
-                                    color: Color(0xFFADB5BD),
-                                    fontSize: 14,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF6F42C1),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildSummaryCard(
+                        'Total Sub Categories',
+                        totalSubCategories.toString(),
+                        Icons.category,
+                        Colors.blue,
                       ),
                       const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 4,
-                                bottom: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.category,
-                                    size: 16,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Filter by Category',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: DropdownButtonFormField<String>(
-                                value: selectedCategory,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF6F42C1),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 16,
-                                  ),
-                                  isDense: true,
-                                ),
-                                items:
-                                    ['All', 'Computers', 'Electronics', 'Shoe']
-                                        .map(
-                                          (category) => DropdownMenuItem(
-                                            value: category,
-                                            child: Text(
-                                              category,
-                                              style: TextStyle(
-                                                color: Color(0xFF343A40),
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      selectedCategory = value;
-                                    });
-                                    _applyFiltersClientSide();
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildSummaryCard(
+                        'Active Sub Categories',
+                        subCategories
+                            .where((s) => s.status == 'Active')
+                            .length
+                            .toString(),
+                        Icons.check_circle,
+                        Colors.green,
                       ),
                       const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: 4,
-                                bottom: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.tune_rounded,
-                                    size: 16,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Filter by Status',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: DropdownButtonFormField<String>(
-                                value: selectedStatus,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFDEE2E6),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF6F42C1),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 16,
-                                  ),
-                                  isDense: true,
-                                ),
-                                items: ['All', 'Active', 'Inactive']
-                                    .map(
-                                      (status) => DropdownMenuItem(
-                                        value: status,
-                                        child: Text(
-                                          status,
-                                          style: TextStyle(
-                                            color: Color(0xFF343A40),
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      selectedStatus = value;
-                                    });
-                                    _applyFiltersClientSide();
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildSummaryCard(
+                        'Inactive Sub Categories',
+                        subCategories
+                            .where((s) => s.status != 'Active')
+                            .length
+                            .toString(),
+                        Icons.cancel,
+                        Colors.red,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
 
-            // Enhanced Table Section
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.list_alt,
-                          color: Color(0xFF6F42C1),
-                          size: 18,
+            // Search and Table
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Search and Filters Bar
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Sub Categories List',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        Spacer(),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE7F3FF),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
                             children: [
-                              Icon(
-                                Icons.inventory_2,
-                                color: Color(0xFF0066CC),
-                                size: 12,
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        'Search by sub category name, code...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                  ),
+                                ),
                               ),
-                              SizedBox(width: 3),
-                              Text(
-                                '$totalSubCategories Sub Categories',
-                                style: TextStyle(
-                                  color: Color(0xFF0066CC),
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 11,
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButton<String>(
+                                  value: selectedCategory,
+                                  underline: const SizedBox(),
+                                  items:
+                                      [
+                                            'All',
+                                            'Computers',
+                                            'Electronics',
+                                            'Shoe',
+                                          ]
+                                          .map(
+                                            (category) =>
+                                                DropdownMenuItem<String>(
+                                                  value: category,
+                                                  child: Text(category),
+                                                ),
+                                          )
+                                          .toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedCategory = value;
+                                      });
+                                      _applyFiltersClientSide();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButton<String>(
+                                  value: selectedStatus,
+                                  underline: const SizedBox(),
+                                  items: ['All', 'Active', 'Inactive']
+                                      .map(
+                                        (status) => DropdownMenuItem<String>(
+                                          value: status,
+                                          child: Text(status),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedStatus = value;
+                                      });
+                                      _applyFiltersClientSide();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton.icon(
+                                onPressed: exportToPDF,
+                                icon: const Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 16,
+                                ),
+                                label: const Text('Export PDF'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: exportToExcel,
+                                icon: const Icon(Icons.table_chart, size: 16),
+                                label: const Text('Export Excel'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: errorMessage != null
-                        ? Container(
-                            padding: const EdgeInsets.all(40),
+
+                    // Table Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[300]!),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Image Column - Fixed width to match body
+                          SizedBox(
+                            width: 60,
+                            child: Text('Image', style: _headerStyle()),
+                          ),
+                          const SizedBox(
+                            width: 100,
+                          ), // Maximum extreme spacing between image and product details
+                          // Sub Category Details Column
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              'Sub Category Details',
+                              style: _headerStyle(),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Category Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Category', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Code Column - Centered
+                          Expanded(
+                            flex: 1,
                             child: Center(
+                              child: Text('Code', style: _headerStyle()),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Products Column - Centered
+                          Expanded(
+                            flex: 1,
+                            child: Center(
+                              child: Text('Products', style: _headerStyle()),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Description Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Description', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Status Column - Centered
+                          Expanded(
+                            flex: 1,
+                            child: Center(
+                              child: Text('Status', style: _headerStyle()),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Actions Column - Fixed width to match body
+                          SizedBox(
+                            width: 120,
+                            child: Text('Actions', style: _headerStyle()),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Table Body
+                    Expanded(
+                      child: isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : errorMessage != null
+                          ? Center(
                               child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
                                     Icons.error_outline,
-                                    color: Color(0xFFDC3545),
                                     size: 48,
+                                    color: Colors.grey,
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'Failed to load sub categories',
-                                    style: TextStyle(
-                                      color: Color(0xFFDC3545),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
                                     errorMessage!,
-                                    style: TextStyle(
-                                      color: Color(0xFF6C757D),
-                                      fontSize: 14,
-                                    ),
+                                    style: const TextStyle(color: Colors.grey),
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 16),
                                   ElevatedButton(
                                     onPressed: _fetchSubCategories,
-                                    child: Text('Retry'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Color(0xFF6F42C1),
-                                      foregroundColor: Colors.white,
-                                    ),
+                                    child: const Text('Retry'),
                                   ),
                                 ],
                               ),
-                            ),
-                          )
-                        : DataTable(
-                            headingRowColor: MaterialStateProperty.all(
-                              Color(0xFFF8F9FA),
-                            ),
-                            dataRowColor:
-                                MaterialStateProperty.resolveWith<Color>((
-                                  Set<MaterialState> states,
-                                ) {
-                                  if (states.contains(MaterialState.selected)) {
-                                    return Color(0xFF6F42C1).withOpacity(0.1);
-                                  }
-                                  return Colors.white;
-                                }),
-                            columns: const [
-                              DataColumn(label: Text('Image')),
-                              DataColumn(label: Text('Sub Category Name')),
-                              DataColumn(label: Text('Category')),
-                              DataColumn(label: Text('Code')),
-                              DataColumn(label: Text('Products')),
-                              DataColumn(label: Text('Description')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Actions')),
-                            ],
-                            rows: subCategories.map((subCategory) {
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: Color(0xFFDEE2E6),
-                                        ),
-                                      ),
-                                      child: FutureBuilder<Uint8List?>(
-                                        future: _loadSubCategoryImage(
-                                          'subcategory_${subCategory.id}.jpg',
-                                        ),
-                                        builder: (context, snapshot) {
-                                          if (snapshot.connectionState ==
-                                              ConnectionState.waiting) {
-                                            return Center(
-                                              child: SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Color(0xFF6F42C1)),
-                                                ),
-                                              ),
-                                            );
-                                          } else if (snapshot.hasData &&
-                                              snapshot.data != null) {
-                                            return ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                              child: Image.memory(
-                                                snapshot.data!,
-                                                fit: BoxFit.cover,
-                                                width: 32,
-                                                height: 32,
-                                              ),
-                                            );
-                                          } else {
-                                            return Container(
-                                              decoration: BoxDecoration(
-                                                color: _getSubCategoryColor(
-                                                  subCategory.category?.title ??
-                                                      'N/A',
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Icon(
-                                                _getSubCategoryIcon(
-                                                  subCategory.title,
-                                                ),
-                                                color: Colors.white,
-                                                size: 16,
-                                              ),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                    ),
+                            )
+                          : subCategories.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.category_outlined,
+                                    size: 48,
+                                    color: Colors.grey,
                                   ),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 120,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            subCategory.title,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF343A40),
-                                              fontSize: 12,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            subCategory.subCategoryCode,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: Color(0xFF6C757D),
-                                              fontFamily: 'monospace',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getCategoryColor(
-                                          subCategory.category?.title ?? 'N/A',
-                                        ),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        subCategory.category?.title ?? 'N/A',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFFF8F9FA),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        subCategory.subCategoryCode,
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF6F42C1),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFFE7F3FF),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Text(
-                                        '0',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF0066CC),
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    SizedBox(
-                                      width: 120,
-                                      child: Text(
-                                        'No description',
-                                        style: TextStyle(
-                                          color: Color(0xFF6C757D),
-                                          fontSize: 11,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: subCategory.status == 'Active'
-                                            ? Color(0xFFD4EDDA)
-                                            : Color(0xFFF8D7DA),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            subCategory.status == 'Active'
-                                                ? Icons.check_circle
-                                                : Icons.cancel,
-                                            color:
-                                                subCategory.status == 'Active'
-                                                ? Color(0xFF28A745)
-                                                : Color(0xFFDC3545),
-                                            size: 10,
-                                          ),
-                                          SizedBox(width: 2),
-                                          Text(
-                                            subCategory.status,
-                                            style: TextStyle(
-                                              color:
-                                                  subCategory.status == 'Active'
-                                                  ? Color(0xFF155724)
-                                                  : Color(0xFF721C24),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          onPressed: () =>
-                                              viewSubCategoryDetails(
-                                                subCategory,
-                                              ),
-                                          icon: Icon(
-                                            Icons.visibility,
-                                            color: Color(0xFF17A2B8),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'View Details',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                        SizedBox(width: 4),
-                                        IconButton(
-                                          onPressed: () =>
-                                              editSubCategory(subCategory),
-                                          icon: Icon(
-                                            Icons.edit,
-                                            color: Color(0xFF28A745),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'Edit Sub Category',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                        SizedBox(width: 4),
-                                        IconButton(
-                                          onPressed: () =>
-                                              deleteSubCategory(subCategory),
-                                          icon: Icon(
-                                            Icons.delete,
-                                            color: Color(0xFFDC3545),
-                                            size: 16,
-                                          ),
-                                          tooltip: 'Delete Sub Category',
-                                          padding: EdgeInsets.all(4),
-                                          constraints: BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No sub categories found',
+                                    style: TextStyle(color: Colors.grey),
                                   ),
                                 ],
-                              );
-                            }).toList(),
-                          ),
-                  ),
-                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: subCategories.length,
+                              itemBuilder: (context, index) {
+                                final subCategory = subCategories[index];
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50],
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Image Column - Smaller size, increased width to match header
+                                      SizedBox(
+                                        width: 60,
+                                        height: 40,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF0D1845,
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: FutureBuilder<Uint8List?>(
+                                            future: _loadSubCategoryImage(
+                                              'subcategory_${subCategory.id}.jpg',
+                                            ),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.connectionState ==
+                                                  ConnectionState.waiting) {
+                                                return const Center(
+                                                  child: SizedBox(
+                                                    width: 16,
+                                                    height: 16,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(Color(0xFF6F42C1)),
+                                                    ),
+                                                  ),
+                                                );
+                                              } else if (snapshot.hasData &&
+                                                  snapshot.data != null) {
+                                                return ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  child: Image.memory(
+                                                    snapshot.data!,
+                                                    fit: BoxFit.cover,
+                                                    width: 36,
+                                                    height: 36,
+                                                  ),
+                                                );
+                                              } else {
+                                                return Icon(
+                                                  _getSubCategoryIcon(
+                                                    subCategory.title,
+                                                  ),
+                                                  color: const Color(
+                                                    0xFF0D1845,
+                                                  ),
+                                                  size: 20,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: 100,
+                                      ), // Maximum extreme spacing between image and product details
+                                      // Sub Category Details Column
+                                      Expanded(
+                                        flex: 3,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              subCategory.title,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF0D1845),
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'ID: ${subCategory.id}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Category Column
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getCategoryColor(
+                                              subCategory.category?.title ??
+                                                  'N/A',
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            subCategory.category?.title ??
+                                                'N/A',
+                                            style: _cellStyle(),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Code Column - Centered
+                                      Expanded(
+                                        flex: 1,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8F9FA),
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              subCategory.subCategoryCode,
+                                              style: TextStyle(
+                                                fontFamily: 'monospace',
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFF0D1845),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Products Column - Centered
+                                      Expanded(
+                                        flex: 1,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFE7F3FF),
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              '0', // Placeholder for products count
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFF0066CC),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Description Column
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          'No description', // Placeholder for description
+                                          style: _cellStyle(),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 2,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Status Column - Centered and compact
+                                      Expanded(
+                                        flex: 1,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            constraints: const BoxConstraints(
+                                              minWidth: 60,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  subCategory.status == 'Active'
+                                                  ? Colors.green.withOpacity(
+                                                      0.1,
+                                                    )
+                                                  : Colors.red.withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              subCategory.status,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color:
+                                                    subCategory.status ==
+                                                        'Active'
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Actions Column
+                                      SizedBox(
+                                        width: 120,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.start,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.visibility,
+                                                color: const Color(0xFF17A2B8),
+                                                size: 16,
+                                              ),
+                                              onPressed: () =>
+                                                  viewSubCategoryDetails(
+                                                    subCategory,
+                                                  ),
+                                              tooltip: 'View Details',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.edit,
+                                                color: Colors.blue,
+                                                size: 16,
+                                              ),
+                                              onPressed: () =>
+                                                  editSubCategory(subCategory),
+                                              tooltip: 'Edit',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                                size: 16,
+                                              ),
+                                              onPressed: () =>
+                                                  deleteSubCategory(
+                                                    subCategory,
+                                                  ),
+                                              tooltip: 'Delete',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            // Enhanced Pagination
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: currentPage > 1
-                        ? () => _fetchSubCategories(page: currentPage - 1)
-                        : null,
-                    icon: Icon(Icons.chevron_left, size: 14),
-                    label: Text('Previous', style: TextStyle(fontSize: 11)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: currentPage > 1
-                          ? Color(0xFF6C757D)
-                          : Color(0xFFADB5BD),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+            // Pagination Controls
+            if (subCategories.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous button
+                    ElevatedButton.icon(
+                      onPressed: currentPage > 1
+                          ? () => _changePage(currentPage - 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left, size: 16),
+                      label: const Text('Previous'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage > 1
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage > 1
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage > 1 ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Dynamic page buttons based on total pages
-                  ...List.generate(totalPages > 5 ? 5 : totalPages, (index) {
-                    int pageNumber;
-                    if (totalPages <= 5) {
-                      pageNumber = index + 1;
-                    } else if (currentPage <= 3) {
-                      pageNumber = index + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + index;
-                    } else {
-                      pageNumber = currentPage - 2 + index;
-                    }
+                    const SizedBox(width: 16),
 
-                    return Container(
-                      margin: EdgeInsets.symmetric(horizontal: 1),
-                      child: ElevatedButton(
-                        onPressed: () => _fetchSubCategories(page: pageNumber),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: pageNumber == currentPage
-                              ? Color(0xFF6F42C1)
-                              : Colors.white,
-                          foregroundColor: pageNumber == currentPage
-                              ? Colors.white
-                              : Color(0xFF6C757D),
-                          elevation: pageNumber == currentPage ? 2 : 0,
-                          side: pageNumber == currentPage
-                              ? null
-                              : BorderSide(color: Color(0xFFDEE2E6)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          minimumSize: Size(32, 32),
-                        ),
-                        child: Text(
-                          pageNumber.toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11,
-                          ),
+                    // Page info
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Page $currentPage of $totalPages (${totalSubCategories} total)',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6C757D),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    );
-                  }),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: currentPage < totalPages
-                        ? () => _fetchSubCategories(page: currentPage + 1)
-                        : null,
-                    icon: Icon(Icons.chevron_right, size: 14),
-                    label: Text('Next', style: TextStyle(fontSize: 11)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: currentPage < totalPages
-                          ? Color(0xFF6C757D)
-                          : Color(0xFFADB5BD),
-                      elevation: 0,
-                      side: BorderSide(color: Color(0xFFDEE2E6)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
                     ),
-                  ),
-                  // Page info
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Page $currentPage of $totalPages (${totalSubCategories} total)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF6C757D),
-                        fontWeight: FontWeight.w500,
+
+                    const SizedBox(width: 16),
+
+                    // Next button
+                    ElevatedButton.icon(
+                      onPressed: currentPage < totalPages
+                          ? () => _changePage(currentPage + 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right, size: 16),
+                      label: const Text('Next'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage < totalPages
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage < totalPages
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage < totalPages ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
       ),
     );
+  }
+
+  TextStyle _headerStyle() {
+    return const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF0D1845),
+    );
+  }
+
+  TextStyle _cellStyle() {
+    return const TextStyle(fontSize: 12, color: Color(0xFF6C757D));
   }
 
   Color _getCategoryColor(String categoryName) {
@@ -2877,7 +2770,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
       case 'shoe':
         return Color(0xFFDC3545);
       default:
-        return Color(0xFF6F42C1);
+        return Color(0xFF0D1845);
     }
   }
 

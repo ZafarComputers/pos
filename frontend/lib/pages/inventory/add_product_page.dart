@@ -19,7 +19,6 @@ class _AddProductPageState extends State<AddProductPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _designCodeController = TextEditingController();
-  final _subCategoryIdController = TextEditingController();
   final _salePriceController = TextEditingController();
   final _openingStockQuantityController = TextEditingController();
   final _barcodeController = TextEditingController();
@@ -154,6 +153,9 @@ class _AddProductPageState extends State<AddProductPage> {
         'opening_stock_quantity': int.parse(
           _openingStockQuantityController.text,
         ),
+        'stock_in_quantity': int.parse(_openingStockQuantityController.text),
+        'stock_out_quantity': 0,
+        'in_stock_quantity': int.parse(_openingStockQuantityController.text),
         'vendor_id': _selectedVendorId,
         'user_id': 1,
         'barcode': _barcodeController.text,
@@ -165,55 +167,54 @@ class _AddProductPageState extends State<AddProductPage> {
       // Call the callback to notify parent that product was added
       widget.onProductAdded?.call();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Product added successfully!'),
+      // Show success dialog with options
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: Color(0xFF28A745)),
+                SizedBox(width: 12),
+                Text('Product Added Successfully!'),
+              ],
+            ),
+            content: Text(
+              'The product has been added to your inventory. What would you like to do next?',
+              style: TextStyle(color: Color(0xFF6C757D)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close dialog
+                  Navigator.of(context).pop(); // Go back to product list
+                },
+                child: Text(
+                  'View Product List',
+                  style: TextStyle(color: Color(0xFF0D1845)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close dialog
+                  // Stay on page to add another product
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF28A745),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text('Add Another Product'),
+              ),
             ],
-          ),
-          backgroundColor: Color(0xFF28A745),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // Clear form
-      _formKey.currentState!.reset();
-      _titleController.clear();
-      _designCodeController.clear();
-      _subCategoryIdController.clear();
-      _salePriceController.clear();
-      _openingStockQuantityController.clear();
-      _barcodeController.clear();
-      setState(() {
-        _selectedStatus = 'Active';
-        _selectedVendorId = null;
-        _selectedCategoryId = null;
-        _selectedSubCategoryId = null;
-        subCategories = []; // Clear sub categories when form is reset
-        _selectedImage = null;
-        _imagePath = null;
-      });
-
-      // Show success message but stay on the page for adding another product
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Product added successfully! You can add another product.'),
-            ],
-          ),
-          backgroundColor: Color(0xFF28A745),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          duration: const Duration(seconds: 3),
-        ),
+          );
+        },
       );
     } catch (e) {
       String errorMessage = 'Failed to add product';

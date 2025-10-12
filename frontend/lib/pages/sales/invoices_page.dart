@@ -272,7 +272,560 @@ class _InvoicesPageState extends State<InvoicesPage> {
     return buttons;
   }
 
-  void _viewInvoiceDetails(Invoice invoice) {
+  void _viewInvoiceDetails(Invoice invoice) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Loading invoice details...'),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      final invoiceDetail = await SalesService.getInvoiceById(invoice.invId);
+
+      // Close loading dialog and show details dialog
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        _showInvoiceDetailsDialog(invoiceDetail);
+      }
+    } catch (e) {
+      // Close loading dialog and show error
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load invoice details: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _editInvoice(Invoice invoice) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Loading invoice for editing...'),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
+      final invoiceDetail = await SalesService.getInvoiceById(invoice.invId);
+
+      // Close loading dialog and show edit dialog
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        _showEditInvoiceDialog(invoiceDetail);
+      }
+    } catch (e) {
+      // Close loading dialog and show error
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load invoice for editing: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _deleteInvoice(Invoice invoice) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Invoice'),
+        content: const Text(
+          'Are you sure you want to delete this invoice? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await SalesService.deleteInvoice(invoice.invId);
+
+        // Remove the invoice from local lists in real-time
+        setState(() {
+          _allInvoicesCache.removeWhere((item) => item.invId == invoice.invId);
+        });
+
+        // Re-apply filters to update the displayed list
+        _applyFiltersClientSide();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invoice deleted successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete invoice: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  // Helper method to show edit invoice dialog
+  void _showEditInvoiceDialog(InvoiceDetailResponse invoiceDetail) {
+    // Controllers for form fields
+    final _invDateController = TextEditingController(
+      text: invoiceDetail.invDate,
+    );
+    final _customerIdController = TextEditingController(
+      text: '1',
+    ); // Default customer ID
+    final _taxController = TextEditingController(text: '50');
+    final _discPerController = TextEditingController(text: '50');
+    final _discAmountController = TextEditingController(text: '5050');
+    final _invAmountController = TextEditingController(text: '15050');
+    final _paidController = TextEditingController(text: '15050');
+
+    // Details list for products
+    List<Map<String, dynamic>> _details = invoiceDetail.details.map((detail) {
+      return {
+        'product_id': int.tryParse(detail.productId) ?? 0,
+        'qty': int.tryParse(detail.quantity) ?? 0,
+        'sale_price': double.tryParse(detail.price) ?? 0.0,
+      };
+    }).toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                constraints: BoxConstraints(maxHeight: 700),
+                child: Column(
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit, color: Colors.white, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Edit Invoice',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  'INV-${invoiceDetail.invId}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withOpacity(0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Basic Information
+                            const Text(
+                              'Basic Information',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0D1845),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _invDateController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Invoice Date',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _customerIdController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Customer ID',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _taxController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Tax',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _discPerController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Discount Percent',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Financial Information
+                            const Text(
+                              'Financial Information',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0D1845),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _discAmountController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Discount Amount',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _invAmountController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Invoice Amount',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            TextFormField(
+                              controller: _paidController,
+                              decoration: const InputDecoration(
+                                labelText: 'Paid Amount',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Invoice Items
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Invoice Items',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _details.add({
+                                        'product_id': 0,
+                                        'qty': 0,
+                                        'sale_price': 0.0,
+                                      });
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add, size: 16),
+                                  label: const Text('Add Item'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0D1845),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            ..._details.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final detail = entry.value;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextFormField(
+                                            initialValue: detail['product_id']
+                                                .toString(),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Product ID',
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (value) =>
+                                                detail['product_id'] =
+                                                    int.tryParse(value) ?? 0,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: TextFormField(
+                                            initialValue: detail['qty']
+                                                .toString(),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Quantity',
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (value) =>
+                                                detail['qty'] =
+                                                    int.tryParse(value) ?? 0,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextFormField(
+                                            initialValue: detail['sale_price']
+                                                .toString(),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Sale Price',
+                                              border: OutlineInputBorder(),
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            onChanged: (value) =>
+                                                detail['sale_price'] =
+                                                    double.tryParse(value) ??
+                                                    0.0,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _details.removeAt(index);
+                                            });
+                                          },
+                                          icon: const Icon(
+                                            Icons.delete,
+                                            color: Colors.red,
+                                          ),
+                                          tooltip: 'Remove Item',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Footer
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(16),
+                          bottomRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              try {
+                                final updateData = {
+                                  'inv_date': _invDateController.text,
+                                  'customer_id': int.tryParse(
+                                    _customerIdController.text,
+                                  ),
+                                  'tax': int.tryParse(_taxController.text),
+                                  'discPer': int.tryParse(
+                                    _discPerController.text,
+                                  ),
+                                  'discAmount': int.tryParse(
+                                    _discAmountController.text,
+                                  ),
+                                  'inv_amount': int.tryParse(
+                                    _invAmountController.text,
+                                  ),
+                                  'paid': int.tryParse(_paidController.text),
+                                  'details': _details,
+                                };
+
+                                await SalesService.updateInvoice(
+                                  invoiceDetail.invId,
+                                  updateData,
+                                );
+
+                                if (mounted) {
+                                  Navigator.of(context).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Invoice updated successfully',
+                                      ),
+                                    ),
+                                  );
+                                  // Refresh the invoice list
+                                  _fetchAllInvoicesOnInit();
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to update invoice: $e',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0D1845),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Update Invoice'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Helper method to show invoice details dialog
+  void _showInvoiceDetailsDialog(InvoiceDetailResponse invoiceDetail) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -281,32 +834,35 @@ class _InvoicesPageState extends State<InvoicesPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
-            width: MediaQuery.of(context).size.width * 0.8,
-            constraints: BoxConstraints(maxWidth: 600),
+            width: MediaQuery.of(context).size.width * 0.9,
+            constraints: BoxConstraints(maxWidth: 800, maxHeight: 600),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 // Header
                 Container(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
                     ),
-                    borderRadius: BorderRadius.only(
+                    borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                     ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.receipt_long, color: Colors.white, size: 28),
-                      SizedBox(width: 12),
+                      const Icon(
+                        Icons.receipt_long,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Invoice Details',
                               style: TextStyle(
                                 fontSize: 20,
@@ -315,7 +871,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               ),
                             ),
                             Text(
-                              'INV-${invoice.invId}',
+                              'INV-${invoiceDetail.invId}',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.white.withOpacity(0.8),
@@ -325,22 +881,23 @@ class _InvoicesPageState extends State<InvoicesPage> {
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.close, color: Colors.white),
+                        icon: const Icon(Icons.close, color: Colors.white),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
                 ),
+
                 // Content
-                Flexible(
+                Expanded(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Customer Info
                         Container(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(12),
@@ -348,7 +905,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Customer Information',
                                 style: TextStyle(
                                   fontSize: 16,
@@ -356,25 +913,25 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   color: Color(0xFF0D1845),
                                 ),
                               ),
-                              SizedBox(height: 12),
+                              const SizedBox(height: 12),
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.person,
                                     color: Color(0xFF0D1845),
                                     size: 20,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    invoice.customerName,
-                                    style: TextStyle(
+                                    invoiceDetail.customerName,
+                                    style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  SizedBox(width: 16),
+                                  const SizedBox(width: 16),
                                   Container(
-                                    padding: EdgeInsets.symmetric(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
                                       vertical: 4,
                                     ),
@@ -382,10 +939,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                       color: Colors.green.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: Text(
+                                    child: const Text(
                                       'Normal Customer',
                                       style: TextStyle(
-                                        color: Colors.green[800],
+                                        color: Colors.green,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -393,19 +950,19 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.calendar_today,
                                     color: Color(0xFF0D1845),
                                     size: 20,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    DateFormat(
-                                      'dd MMM yyyy',
-                                    ).format(DateTime.parse(invoice.invDate)),
+                                    DateFormat('dd MMM yyyy').format(
+                                      DateTime.parse(invoiceDetail.invDate),
+                                    ),
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
@@ -416,10 +973,125 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             ],
                           ),
                         ),
-                        SizedBox(height: 20),
+
+                        const SizedBox(height: 20),
+
+                        // Invoice Items
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Invoice Items',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0D1845),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ...invoiceDetail.details.map((detail) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.grey.shade200,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF0D1845,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.inventory_2,
+                                          color: Color(0xFF0D1845),
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              detail.productName,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Product ID: ${detail.productId}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            'Qty: ${detail.quantity}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Rs. ${detail.price}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Rs. ${detail.subtotal.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF0D1845),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
                         // Amount Summary
                         Container(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(12),
@@ -430,7 +1102,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Total Amount:',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -438,20 +1110,20 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     ),
                                   ),
                                   Text(
-                                    'Rs. ${invoice.invAmount.toStringAsFixed(2)}',
-                                    style: TextStyle(
+                                    'Rs. ${double.tryParse(invoiceDetail.invAmount)?.toStringAsFixed(2) ?? '0.00'}',
+                                    style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Paid Amount:',
                                     style: TextStyle(
                                       fontSize: 14,
@@ -460,8 +1132,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     ),
                                   ),
                                   Text(
-                                    'Rs. ${invoice.paidAmount.toStringAsFixed(2)}',
-                                    style: TextStyle(
+                                    'Rs. ${double.tryParse(invoiceDetail.paidAmount)?.toStringAsFixed(2) ?? '0.00'}',
+                                    style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                       color: Colors.green,
@@ -469,7 +1141,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -479,57 +1151,39 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: invoice.dueAmount > 0
+                                      color:
+                                          (double.tryParse(
+                                                        invoiceDetail.invAmount,
+                                                      ) ??
+                                                      0) -
+                                                  (double.tryParse(
+                                                        invoiceDetail
+                                                            .paidAmount,
+                                                      ) ??
+                                                      0) >
+                                              0
                                           ? Colors.red
                                           : Colors.grey,
                                     ),
                                   ),
                                   Text(
-                                    'Rs. ${invoice.dueAmount.toStringAsFixed(2)}',
+                                    'Rs. ${((double.tryParse(invoiceDetail.invAmount) ?? 0) - (double.tryParse(invoiceDetail.paidAmount) ?? 0)).toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
-                                      color: invoice.dueAmount > 0
+                                      color:
+                                          (double.tryParse(
+                                                        invoiceDetail.invAmount,
+                                                      ) ??
+                                                      0) -
+                                                  (double.tryParse(
+                                                        invoiceDetail
+                                                            .paidAmount,
+                                                      ) ??
+                                                      0) >
+                                              0
                                           ? Colors.red
                                           : Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 12),
-                              Divider(),
-                              SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Status:',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getStatusColor(
-                                        _getInvoiceStatus(invoice),
-                                      ).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      _getInvoiceStatus(invoice),
-                                      style: TextStyle(
-                                        color: _getStatusColor(
-                                          _getInvoiceStatus(invoice),
-                                        ),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      ),
                                     ),
                                   ),
                                 ],
@@ -537,39 +1191,20 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             ],
                           ),
                         ),
-                        SizedBox(height: 20),
+
+                        const SizedBox(height: 20),
+
                         // Action Buttons
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: Text('Close'),
+                              child: const Text('Close'),
                               style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(
+                                padding: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 12,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                // Navigate to POS page to add more products to this invoice
-                                Navigator.pushNamed(context, '/pos');
-                              },
-                              icon: Icon(Icons.add_shopping_cart, size: 16),
-                              label: Text('Add to Invoice'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFF0D1845),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                             ),
@@ -950,7 +1585,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           const SizedBox(width: 16),
                           Expanded(
                             flex: 2,
-                            child: Text('View', style: _headerStyle()),
+                            child: Text('Actions', style: _headerStyle()),
                           ),
                         ],
                       ),
@@ -1155,17 +1790,65 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                               const SizedBox(width: 16),
                                               Expanded(
                                                 flex: 2,
-                                                child: IconButton(
-                                                  icon: const Icon(
-                                                    Icons.visibility,
-                                                    color: Color(0xFF0D1845),
-                                                    size: 18,
-                                                  ),
-                                                  onPressed: () =>
-                                                      _viewInvoiceDetails(
-                                                        invoice,
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.start,
+                                                  children: [
+                                                    IconButton(
+                                                      icon: Icon(
+                                                        Icons.visibility,
+                                                        color: const Color(
+                                                          0xFF0D1845,
+                                                        ),
+                                                        size: 18,
                                                       ),
-                                                  tooltip: 'View Details',
+                                                      onPressed: () =>
+                                                          _viewInvoiceDetails(
+                                                            invoice,
+                                                          ),
+                                                      tooltip: 'View Details',
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            6,
+                                                          ),
+                                                      constraints:
+                                                          const BoxConstraints(),
+                                                    ),
+                                                    IconButton(
+                                                      icon: Icon(
+                                                        Icons.edit,
+                                                        color: Colors.blue,
+                                                        size: 18,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _editInvoice(invoice),
+                                                      tooltip: 'Edit',
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            6,
+                                                          ),
+                                                      constraints:
+                                                          const BoxConstraints(),
+                                                    ),
+                                                    IconButton(
+                                                      icon: Icon(
+                                                        Icons.delete,
+                                                        color: Colors.red,
+                                                        size: 18,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _deleteInvoice(
+                                                            invoice,
+                                                          ),
+                                                      tooltip: 'Delete',
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            6,
+                                                          ),
+                                                      constraints:
+                                                          const BoxConstraints(),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             ],
@@ -1191,14 +1874,19 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                       ],
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         // Previous button
                                         ElevatedButton.icon(
                                           onPressed: currentPage > 1
-                                              ? () => _changePage(currentPage - 1)
+                                              ? () =>
+                                                    _changePage(currentPage - 1)
                                               : null,
-                                          icon: Icon(Icons.chevron_left, size: 14),
+                                          icon: Icon(
+                                            Icons.chevron_left,
+                                            size: 14,
+                                          ),
                                           label: Text(
                                             'Previous',
                                             style: TextStyle(fontSize: 11),
@@ -1209,9 +1897,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                                 ? Color(0xFF17A2B8)
                                                 : Color(0xFF6C757D),
                                             elevation: 0,
-                                            side: BorderSide(color: Color(0xFFDEE2E6)),
+                                            side: BorderSide(
+                                              color: Color(0xFFDEE2E6),
+                                            ),
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(5),
+                                              borderRadius:
+                                                  BorderRadius.circular(5),
                                             ),
                                             padding: EdgeInsets.symmetric(
                                               horizontal: 10,
@@ -1229,10 +1920,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                         // Next button
                                         ElevatedButton.icon(
                                           onPressed: _canGoToNextPage()
-                                              ? () => _changePage(currentPage + 1)
+                                              ? () =>
+                                                    _changePage(currentPage + 1)
                                               : null,
-                                          icon: Icon(Icons.chevron_right, size: 14),
-                                          label: Text('Next', style: TextStyle(fontSize: 11)),
+                                          icon: Icon(
+                                            Icons.chevron_right,
+                                            size: 14,
+                                          ),
+                                          label: Text(
+                                            'Next',
+                                            style: TextStyle(fontSize: 11),
+                                          ),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: _canGoToNextPage()
                                                 ? Color(0xFF17A2B8)
@@ -1240,12 +1938,17 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                             foregroundColor: _canGoToNextPage()
                                                 ? Colors.white
                                                 : Colors.grey.shade600,
-                                            elevation: _canGoToNextPage() ? 2 : 0,
+                                            elevation: _canGoToNextPage()
+                                                ? 2
+                                                : 0,
                                             side: _canGoToNextPage()
                                                 ? null
-                                                : BorderSide(color: Color(0xFFDEE2E6)),
+                                                : BorderSide(
+                                                    color: Color(0xFFDEE2E6),
+                                                  ),
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(5),
+                                              borderRadius:
+                                                  BorderRadius.circular(5),
                                             ),
                                             padding: EdgeInsets.symmetric(
                                               horizontal: 10,
@@ -1263,7 +1966,9 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                           ),
                                           decoration: BoxDecoration(
                                             color: Color(0xFFF8F9FA),
-                                            borderRadius: BorderRadius.circular(6),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                           ),
                                           child: Text(
                                             'Page $currentPage of ${_getTotalPages()} (${_allFilteredInvoices.length} total)',

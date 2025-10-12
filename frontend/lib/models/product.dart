@@ -30,11 +30,24 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    // Try different possible field names for id
+    int? parseId(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    final id = parseId(json['id']) ??
+              parseId(json['product_id']) ??
+              parseId(json['ID']) ??
+              0;
+
     return Product(
-      id: json['id'] ?? 0,
-      title: json['title'] ?? '',
-      designCode: json['design_code'] ?? '',
-      imagePath: json['image_path'],
+      id: id,
+      title: json['title']?.toString() ?? json['name']?.toString() ?? '',
+      designCode: json['design_code']?.toString() ?? '',
+      imagePath: json['image_path']?.toString(),
       subCategoryId: json['sub_category_id']?.toString() ?? '',
       salePrice: json['sale_price']?.toString() ?? '',
       openingStockQuantity: json['opening_stock_quantity']?.toString() ?? '',
@@ -42,10 +55,10 @@ class Product {
       vendor: json['vendor'] != null
           ? ProductVendor.fromJson(json['vendor'])
           : ProductVendor.empty(),
-      barcode: json['barcode'] ?? '',
-      status: json['status'] ?? '',
-      createdAt: json['created_at'] ?? '',
-      updatedAt: json['updated_at'] ?? '',
+      barcode: json['barcode']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString() ?? '',
     );
   }
 }
