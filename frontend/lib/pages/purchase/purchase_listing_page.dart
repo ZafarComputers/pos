@@ -790,7 +790,7 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
       text: purchase.venInvRef,
     );
     final _editOrderDiscountController = TextEditingController(
-      text: purchase.discountAmt,
+      text: (purchase.discountAmt.isNotEmpty) ? purchase.discountAmt : '0',
     );
     final _editNotesController = TextEditingController(
       text: purchase.description,
@@ -990,7 +990,7 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                    items: ['paid', 'unpaid', 'partial']
+                                    items: ['paid', 'unpaid']
                                         .map(
                                           (status) => DropdownMenuItem(
                                             value: status,
@@ -1268,7 +1268,11 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
                                 'discount_percent':
                                     '0', // You might want to calculate this
                                 'discount_amt':
-                                    _editOrderDiscountController.text,
+                                    (double.tryParse(
+                                              _editOrderDiscountController.text,
+                                            ) ??
+                                            0)
+                                        .toString(),
                                 'paid_amount': _editSelectedStatus == 'paid'
                                     ? _calculateEditGrandTotal(
                                         _editPurchaseItems,
@@ -1519,13 +1523,18 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const CreatePurchasePage(),
                             ),
                           );
+
+                          // If purchase was created successfully, refresh the list
+                          if (result == true) {
+                            await _fetchAllPurchasesOnInit();
+                          }
                         },
                         icon: const Icon(Icons.add, size: 15),
                         label: const Text('Add Purchase'),
@@ -1886,6 +1895,14 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
                           Expanded(
                             flex: 2,
                             child: Text(
+                              'Invoice Number',
+                              style: _headerStyle(),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
                               'Reference Number',
                               style: _headerStyle(),
                             ),
@@ -2028,6 +2045,14 @@ class _PurchaseListingPageState extends State<PurchaseListingPage> {
                                               ),
                                             ),
                                           ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          purchase.purInvId.toString(),
+                                          style: _cellStyle(),
                                         ),
                                       ),
                                       const SizedBox(width: 16),

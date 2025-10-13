@@ -42,10 +42,10 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
               ),
               const SizedBox(width: 12),
               _buildPaymentButton(
-                'Card',
-                Icons.payment,
-                Colors.purple,
-                () => _showCardPaymentDialog(),
+                'Bank',
+                Icons.account_balance,
+                Colors.orange,
+                () => _showBankPaymentDialog(),
               ),
             ],
           ),
@@ -784,103 +784,539 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
     );
   }
 
-  void _showCardPaymentDialog() {
-    String paymentType = 'Debit Card';
-    final TextEditingController receiverController = TextEditingController();
-    String paymentSource = 'JazzCash';
-    final TextEditingController amountController = TextEditingController(
-      text: widget.totalAmount.toStringAsFixed(2),
-    );
+  void _showBankPaymentDialog() {
+    // Mock bank accounts data - in real app this would come from API (admin's saved bank accounts)
+    final List<Map<String, dynamic>> bankAccounts = [
+      {
+        'id': '1',
+        'name': 'JazzCash',
+        'accountNumber': '03001234567',
+        'accountHolder': 'Business Account',
+      },
+      {
+        'id': '2',
+        'name': 'EasyPaisa',
+        'accountNumber': '03109876543',
+        'accountHolder': 'Business Account',
+      },
+      {
+        'id': '3',
+        'name': 'Bank Account',
+        'accountNumber': 'PK1234567890123456',
+        'accountHolder': 'Business Name',
+      },
+    ];
+
+    String? selectedReceiverAccountId;
+    Map<String, dynamic>? selectedReceiverAccount;
+    double paidAmount = widget.totalAmount;
+    String senderBank = '';
+    String senderBankName = '';
+    String senderAccountHolderName = '';
+    String senderAccountNumber = '';
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Card Payment'),
-          content: SizedBox(
-            width: 400,
+        builder: (context, setState) => Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            width: 900,
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+              maxHeight: MediaQuery.of(context).size.height * 0.9,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Total Amount: Rs${widget.totalAmount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0D1845), Color(0xFF1A237E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.account_balance,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bank Payment',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Process bank transfer payment',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.1),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: paymentType,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment Type',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['Debit Card', 'Credit Card'].map((type) {
-                    return DropdownMenuItem(value: type, child: Text(type));
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      paymentType = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: receiverController,
-                  decoration: const InputDecoration(
-                    labelText: 'Receiver Number / Payment Received By',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: paymentSource,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment Source',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['JazzCash', 'Easypaisa', 'Bank Name', 'Other'].map((
-                    source,
-                  ) {
-                    return DropdownMenuItem(value: source, child: Text(source));
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      paymentSource = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount Paid',
-                    prefixText: 'Rs',
-                    border: OutlineInputBorder(),
+
+                // Content
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Receiver's Account Selection
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          child: DropdownButtonFormField<String>(
+                            value: selectedReceiverAccountId,
+                            decoration: InputDecoration(
+                              labelText: 'Receiver\'s Account',
+                              hintText: 'Select admin\'s bank account',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                            ),
+                            items: bankAccounts.map((account) {
+                              return DropdownMenuItem<String>(
+                                value: account['id'],
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.account_balance,
+                                      color: Color(0xFF0D1845),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            account['name'],
+                                            style: const TextStyle(
+                                              color: Color(0xFF343A40),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            '****${account['accountNumber'].substring(account['accountNumber'].length - 4)}',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                selectedReceiverAccountId = value;
+                                selectedReceiverAccount = bankAccounts
+                                    .firstWhere(
+                                      (account) => account['id'] == value,
+                                    );
+                              });
+                            },
+                          ),
+                        ),
+
+                        // Selected Account Details
+                        if (selectedReceiverAccount != null) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 24),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFF8F9FA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Color(0xFFDEE2E6)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.account_balance_wallet,
+                                      color: Color(0xFF0D1845),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Receiver Account Details',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF343A40),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Account Type',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            selectedReceiverAccount!['name'],
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF343A40),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Account Holder',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            selectedReceiverAccount!['accountHolder'],
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF343A40),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Account Number',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      selectedReceiverAccount!['accountNumber'],
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF343A40),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Sender's Bank Details Section
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Color(0xFFDEE2E6)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.send,
+                                    color: Color(0xFF0D1845),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Sender\'s Bank Details',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Total Bill Amount
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Color(0xFFDEE2E6)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Total Bill Amount:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF343A40),
+                                      ),
+                                    ),
+                                    Text(
+                                      'Rs${widget.totalAmount.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF28A745),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Sender's Bank Dropdown
+                              DropdownButtonFormField<String>(
+                                value: senderBank.isEmpty ? null : senderBank,
+                                decoration: InputDecoration(
+                                  labelText: 'Sender\'s Bank',
+                                  hintText: 'Select sender\'s bank type',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                items: ['JazzCash', 'EasyPaisa', 'Bank'].map((
+                                  bank,
+                                ) {
+                                  return DropdownMenuItem<String>(
+                                    value: bank,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          bank == 'Bank'
+                                              ? Icons.account_balance
+                                              : Icons.phone_android,
+                                          color: bank == 'Bank'
+                                              ? Color(0xFF1976D2)
+                                              : Color(0xFF4CAF50),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(bank),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    senderBank = value!;
+                                    // Reset bank name if not Bank
+                                    if (value != 'Bank') {
+                                      senderBankName = '';
+                                    }
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Bank Name (only show if Bank is selected)
+                              if (senderBank == 'Bank') ...[
+                                TextFormField(
+                                  initialValue: senderBankName,
+                                  decoration: InputDecoration(
+                                    labelText: 'Bank Name',
+                                    hintText: 'e.g., HBL, UBL, MCB',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    senderBankName = value;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+
+                              // Account Holder Name
+                              TextFormField(
+                                decoration: InputDecoration(
+                                  labelText: 'Account Holder\'s Name',
+                                  hintText: 'Enter sender\'s full name',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  senderAccountHolderName = value;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Account Number
+                              TextFormField(
+                                decoration: InputDecoration(
+                                  labelText: 'Account Number',
+                                  hintText: 'Enter sender\'s account number',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  senderAccountNumber = value;
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  side: const BorderSide(color: Colors.grey),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed:
+                                    selectedReceiverAccountId != null &&
+                                        senderBank.isNotEmpty &&
+                                        senderAccountHolderName.isNotEmpty &&
+                                        senderAccountNumber.isNotEmpty &&
+                                        (senderBank != 'Bank' ||
+                                            senderBankName.isNotEmpty)
+                                    ? () {
+                                        widget.onPaymentComplete(
+                                          'Bank',
+                                          paidAmount,
+                                        );
+                                        Navigator.of(context).pop();
+                                        _showPrintDialog();
+                                      }
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0D1845),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Process Bank Payment'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final amount = double.tryParse(amountController.text) ?? 0.0;
-                if (amount >= widget.totalAmount) {
-                  widget.onPaymentComplete('Card', amount);
-                  Navigator.of(context).pop();
-                  _showPrintDialog();
-                }
-              },
-              child: const Text('Process Payment'),
-            ),
-          ],
         ),
       ),
     );

@@ -9,6 +9,8 @@ class Invoice {
   final double invAmount;
   final double paidAmount;
   final double dueAmount;
+  final String paymentMode; // Cash, Bank, Credit
+  final bool isCreditCustomer; // true for credit customers, false for walk-in
 
   Invoice({
     required this.invId,
@@ -17,6 +19,8 @@ class Invoice {
     required this.invAmount,
     required this.paidAmount,
     required this.dueAmount,
+    required this.paymentMode,
+    required this.isCreditCustomer,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> json) {
@@ -25,22 +29,28 @@ class Invoice {
     final dueAmount = invAmount - paidAmount;
 
     return Invoice(
-      invId: json['Inv_id'] ?? 0,
-      invDate: json['InvDate'] ?? '',
+      invId: json['inv_id'] ?? 0,
+      invDate: json['inv_date'] ?? '',
       customerName: json['customer_name'] ?? '',
       invAmount: invAmount,
       paidAmount: paidAmount,
       dueAmount: dueAmount,
+      paymentMode:
+          json['payment_mode'] ?? 'Cash', // Default to Cash if not provided
+      isCreditCustomer:
+          json['payment_mode'] == 'Credit', // true if payment_mode is Credit
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'Inv_id': invId,
-      'InvDate': invDate,
+      'inv_id': invId,
+      'inv_date': invDate,
       'customer_name': customerName,
       'inv_amount': invAmount.toString(),
       'paid_amount': paidAmount.toString(),
+      'payment_mode': paymentMode,
+      'is_credit_customer': isCreditCustomer,
     };
   }
 }
@@ -89,6 +99,8 @@ class InvoiceDetailResponse {
   final int invId;
   final String invDate;
   final String customerName;
+  final int customerId;
+  final int posId;
   final String invAmount;
   final String paidAmount;
   final List<InvoiceDetail> details;
@@ -97,6 +109,8 @@ class InvoiceDetailResponse {
     required this.invId,
     required this.invDate,
     required this.customerName,
+    required this.customerId,
+    required this.posId,
     required this.invAmount,
     required this.paidAmount,
     required this.details,
@@ -105,9 +119,11 @@ class InvoiceDetailResponse {
   factory InvoiceDetailResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'] ?? {};
     return InvoiceDetailResponse(
-      invId: data['Inv_id'] ?? 0,
+      invId: int.tryParse(data['Inv_id']?.toString() ?? '') ?? 0,
       invDate: data['InvDate']?.toString() ?? '',
       customerName: data['customer_name']?.toString() ?? '',
+      customerId: int.tryParse(data['customer_id']?.toString() ?? '') ?? 0,
+      posId: int.tryParse(data['pos_id']?.toString() ?? '') ?? 0,
       invAmount: data['inv_amount']?.toString() ?? '',
       paidAmount: data['paid_amount']?.toString() ?? '',
       details:
@@ -123,6 +139,8 @@ class InvoiceDetailResponse {
       'Inv_id': invId,
       'InvDate': invDate,
       'customer_name': customerName,
+      'customer_id': customerId,
+      'pos_id': posId,
       'inv_amount': invAmount,
       'paid_amount': paidAmount,
       'details': details.map((detail) => detail.toJson()).toList(),
@@ -613,6 +631,82 @@ class SalesService {
       }
     } catch (e) {
       throw Exception('Network error: $e');
+    }
+  }
+
+  // Create sales return
+  static Future<SalesReturn> createSalesReturn(
+    Map<String, dynamic> returnData,
+  ) async {
+    final token = await ApiService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}$salesReturnsEndpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(returnData),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['status'] == true && decoded.containsKey('data')) {
+          final salesReturn = SalesReturn.fromJson(decoded['data']);
+          return salesReturn;
+        } else {
+          throw Exception(
+            decoded['message'] ?? 'Failed to create sales return',
+          );
+        }
+      } else if (response.statusCode == 401) {
+        await ApiService.logout();
+        throw Exception('Session expired. Please login again.');
+      } else {
+        throw Exception(
+          'Create failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Get invoice details by invoice number
+  static Future<InvoiceDetailResponse> getInvoiceByNumber(
+    String invoiceNumber, {
+    String? cnic,
+  }) async {
+    try {
+      // Parse invoice number to extract ID
+      // Assuming format like "INV-123" where 123 is the ID
+      int? invoiceId;
+      if (invoiceNumber.startsWith('INV-')) {
+        final parts = invoiceNumber.split('-');
+        if (parts.length >= 2) {
+          invoiceId = int.tryParse(parts[1]);
+        }
+      } else {
+        // If no prefix, try parsing directly
+        invoiceId = int.tryParse(invoiceNumber);
+      }
+
+      if (invoiceId == null) {
+        throw Exception('Invalid invoice number format');
+      }
+
+      // Use existing getInvoiceById method
+      final response = await getInvoiceById(invoiceId);
+
+      // For credit customers, we might need to validate CNIC, but for now assume it's handled
+      return response;
+    } catch (e) {
+      throw Exception('Failed to load invoice: $e');
     }
   }
 }

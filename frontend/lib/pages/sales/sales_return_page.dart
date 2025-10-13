@@ -28,6 +28,10 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
   final int itemsPerPage = 10;
   bool _isSubmittingReturn = false;
 
+  // Invoice data
+  late int _invoiceCustomerId = 0;
+  late int _invoicePosId = 0;
+
   // Filtered data for pagination
   List<SalesReturn> _allFilteredReturns = [];
   List<SalesReturn> _filteredReturns = [];
@@ -95,8 +99,9 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
       return;
     }
 
+    String? cnic;
     if (_selectedCustomerType == 'Credit Customer') {
-      final cnic = _cnicController.text.trim();
+      cnic = _cnicController.text.trim();
       if (cnic.isEmpty) {
         setState(() {
           _invoiceError = 'Please enter customer CNIC';
@@ -113,43 +118,35 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
       _selectedProducts.clear();
     });
 
-    // Simulate API call delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Mock invoice data - in real app this would be API call
-    if (invoiceNumber == 'INV-12345') {
+    try {
+      final invoiceResponse = await SalesService.getInvoiceByNumber(
+        invoiceNumber,
+        cnic: cnic,
+      );
       setState(() {
-        _invoiceProducts = [
-          {
-            'id': '1',
-            'name': 'Wireless Headphones',
-            'quantity': 1,
-            'price': 99.99,
+        _invoiceCustomerId = _selectedCustomerType == 'Normal Customer'
+            ? 1
+            : invoiceResponse.customerId; // Default for normal
+        _invoicePosId = invoiceResponse.posId > 0
+            ? invoiceResponse.posId
+            : 1; // Default to 1 if invalid
+        _invoiceProducts = invoiceResponse.details.map((detail) {
+          return {
+            'id': detail.id.toString(),
+            'productId': detail.productId,
+            'name': detail.productName,
+            'quantity': int.tryParse(detail.quantity) ?? 1,
+            'price': double.tryParse(detail.price) ?? 0.0,
             'isSelected': false,
             'returnQuantityController': TextEditingController(text: '1'),
-          },
-          {
-            'id': '2',
-            'name': 'Bluetooth Speaker',
-            'quantity': 2,
-            'price': 49.99,
-            'isSelected': false,
-            'returnQuantityController': TextEditingController(text: '1'),
-          },
-          {
-            'id': '3',
-            'name': 'USB Cable',
-            'quantity': 1,
-            'price': 9.99,
-            'isSelected': false,
-            'returnQuantityController': TextEditingController(text: '1'),
-          },
-        ];
+          };
+        }).toList();
         _isLoadingInvoice = false;
       });
-    } else {
+    } catch (e) {
       setState(() {
-        _invoiceError = 'Invoice not found or no products available for return';
+        _invoiceError =
+            'Invoice not found or no products available for return: $e';
         _isLoadingInvoice = false;
       });
     }
@@ -180,47 +177,56 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
       _isSubmittingReturn = true;
     });
 
-    // Simulate API call delay
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Calculate totals for selected products
+      double totalAmount = 0.0;
+      final details = selectedProducts.map((product) {
+        final quantity =
+            int.tryParse(product['returnQuantityController'].text) ??
+            product['quantity'];
+        final unitPrice = product['price'];
+        totalAmount += unitPrice * quantity;
+        return {
+          'product_id': int.tryParse(product['productId']) ?? 0,
+          'qty': quantity,
+          'return_unit_price': unitPrice,
+        };
+      }).toList();
 
-    // Calculate totals for selected products
-    double totalAmount = 0.0;
-    for (var product in selectedProducts) {
-      final quantity =
-          int.tryParse(product['returnQuantityController'].text) ??
-          product['quantity'];
-      totalAmount += product['price'] * quantity;
+      final returnData = {
+        'customer_id': _invoiceCustomerId,
+        'invRet_date': DateFormat('yyyy-MM-dd').format(_selectedReturnDate),
+        'return_inv_amout': totalAmount.toStringAsFixed(2),
+        'details': details,
+      };
+
+      // Only include pos_id if it's valid
+      if (_invoicePosId > 0) {
+        returnData['pos_id'] = _invoicePosId;
+      }
+
+      final newReturn = await SalesService.createSalesReturn(returnData);
+
+      setState(() {
+        _salesReturns.insert(0, newReturn);
+        _isSubmittingReturn = false;
+        _showAddReturnDialog = false;
+      });
+
+      // Reset form
+      _resetForm();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Return created successfully')),
+      );
+    } catch (e) {
+      setState(() {
+        _isSubmittingReturn = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to create return: $e')));
     }
-
-    // Add to sales returns list
-    final newReturn = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'product': {'name': selectedProducts.first['name'], 'image': null},
-      'date': _selectedReturnDate,
-      'customer': _selectedCustomerType == 'Credit Customer'
-          ? 'Credit Customer'
-          : 'Normal Customer',
-      'customerType': _selectedCustomerType,
-      'status': 'Pending',
-      'totalPaid': 0.0,
-      'dueAmount': totalAmount,
-      'grandTotal': totalAmount,
-      'paidAmount': 0.0,
-      'paymentStatus': 'Unpaid',
-    };
-
-    setState(() {
-      _salesReturns.insert(0, newReturn as SalesReturn);
-      _isSubmittingReturn = false;
-      _showAddReturnDialog = false;
-    });
-
-    // Reset form
-    _resetForm();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Return invoice generated successfully')),
-    );
   }
 
   void _resetForm() {
@@ -233,6 +239,8 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
       _selectedReturnDate = DateTime.now();
       _invoiceProducts.clear();
       _invoiceError = '';
+      _invoiceCustomerId = 0;
+      _invoicePosId = 0;
     });
   }
 
@@ -888,7 +896,14 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                                 Expanded(
                                                   flex: 2,
                                                   child: Text(
-                                                    returnItem.customer.name,
+                                                    returnItem
+                                                            .customer
+                                                            .name
+                                                            .isNotEmpty
+                                                        ? returnItem
+                                                              .customer
+                                                              .name
+                                                        : 'Walk-in Customer',
                                                     style: _cellStyle(),
                                                   ),
                                                 ),

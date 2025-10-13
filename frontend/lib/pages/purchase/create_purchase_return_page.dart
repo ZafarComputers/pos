@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/inventory_service.dart';
+import '../../services/purchases_service.dart';
 import '../../models/vendor.dart' as vendor;
 import '../../models/product.dart';
 
@@ -32,7 +33,7 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
   void initState() {
     super.initState();
     _fetchVendors();
-    _fetchProducts();
+    // Remove initial product fetch - products will be loaded when vendor is selected
   }
 
   Future<void> _fetchVendors() async {
@@ -54,11 +55,15 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
     }
   }
 
-  Future<void> _fetchProducts() async {
+  Future<void> _fetchProductsByVendor(int vendorId) async {
     try {
       final productResponse = await InventoryService.getProducts();
+      // Filter products by the selected vendor
+      final filteredProducts = productResponse.data.where((product) {
+        return product.vendorId == vendorId.toString();
+      }).toList();
       setState(() {
-        products = productResponse.data;
+        products = filteredProducts;
       });
     } catch (e) {
       setState(() {
@@ -66,7 +71,7 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load products: $e'),
+          content: Text('Failed to load products for selected vendor: $e'),
           backgroundColor: Color(0xFFDC3545),
         ),
       );
@@ -171,8 +176,29 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
     setState(() => isSubmitting = true);
 
     try {
-      // TODO: Call API to create purchase return
-      // await PurchaseReturnService.createPurchaseReturn(purchaseReturnData);
+      // Prepare purchase return data for API
+      final purchaseReturnData = {
+        'vendor_id': _selectedVendorId,
+        'return_inv_no': _referenceController.text,
+        'return_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'payment_status': _selectedStatus == 'Completed' ? 'paid' : 'unpaid',
+        'reason': _notesController.text,
+        'return_amount': _calculateGrandTotal(),
+        'details': purchaseReturnItems.map((item) {
+          return {
+            'product_id': item.productId.toString(),
+            'qty': item.quantity.toString(),
+            'unit_price': item.purchasePrice.toString(),
+            'discAmount':
+                ((item.purchasePrice * item.quantity * item.discount / 100))
+                    .toString(),
+            'amount': item.totalCost.toString(),
+          };
+        }).toList(),
+      };
+
+      // Call API to create purchase return
+      await PurchaseReturnService.createPurchaseReturn(purchaseReturnData);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -190,17 +216,8 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
         ),
       );
 
-      // Clear form
-      _formKey.currentState!.reset();
-      _referenceController.clear();
-      _orderTaxController.clear();
-      _orderDiscountController.clear();
-      _notesController.clear();
-      setState(() {
-        _selectedDate = DateTime.now();
-        _selectedVendorId = null;
-        purchaseReturnItems.clear();
-      });
+      // Navigate back to purchase return listing page with success result
+      Navigator.of(context).pop(true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -384,10 +401,16 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
                                       );
                                     }).toList(),
                               onChanged: (value) {
+                                setState(() {
+                                  _selectedVendorId = value;
+                                  // Clear products when vendor changes
+                                  products = [];
+                                  purchaseReturnItems =
+                                      []; // Also clear existing items since products changed
+                                });
+                                // Fetch products for the selected vendor
                                 if (value != null) {
-                                  setState(() {
-                                    _selectedVendorId = value;
-                                  });
+                                  _fetchProductsByVendor(value);
                                 }
                               },
                               validator: (value) {
@@ -767,39 +790,53 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
                                                   fillColor: isIncomplete
                                                       ? Color(0xFFFFF3CD)
                                                       : Colors.white,
+                                                  hintText:
+                                                      _selectedVendorId == null
+                                                      ? 'Please select a vendor first'
+                                                      : 'Select Product',
                                                 ),
-                                                items: products.map((product) {
-                                                  return DropdownMenuItem<int>(
-                                                    value: product.id,
-                                                    child: Container(
-                                                      constraints:
-                                                          BoxConstraints(
-                                                            maxWidth: 180,
+                                                items: _selectedVendorId == null
+                                                    ? [] // No items if no vendor selected
+                                                    : products.map((product) {
+                                                        return DropdownMenuItem<
+                                                          int
+                                                        >(
+                                                          value: product.id,
+                                                          child: Container(
+                                                            constraints:
+                                                                BoxConstraints(
+                                                                  maxWidth: 180,
+                                                                ),
+                                                            child: Text(
+                                                              '${product.title} (${product.designCode})',
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              maxLines: 1,
+                                                            ),
                                                           ),
-                                                      child: Text(
-                                                        '${product.title} (${product.designCode})',
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        maxLines: 1,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }).toList(),
-                                                onChanged: (value) {
-                                                  if (value != null) {
-                                                    PurchaseReturnItem
-                                                    updatedItem = item.copyWith(
-                                                      productId: value,
-                                                    );
-                                                    _updatePurchaseReturnItem(
-                                                      index,
-                                                      updatedItem,
-                                                    );
-                                                  }
-                                                },
+                                                        );
+                                                      }).toList(),
+                                                onChanged:
+                                                    _selectedVendorId == null
+                                                    ? null // Disable if no vendor selected
+                                                    : (value) {
+                                                        if (value != null) {
+                                                          PurchaseReturnItem
+                                                          updatedItem = item
+                                                              .copyWith(
+                                                                productId:
+                                                                    value,
+                                                              );
+                                                          _updatePurchaseReturnItem(
+                                                            index,
+                                                            updatedItem,
+                                                          );
+                                                        }
+                                                      },
                                               ),
                                             ),
                                           ),

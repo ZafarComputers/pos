@@ -16,133 +16,194 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
   List<PurchaseReturn> _filteredPurchaseReturns = [];
   List<PurchaseReturn> _allFilteredPurchaseReturns =
       []; // Store all filtered purchase returns for local pagination
+  List<PurchaseReturn> _allPurchaseReturnsCache =
+      []; // Cache for all purchase returns to avoid refetching
+  bool _isLoading = true;
+  String _errorMessage = '';
   int currentPage = 1;
   final int itemsPerPage = 10;
-  bool _isLoading = false;
-  String _errorMessage = '';
 
   // Filter states
   String _selectedStatus = 'All';
-  final String _sortBy = 'All Time';
 
   @override
   void initState() {
     super.initState();
-    _loadPurchaseReturns();
+    _fetchAllPurchaseReturnsOnInit();
   }
 
-  Future<void> _loadPurchaseReturns() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
-
+  // Fetch all purchase returns once when page loads
+  Future<void> _fetchAllPurchaseReturnsOnInit() async {
     try {
-      // For now, the API returns all purchase returns in one response
-      // If pagination is needed from the API in the future, we can implement
-      // the same multi-page loading logic as the purchase listing page
-      final response = await PurchaseReturnService.getPurchaseReturns();
+      print('🚀 Initial load: Fetching all purchase returns');
       setState(() {
-        _purchaseReturns = response.data;
-        _isLoading = false;
+        _errorMessage = '';
       });
 
-      print('Loaded ${_purchaseReturns.length} purchase returns');
+      // Fetch all purchase returns from all pages
+      List<PurchaseReturn> allPurchaseReturns = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
 
-      // Apply initial filters
+      while (hasMorePages) {
+        try {
+          print('📡 Fetching page $currentFetchPage');
+          final response = await PurchaseReturnService.getPurchaseReturns(
+            page: currentFetchPage,
+            perPage: 50, // Use larger page size for efficiency
+          );
+
+          allPurchaseReturns.addAll(response.data);
+          print(
+            '📦 Page $currentFetchPage: ${response.data.length} purchase returns (total: ${allPurchaseReturns.length})',
+          );
+
+          // Check if there are more pages
+          if (response.data.length < 50) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allPurchaseReturnsCache = allPurchaseReturns;
+      print(
+        '💾 Cached ${_allPurchaseReturnsCache.length} total purchase returns',
+      );
+
+      // Apply initial filters (which will be no filters, showing all purchase returns)
       _applyFiltersClientSide();
     } catch (e) {
+      print('❌ Critical error in _fetchAllPurchaseReturnsOnInit: $e');
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage =
+            'Failed to load purchase returns. Please refresh the page.';
         _isLoading = false;
       });
-      print('Error loading purchase returns: $e');
     }
   }
 
   // Client-side only filter application
   void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
     _applyFiltersClientSide();
   }
 
   // Pure client-side filtering method
   void _applyFiltersClientSide() {
-    // Apply filters to cached purchase returns
-    _allFilteredPurchaseReturns = _purchaseReturns.where((purchaseReturn) {
-      // For now, we'll show all purchase returns since status isn't in the API
-      // In the future, you could add status filtering based on other criteria
-      bool statusMatch = true;
+    try {
+      print('🎯 Client-side filtering - status: "$_selectedStatus"');
 
-      // Date filtering based on sortBy
-      bool dateMatch = true;
-      if (_sortBy == 'Last 7 Days') {
+      // Apply filters to cached purchase returns (no API calls)
+      _filterCachedPurchaseReturns();
+
+      print(
+        '📦 _allPurchaseReturnsCache.length: ${_allPurchaseReturnsCache.length}',
+      );
+      print(
+        '🎯 _allFilteredPurchaseReturns.length: ${_allFilteredPurchaseReturns.length}',
+      );
+      print(
+        '👀 _filteredPurchaseReturns.length: ${_filteredPurchaseReturns.length}',
+      );
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        _errorMessage = 'Search error: Please try a different search term';
+        _isLoading = false;
+        _filteredPurchaseReturns = [];
+      });
+    }
+  }
+
+  // Filter cached purchase returns without any API calls
+  void _filterCachedPurchaseReturns() {
+    try {
+      // Apply filters to cached purchase returns
+      _allFilteredPurchaseReturns = _allPurchaseReturnsCache.where((
+        purchaseReturn,
+      ) {
         try {
-          final date = DateTime.parse(purchaseReturn.returnDate);
-          final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-          dateMatch = date.isAfter(sevenDaysAgo);
+          // For now, we'll show all purchase returns since status isn't in the API
+          // In the future, you could add status filtering based on other criteria
+          bool statusMatch = true;
+
+          return statusMatch;
         } catch (e) {
-          // If date parsing fails, include the item
-          dateMatch = true;
+          // If there's any error during filtering, exclude this purchase return
+          print(
+            '⚠️ Error filtering purchase return ${purchaseReturn.purchaseReturnId}: $e',
+          );
+          return false;
         }
-      }
-      // For 'All Time', dateMatch remains true
+      }).toList();
 
-      return statusMatch && dateMatch;
-    }).toList();
+      print(
+        '🔍 After filtering: ${_allFilteredPurchaseReturns.length} purchase returns match criteria',
+      );
 
-    print('Filtered to ${_allFilteredPurchaseReturns.length} purchase returns');
+      // Apply local pagination to filtered results
+      _paginateFilteredPurchaseReturns();
 
-    // Apply local pagination to filtered results
-    _paginateFilteredPurchaseReturns();
-
-    setState(() {});
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Critical error in _filterCachedPurchaseReturns: $e');
+      setState(() {
+        _errorMessage =
+            'Search failed. Please try again with a simpler search term.';
+        _isLoading = false;
+        // Fallback: show empty results instead of crashing
+        _filteredPurchaseReturns = [];
+        _allFilteredPurchaseReturns = [];
+      });
+    }
   }
 
   // Apply local pagination to filtered purchase returns
   void _paginateFilteredPurchaseReturns() {
-    // Handle empty results case
-    if (_allFilteredPurchaseReturns.isEmpty) {
+    try {
+      // Handle empty results case
+      if (_allFilteredPurchaseReturns.isEmpty) {
+        setState(() {
+          _filteredPurchaseReturns = [];
+        });
+        return;
+      }
+
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
+
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredPurchaseReturns.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredPurchaseReturns(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        _filteredPurchaseReturns = _allFilteredPurchaseReturns.sublist(
+          startIndex,
+          endIndex > _allFilteredPurchaseReturns.length
+              ? _allFilteredPurchaseReturns.length
+              : endIndex,
+        );
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredPurchaseReturns: $e');
       setState(() {
         _filteredPurchaseReturns = [];
-      });
-      return;
-    }
-
-    final startIndex = (currentPage - 1) * itemsPerPage;
-    final endIndex = startIndex + itemsPerPage;
-
-    // Ensure startIndex is not greater than the list length
-    if (startIndex >= _allFilteredPurchaseReturns.length) {
-      // Reset to page 1 if current page is out of bounds
-      setState(() {
         currentPage = 1;
       });
-      _paginateFilteredPurchaseReturns(); // Recursive call with corrected page
-      return;
     }
-
-    setState(() {
-      _filteredPurchaseReturns = _allFilteredPurchaseReturns.sublist(
-        startIndex,
-        endIndex > _allFilteredPurchaseReturns.length
-            ? _allFilteredPurchaseReturns.length
-            : endIndex,
-      );
-    });
-
-    print(
-      'Paginated to ${_filteredPurchaseReturns.length} items for display (page $currentPage)',
-    );
-  }
-
-  // Handle page changes
-  Future<void> _changePage(int newPage) async {
-    setState(() {
-      currentPage = newPage;
-    });
-
-    // Use client-side pagination
-    _paginateFilteredPurchaseReturns();
   }
 
   Color _getStatusColor(String status) {
@@ -191,14 +252,13 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
       try {
         await PurchaseReturnService.deletePurchaseReturn(purchaseReturnId);
 
-        // Remove the item from local lists in real-time
-        setState(() {
-          _purchaseReturns.removeWhere(
-            (item) => item.purchaseReturnId == purchaseReturnId,
-          );
-        });
+        // Remove from local cache
+        _allPurchaseReturnsCache.removeWhere(
+          (purchaseReturn) =>
+              purchaseReturn.purchaseReturnId == purchaseReturnId,
+        );
 
-        // Re-apply filters to update the displayed list
+        // Re-apply filters to update the display
         _applyFiltersClientSide();
 
         if (mounted) {
@@ -289,7 +349,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
   }
 
   double _getTotalReturnedAmount() {
-    return _purchaseReturns.fold(
+    return _allPurchaseReturnsCache.fold(
       0.0,
       (sum, item) => sum + (double.tryParse(item.returnAmount) ?? 0.0),
     );
@@ -304,6 +364,18 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
   double _getTotalDueAmount() {
     // Since the API doesn't provide due amounts, we'll return 0 for now
     return 0.0;
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    // Always use client-side pagination when we have cached purchase returns
+    if (_allPurchaseReturnsCache.isNotEmpty) {
+      _paginateFilteredPurchaseReturns();
+    }
   }
 
   bool _canGoToNextPage() {
@@ -507,14 +579,19 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
                                   const CreatePurchaseReturnPage(),
                             ),
                           );
+
+                          // Refresh the list if a new purchase return was created
+                          if (result == true) {
+                            await _fetchAllPurchaseReturnsOnInit();
+                          }
                         },
                         icon: const Icon(Icons.add, size: 14),
                         label: const Text(
@@ -541,7 +618,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                     children: [
                       _buildSummaryCard(
                         'Total Returns',
-                        '${_purchaseReturns.length}',
+                        '${_allPurchaseReturnsCache.length}',
                         Icons.assignment_return,
                         const Color(0xFF2196F3),
                       ),
@@ -820,7 +897,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                                   ),
                                   const SizedBox(height: 16),
                                   ElevatedButton(
-                                    onPressed: _loadPurchaseReturns,
+                                    onPressed: _fetchAllPurchaseReturnsOnInit,
                                     child: const Text('Retry'),
                                   ),
                                 ],
@@ -1025,7 +1102,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                             ),
                     ),
 
-                    // Pagination - Always show like purchase listing page
+                    // Pagination - Traditional page buttons
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -1115,7 +1192,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              'Page $currentPage of ${_getTotalPages()} (${_allFilteredPurchaseReturns.length} total)',
+                              'Page $currentPage of ${_getTotalPages()} (${_filteredPurchaseReturns.length} items)',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Color(0xFF6C757D),
@@ -1172,7 +1249,7 @@ class _PurchaseReturnPageState extends State<PurchaseReturnPage> {
     });
 
     // Re-apply filters to update the displayed list
-    _applyFiltersClientSide();
+    _applyFilters();
   }
 }
 
@@ -1310,6 +1387,7 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
   late TextEditingController _reasonController;
   late TextEditingController _totalAmountController;
   late TextEditingController _discountPercentController;
+  late TextEditingController _purchaseIdController;
   String? _selectedPaymentStatus;
   int? _selectedPurchaseId;
   int? _selectedVendorId;
@@ -1332,6 +1410,9 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
     );
     _discountPercentController = TextEditingController(
       text: widget.purchaseReturn.discountPercent,
+    );
+    _purchaseIdController = TextEditingController(
+      text: _selectedPurchaseId?.toString() ?? '',
     );
 
     // Initialize details from the purchase return
@@ -1364,6 +1445,7 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
     _reasonController.dispose();
     _totalAmountController.dispose();
     _discountPercentController.dispose();
+    _purchaseIdController.dispose();
     super.dispose();
   }
 
@@ -1450,6 +1532,17 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
                           ),
                         ),
                       ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _purchaseIdController,
+                      decoration: InputDecoration(
+                        labelText: 'Purchase ID',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
                     ),
 
                     const SizedBox(height: 16),
@@ -1714,9 +1807,9 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
 
   Future<void> _saveChanges() async {
     try {
+      final purchaseId = int.tryParse(_purchaseIdController.text);
       final updateData = {
         'return_date': _returnDateController.text,
-        'purchase_id': _selectedPurchaseId,
         'return_inv_no': _returnInvNoController.text,
         'vendor_id': _selectedVendorId,
         'reason': _reasonController.text,
@@ -1724,6 +1817,10 @@ class _EditPurchaseReturnDialogState extends State<_EditPurchaseReturnDialog> {
         'payment_status': _selectedPaymentStatus,
         'details': _details,
       };
+
+      if (purchaseId != null) {
+        updateData['purchase_id'] = purchaseId;
+      }
 
       final updatedPurchaseReturn =
           await PurchaseReturnService.updatePurchaseReturn(

@@ -579,9 +579,14 @@ class PurchaseReturnService {
   static const String purchaseReturnsEndpoint = '/purchase-returns';
 
   // Get all purchase returns
-  static Future<PurchaseReturnResponse> getPurchaseReturns() async {
+  static Future<PurchaseReturnResponse> getPurchaseReturns({
+    int page = 1,
+    int perPage = 20,
+  }) async {
     try {
-      final response = await ApiService.get(purchaseReturnsEndpoint);
+      final response = await ApiService.get(
+        '$purchaseReturnsEndpoint?page=$page&per_page=$perPage',
+      );
 
       if (response.containsKey('data')) {
         final purchaseReturnResponse = PurchaseReturnResponse.fromJson(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/providers.dart';
 import '../../widgets/pos_navbar.dart';
@@ -10,16 +12,21 @@ import '../../models/category.dart';
 import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../services/inventory_service.dart';
+import '../../services/sales_service.dart';
 
 class PosPage extends StatefulWidget {
-  const PosPage({super.key});
+  final Invoice? invoiceToEdit;
+
+  const PosPage({super.key, this.invoiceToEdit});
 
   @override
   State<PosPage> createState() => _PosPageState();
 }
 
 class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
-  String selectedCategory = 'all';
+  String selectedCategoryId = 'all'; // Selected category from bottom section
+  String selectedSubCategoryId =
+      'all'; // Selected subcategory from left sidebar
   String searchQuery = '';
   List<Map<String, dynamic>> orderItems = [];
   Map<String, dynamic>? selectedCustomer;
@@ -36,9 +43,6 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
   // Performance optimizations - optimized for better performance
   List<Product> _filteredProducts = [];
   Timer? _searchDebounceTimer;
-  final Map<String, ImageProvider> _imageCache = {};
-  static const int _maxCacheSize =
-      3; // Reduced cache size for memory optimization
 
   // Pagination for products - reduced for better performance
   static const int _productsPerPage = 15; // Reduced for better performance
@@ -56,14 +60,6 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
     super.initState();
     _productsScrollController.addListener(_onProductsScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Initialize window for fullscreen
-      final windowProvider = Provider.of<WindowProvider>(
-        context,
-        listen: false,
-      );
-      await windowProvider.initWindow();
-      await windowProvider.toggleFullScreen();
-
       // Fetch data sequentially for better performance
       await _initializeDataSequentially();
     });
@@ -89,6 +85,14 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
       });
       await _fetchSubCategories();
 
+      // Step 4: Load invoice data if editing
+      if (widget.invoiceToEdit != null) {
+        setState(() {
+          _loadingMessage = 'Loading invoice data...';
+        });
+        await _loadInvoiceForEditing(widget.invoiceToEdit!);
+      }
+
       // Mark initialization complete
       setState(() {
         _isInitializing = false;
@@ -101,18 +105,87 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
     }
   }
 
-  @override
-  void dispose() {
-    _searchDebounceTimer?.cancel();
-    _productsScrollController.dispose();
-    _clearImageCache();
-    final windowProvider = Provider.of<WindowProvider>(context, listen: false);
-    windowProvider.exitFullScreen();
-    super.dispose();
+  Future<void> _loadInvoiceForEditing(Invoice invoice) async {
+    try {
+      // Fetch the detailed invoice data
+      final invoiceDetail = await SalesService.getInvoiceById(invoice.invId);
+
+      // Convert invoice details to order items
+      final orderItemsFromInvoice = invoiceDetail.details.map((detail) {
+        return {
+          'id': int.tryParse(detail.productId) ?? 0,
+          'name': detail.productName,
+          'price': double.tryParse(detail.price) ?? 0.0,
+          'quantity': int.tryParse(detail.quantity) ?? 1,
+          'image': '', // No image in invoice details
+        };
+      }).toList();
+
+      // Set customer if available
+      Map<String, dynamic>? customer;
+      if (invoice.isCreditCustomer && invoice.customerName.isNotEmpty) {
+        customer = {'name': invoice.customerName};
+      }
+
+      setState(() {
+        orderItems = orderItemsFromInvoice;
+        selectedCustomer = customer;
+        // Set payment mode if available
+        // Note: This would need to be stored in the invoice model
+      });
+    } catch (e) {
+      print('Error loading invoice for editing: $e');
+      // Show error but continue with empty order
+    }
   }
 
-  void _clearImageCache() {
-    _imageCache.clear();
+  // Image cache to prevent repeated loading
+  final Map<String, Future<Uint8List?>> _imageCache = {};
+
+  Future<Uint8List?> _loadProductImage(String imagePath) async {
+    // Check cache first
+    if (_imageCache.containsKey(imagePath)) {
+      return _imageCache[imagePath];
+    }
+
+    // Create future and cache it
+    final future = _loadProductImageInternal(imagePath);
+    _imageCache[imagePath] = future;
+    return future;
+  }
+
+  Future<Uint8List?> _loadProductImageInternal(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      // Check if file exists in local products directory
+      final file = File('assets/images/products/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
   }
 
   Future<void> _fetchCategories() async {
@@ -208,7 +281,16 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
   void onCategorySelected(String category) {
     setState(() {
-      selectedCategory = category;
+      selectedCategoryId = category;
+      selectedSubCategoryId =
+          'all'; // Reset subcategory selection when category changes
+    });
+    _resetAndFilterProducts();
+  }
+
+  void onSubCategorySelected(String subCategory) {
+    setState(() {
+      selectedSubCategoryId = subCategory;
     });
     _resetAndFilterProducts();
   }
@@ -246,6 +328,16 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
   void addToOrder(Map<String, dynamic> product) {
     setState(() {
+      // Convert price to double to avoid type errors
+      final price =
+          double.tryParse(product['price']?.toString() ?? '0.0') ?? 0.0;
+
+      final orderProduct = {
+        ...product,
+        'price': price, // Ensure price is a double
+        'quantity': 1,
+      };
+
       final existingIndex = orderItems.indexWhere(
         (item) => item['id'] == product['id'],
       );
@@ -253,14 +345,15 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
         orderItems[existingIndex]['quantity'] =
             (orderItems[existingIndex]['quantity'] ?? 1) + 1;
       } else {
-        orderItems.add({...product, 'quantity': 1});
+        orderItems.add(orderProduct);
       }
     });
   }
 
   void updateOrderItemQuantity(String itemId, int quantity) {
     setState(() {
-      final index = orderItems.indexWhere((item) => item['id'] == itemId);
+      final itemIdInt = int.tryParse(itemId) ?? 0;
+      final index = orderItems.indexWhere((item) => item['id'] == itemIdInt);
       if (index >= 0) {
         if (quantity <= 0) {
           orderItems.removeAt(index);
@@ -273,7 +366,8 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
   void removeOrderItem(String itemId) {
     setState(() {
-      orderItems.removeWhere((item) => item['id'] == itemId);
+      final itemIdInt = int.tryParse(itemId) ?? 0;
+      orderItems.removeWhere((item) => item['id'] == itemIdInt);
     });
   }
 
@@ -293,10 +387,15 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
   }
 
   double getSubtotal() {
-    return orderItems.fold(
-      0.0,
-      (sum, item) => sum + ((item['price'] ?? 0.0) * (item['quantity'] ?? 1)),
-    );
+    return orderItems.fold(0.0, (sum, item) {
+      final price = (item['price'] is num)
+          ? item['price'] as num
+          : double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0;
+      final quantity = (item['quantity'] is num)
+          ? item['quantity'] as num
+          : int.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+      return sum + (price * quantity);
+    });
   }
 
   @override
@@ -530,7 +629,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
                         // Categories Section at Bottom
                         Container(
-                          height: 95, // Slightly more bigger
+                          height: 110, // Increased height for better visibility
                           decoration: BoxDecoration(
                             color: Colors.grey[50],
                             border: Border(
@@ -589,7 +688,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
                 // Right Side - Order Details (No Footer)
                 Container(
-                  width: 350,
+                  width: 480,
                   color: const Color(0xFFF8F9FA),
                   child: Column(
                     children: [
@@ -661,7 +760,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
               'all',
               'All',
               Icons.grid_view,
-              selectedCategory == 'all',
+              selectedCategoryId == 'all',
             ),
             // Other categories
             ...categories.map((category) {
@@ -669,7 +768,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                 category.id.toString(),
                 category.title,
                 _getCategoryIcon(category.title),
-                selectedCategory == category.id.toString(),
+                selectedCategoryId == category.id.toString(),
               );
             }).toList(),
           ],
@@ -679,10 +778,20 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _buildSubCategoriesList() {
+    // Filter subcategories based on selected category
+    List<SubCategory> filteredSubCategories = selectedCategoryId == 'all'
+        ? subCategories
+        : subCategories
+              .where(
+                (subCategory) =>
+                    subCategory.categoryId.toString() == selectedCategoryId,
+              )
+              .toList();
+
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       physics: const BouncingScrollPhysics(),
-      itemCount: subCategories.length + 1, // +1 for "All" subcategory
+      itemCount: filteredSubCategories.length + 1, // +1 for "All" subcategory
       itemBuilder: (context, index) {
         if (index == 0) {
           // "All" subcategory
@@ -690,15 +799,15 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
             'all',
             'All',
             Icons.grid_view,
-            selectedCategory == 'all',
+            selectedSubCategoryId == 'all',
           );
         } else {
-          final subCategory = subCategories[index - 1];
+          final subCategory = filteredSubCategories[index - 1];
           return _buildSubCategoryItemForSidebar(
             subCategory.id.toString(),
             subCategory.title,
             Icons.subdirectory_arrow_right,
-            selectedCategory == subCategory.id.toString(),
+            selectedSubCategoryId == subCategory.id.toString(),
           );
         }
       },
@@ -720,7 +829,7 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
             ? const Color(0xFF0D1845).withOpacity(0.3)
             : Colors.grey.withOpacity(0.2),
         child: InkWell(
-          onTap: () => onCategorySelected(subCategoryId),
+          onTap: () => onSubCategorySelected(subCategoryId),
           borderRadius: BorderRadius.circular(12),
           splashColor: const Color(0xFF0D1845).withOpacity(0.1),
           highlightColor: const Color(0xFF0D1845).withOpacity(0.05),
@@ -881,16 +990,37 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Product Image with caching
+                // Product Image with local file loading
                 Expanded(
                   flex: 3,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
+                      color: const Color(0xFF0D1845).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: hasImage
-                        ? _buildCachedImage(product.imagePath!)
+                        ? FutureBuilder<Uint8List?>(
+                            key: ValueKey('${product.id}_${product.imagePath}'),
+                            future: _loadProductImage(product.imagePath!),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData && snapshot.data != null) {
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.memory(
+                                    snapshot.data!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  ),
+                                );
+                              }
+                              return const Icon(
+                                Icons.inventory_2,
+                                color: Color(0xFF0D1845),
+                                size: 32,
+                              );
+                            },
+                          )
                         : const Icon(
                             Icons.inventory_2,
                             size: 32,
@@ -937,66 +1067,6 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCachedImage(String imageUrl) {
-    // Use cached image if available
-    if (_imageCache.containsKey(imageUrl)) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image(
-          image: _imageCache[imageUrl]!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return Icon(Icons.inventory_2, size: 32, color: Colors.grey[400]);
-          },
-        ),
-      );
-    }
-
-    // Load and cache the image with optimized settings for memory
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        cacheWidth: 100, // Reduced cache size for memory optimization
-        cacheHeight: 100,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) {
-            // Cache the loaded image efficiently
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!_imageCache.containsKey(imageUrl)) {
-                // Implement LRU cache eviction more efficiently
-                if (_imageCache.length >= _maxCacheSize) {
-                  // Remove oldest entries (simple FIFO for better performance)
-                  final keysToRemove = _imageCache.keys.take(1).toList();
-                  for (final key in keysToRemove) {
-                    _imageCache.remove(key);
-                  }
-                }
-                _imageCache[imageUrl] = NetworkImage(imageUrl);
-              }
-            });
-            return child;
-          }
-          return const Center(
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return Icon(Icons.inventory_2, size: 32, color: Colors.grey[400]);
-        },
       ),
     );
   }
@@ -1062,22 +1132,43 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
 
   List<Product> _getFilteredProducts() {
     // Use efficient filtering with early returns and optimized logic
-    if (selectedCategory == 'all' && searchQuery.isEmpty) {
+    if (selectedSubCategoryId == 'all' &&
+        selectedCategoryId == 'all' &&
+        searchQuery.isEmpty) {
       return products;
     }
 
     // Pre-process search query for better performance
     final query = searchQuery.toLowerCase().trim();
     final hasSearchQuery = query.isNotEmpty;
-    final categoryFilter = selectedCategory;
 
     // Use more efficient filtering with less allocations and early returns
     return products
         .where((product) {
-          // Category filter - check first as it's faster
-          if (categoryFilter != 'all' &&
-              product.subCategoryId != categoryFilter) {
+          // Subcategory filter - check first as it's more specific
+          if (selectedSubCategoryId != 'all' &&
+              product.subCategoryId != selectedSubCategoryId) {
             return false;
+          }
+
+          // Category filter - if no specific subcategory selected, filter by category
+          if (selectedSubCategoryId == 'all' && selectedCategoryId != 'all') {
+            // Find the subcategory this product belongs to and check if it matches the selected category
+            final productSubCategory = subCategories.firstWhere(
+              (subCat) => subCat.id.toString() == product.subCategoryId,
+              orElse: () => SubCategory(
+                id: 0,
+                title: '',
+                categoryId: 0,
+                status: '',
+                createdAt: '',
+                updatedAt: '',
+              ),
+            );
+            if (productSubCategory.categoryId.toString() !=
+                selectedCategoryId) {
+              return false;
+            }
           }
 
           // Search filter - only if there's a query

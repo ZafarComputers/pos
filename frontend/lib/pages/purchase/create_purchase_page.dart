@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/inventory_service.dart';
+import '../../services/purchases_service.dart';
 import '../../models/vendor.dart' as vendor;
 import '../../models/product.dart';
 
@@ -32,7 +33,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
   void initState() {
     super.initState();
     _fetchVendors();
-    _fetchProducts();
+    // Remove initial product fetch - products will be loaded when vendor is selected
   }
 
   Future<void> _fetchVendors() async {
@@ -54,11 +55,15 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
     }
   }
 
-  Future<void> _fetchProducts() async {
+  Future<void> _fetchProductsByVendor(int vendorId) async {
     try {
       final productResponse = await InventoryService.getProducts();
+      // Filter products by the selected vendor
+      final filteredProducts = productResponse.data.where((product) {
+        return product.vendorId == vendorId.toString();
+      }).toList();
       setState(() {
-        products = productResponse.data;
+        products = filteredProducts;
       });
     } catch (e) {
       setState(() {
@@ -66,7 +71,7 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load products: $e'),
+          content: Text('Failed to load products for selected vendor: $e'),
           backgroundColor: Color(0xFFDC3545),
         ),
       );
@@ -173,8 +178,42 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
     setState(() => isSubmitting = true);
 
     try {
-      // TODO: Call API to create purchase
-      // await PurchaseService.createPurchase(purchaseData);
+      // Prepare purchase data for API
+      final purchaseData = {
+        'pur_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'vendor_id': _selectedVendorId,
+        'ven_inv_no':
+            _referenceController.text, // Use reference as invoice number
+        'ven_inv_date': DateFormat(
+          'yyyy-MM-dd',
+        ).format(_selectedDate), // Use same date
+        'ven_inv_ref': _referenceController.text,
+        'pur_inv_barcode': _referenceController.text.isNotEmpty
+            ? _referenceController.text
+            : 'AUTO-${DateTime.now().millisecondsSinceEpoch}', // Use reference or generate auto barcode
+        'description': _notesController.text,
+        'inv_amount': _calculateGrandTotal(),
+        'discount_percent': '0', // Not used in current form, set to 0
+        'discount_amt': (double.tryParse(_orderDiscountController.text) ?? 0)
+            .toString(),
+        'paid_amount': _selectedStatus == 'Received'
+            ? _calculateGrandTotal()
+            : 0.0,
+        'payment_status': _selectedStatus == 'Received' ? 'paid' : 'unpaid',
+        'details': purchaseItems.map((item) {
+          return {
+            'product_id': item.productId.toString(),
+            'qty': item.quantity.toString(),
+            'unit_price': item.purchasePrice.toString(),
+            'discAmount':
+                ((item.purchasePrice * item.quantity * item.discount / 100))
+                    .toString(),
+          };
+        }).toList(),
+      };
+
+      // Call API to create purchase
+      await PurchaseService.createPurchase(purchaseData);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -192,18 +231,8 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
         ),
       );
 
-      // Clear form
-      _formKey.currentState!.reset();
-      _referenceController.clear();
-      _shippingPriceController.clear();
-      _orderTaxController.clear();
-      _orderDiscountController.clear();
-      _notesController.clear();
-      setState(() {
-        _selectedDate = DateTime.now();
-        _selectedVendorId = null;
-        purchaseItems.clear();
-      });
+      // Navigate back to purchase listing page with success result
+      Navigator.of(context).pop(true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -369,7 +398,15 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                               onChanged: (value) {
                                 setState(() {
                                   _selectedVendorId = value;
+                                  // Clear products when vendor changes
+                                  products = [];
+                                  purchaseItems =
+                                      []; // Also clear existing items since products changed
                                 });
+                                // Fetch products for the selected vendor
+                                if (value != null) {
+                                  _fetchProductsByVendor(value);
+                                }
                               },
                               validator: (value) {
                                 if (value == null) {
@@ -669,20 +706,6 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                           horizontal: 8.0,
                                         ),
                                         child: Text(
-                                          'Pending Payment',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    DataColumn(
-                                      label: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8.0,
-                                        ),
-                                        child: Text(
                                           'Actions',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
@@ -742,30 +765,43 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                                   fillColor: isIncomplete
                                                       ? Color(0xFFFFF3CD)
                                                       : Colors.white,
+                                                  hintText:
+                                                      _selectedVendorId == null
+                                                      ? 'select vendor'
+                                                      : 'Select Product',
                                                 ),
-                                                items: products.map((product) {
-                                                  return DropdownMenuItem<int>(
-                                                    value: product.id,
-                                                    child: Text(
-                                                      '${product.title} (${product.designCode})',
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }).toList(),
-                                                onChanged: (value) {
-                                                  if (value != null) {
-                                                    PurchaseItem updatedItem =
-                                                        item.copyWith(
-                                                          productId: value,
+                                                items: _selectedVendorId == null
+                                                    ? [] // No items if no vendor selected
+                                                    : products.map((product) {
+                                                        return DropdownMenuItem<
+                                                          int
+                                                        >(
+                                                          value: product.id,
+                                                          child: Text(
+                                                            '${product.title} (${product.designCode})',
+                                                            style: TextStyle(
+                                                              fontSize: 14,
+                                                            ),
+                                                          ),
                                                         );
-                                                    _updatePurchaseItem(
-                                                      index,
-                                                      updatedItem,
-                                                    );
-                                                  }
-                                                },
+                                                      }).toList(),
+                                                onChanged:
+                                                    _selectedVendorId == null
+                                                    ? null // Disable if no vendor selected
+                                                    : (value) {
+                                                        if (value != null) {
+                                                          PurchaseItem
+                                                          updatedItem = item
+                                                              .copyWith(
+                                                                productId:
+                                                                    value,
+                                                              );
+                                                          _updatePurchaseItem(
+                                                            index,
+                                                            updatedItem,
+                                                          );
+                                                        }
+                                                      },
                                               ),
                                             ),
                                           ),
@@ -998,53 +1034,6 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
                                                   color: Color(0xFF343A40),
                                                   fontWeight: FontWeight.bold,
                                                 ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        DataCell(
-                                          Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: SizedBox(
-                                              width: 100,
-                                              child: TextFormField(
-                                                initialValue: item
-                                                    .pendingPayment
-                                                    .toString(),
-                                                decoration: InputDecoration(
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          6,
-                                                        ),
-                                                  ),
-                                                  contentPadding:
-                                                      EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 8,
-                                                      ),
-                                                  filled: true,
-                                                  fillColor: isIncomplete
-                                                      ? Color(0xFFFFF3CD)
-                                                      : Colors.white,
-                                                  prefixText: 'Rs. ',
-                                                ),
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                style: TextStyle(fontSize: 14),
-                                                onChanged: (value) {
-                                                  double pending =
-                                                      double.tryParse(value) ??
-                                                      0;
-                                                  PurchaseItem updatedItem =
-                                                      item.copyWith(
-                                                        pendingPayment: pending,
-                                                      );
-                                                  _updatePurchaseItem(
-                                                    index,
-                                                    updatedItem,
-                                                  );
-                                                },
                                               ),
                                             ),
                                           ),

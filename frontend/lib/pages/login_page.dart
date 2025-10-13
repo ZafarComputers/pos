@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import '../providers/providers.dart';
-import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -116,32 +116,35 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                           ),
                   ),
-                  const Spacer(), // Push register link up from bottom
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Don't have an account?",
-                        style: TextStyle(color: Color(0xFF6C757D)),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterPage(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Register here',
-                          style: TextStyle(
-                            color: Color(0xFF0D1845),
-                            fontWeight: FontWeight.bold,
-                          ),
+                  const Spacer(), // Push exit button up from bottom
+                  Center(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await windowManager.close();
+                      },
+                      icon: const Icon(Icons.exit_to_app, color: Colors.white),
+                      label: const Text(
+                        'Exit Application',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
-                    ],
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                        shadowColor: Colors.red.withOpacity(0.3),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 40), // Add bottom spacing
                 ],

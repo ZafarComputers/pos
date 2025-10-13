@@ -150,16 +150,39 @@ class _PosNavbarState extends State<PosNavbar> {
             },
           ),
 
-          _buildActionButton(
-            icon: Icons.dashboard,
-            tooltip: 'Dashboard',
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/dashboard',
-                (route) => false, // Remove all routes from stack
-              );
-            },
+          // Slim purple dashboard button
+          Container(
+            margin: const EdgeInsets.only(left: 8),
+            child: Tooltip(
+              message: 'Back to Dashboard',
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/dashboard',
+                    (route) => false, // Remove all routes from stack
+                  );
+                },
+                icon: const Icon(Icons.dashboard, size: 16),
+                label: const Text(
+                  'Dashboard',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  elevation: 2,
+                  shadowColor: Colors.purple.withOpacity(0.3),
+                ),
+              ),
+            ),
           ),
 
           const SizedBox(width: 16),

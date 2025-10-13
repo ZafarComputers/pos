@@ -654,95 +654,35 @@ class _PosOrderListState extends State<PosOrderList> {
 
   Widget _buildEnhancedOrderItem(Map<String, dynamic> item) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Enhanced Product Image with better styling
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                item['image'],
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[100],
-                    child: Icon(
-                      Icons.inventory_2,
-                      size: 24,
-                      color: Colors.grey[400],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Enhanced Product Details
+          // Product Name Only
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item['name'],
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0D1845),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.attach_money, size: 14, color: Colors.teal[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Rs${item['price'].toStringAsFixed(2)} each',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.teal[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            child: Text(
+              item['name'],
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF0D1845),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
 
-          const SizedBox(width: 12),
-
-          // Enhanced Quantity Controls with better styling
+          // Quantity Controls
           Container(
             decoration: BoxDecoration(
               color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: Colors.grey[300]!),
             ),
             child: Row(
@@ -750,35 +690,38 @@ class _PosOrderListState extends State<PosOrderList> {
                 IconButton(
                   onPressed: () {
                     if (item['quantity'] > 1) {
-                      widget.onUpdateQuantity(item['id'], item['quantity'] - 1);
+                      widget.onUpdateQuantity(
+                        item['id'].toString(),
+                        item['quantity'] - 1,
+                      );
                     }
                   },
                   icon: Icon(
                     Icons.remove,
-                    size: 18,
+                    size: 16,
                     color: item['quantity'] > 1
                         ? Colors.red[600]
                         : Colors.grey[400],
                   ),
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(2),
                   constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                    minWidth: 28,
+                    minHeight: 28,
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 8,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0D1845),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     '${item['quantity']}',
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -786,65 +729,28 @@ class _PosOrderListState extends State<PosOrderList> {
                 ),
                 IconButton(
                   onPressed: () {
-                    widget.onUpdateQuantity(item['id'], item['quantity'] + 1);
+                    widget.onUpdateQuantity(
+                      item['id'].toString(),
+                      item['quantity'] + 1,
+                    );
                   },
-                  icon: Icon(Icons.add, size: 18, color: Colors.green[600]),
-                  padding: const EdgeInsets.all(4),
+                  icon: Icon(Icons.add, size: 16, color: Colors.green[600]),
+                  padding: const EdgeInsets.all(2),
                   constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                    minWidth: 28,
+                    minHeight: 28,
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(width: 12),
-
-          // Enhanced Total Price with icon
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.teal[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.teal[200]!),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.attach_money, size: 16, color: Colors.teal[700]),
-                const SizedBox(width: 4),
-                Text(
-                  'Rs${(item['price'] * item['quantity']).toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Enhanced Remove Button
+          // Remove Button
           IconButton(
-            onPressed: () => widget.onRemoveItem(item['id']),
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.red[200]!),
-              ),
-              child: Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: Colors.red[600],
-              ),
-            ),
+            onPressed: () => widget.onRemoveItem(item['id'].toString()),
+            icon: Icon(Icons.delete_outline, size: 16, color: Colors.red[600]),
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
         ],
       ),

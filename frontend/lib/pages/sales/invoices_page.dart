@@ -11,7 +11,6 @@ class InvoicesPage extends StatefulWidget {
 
 class _InvoicesPageState extends State<InvoicesPage> {
   // API data
-  List<Invoice> _invoices = [];
   List<Invoice> _filteredInvoices = [];
   List<Invoice> _allFilteredInvoices =
       []; // Store all filtered invoices for local pagination
@@ -35,9 +34,11 @@ class _InvoicesPageState extends State<InvoicesPage> {
   Future<void> _fetchAllInvoicesOnInit() async {
     try {
       print('🚀 Initial load: Fetching all invoices');
-      setState(() {
-        _errorMessage = null;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = null;
+        });
+      }
 
       final response = await SalesService.getInvoices();
       _allInvoicesCache = response.data;
@@ -47,17 +48,13 @@ class _InvoicesPageState extends State<InvoicesPage> {
       _applyFiltersClientSide();
     } catch (e) {
       print('❌ Critical error in _fetchAllInvoicesOnInit: $e');
-      setState(() {
-        _errorMessage = 'Failed to load invoices. Please refresh the page.';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load invoices. Please refresh the page.';
+          _isLoading = false;
+        });
+      }
     }
-  }
-
-  // Client-side only filter application
-  void _applyFilters() {
-    print('🎯 _applyFilters called - performing client-side filtering only');
-    _applyFiltersClientSide();
   }
 
   // Pure client-side filtering method
@@ -73,10 +70,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
       print('👀 _filteredInvoices.length: ${_filteredInvoices.length}');
     } catch (e) {
       print('❌ Error in _applyFiltersClientSide: $e');
-      setState(() {
-        _errorMessage = 'Search error: Please try a different search term';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Search error: Please try a different search term';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -117,19 +116,23 @@ class _InvoicesPageState extends State<InvoicesPage> {
       // Apply local pagination to filtered results
       _paginateFilteredInvoices();
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('❌ Critical error in _filterCachedInvoices: $e');
-      setState(() {
-        _errorMessage =
-            'Search failed. Please try again with a simpler search term.';
-        _isLoading = false;
-        // Fallback: show empty results instead of crashing
-        _filteredInvoices = [];
-        _allFilteredInvoices = [];
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              'Search failed. Please try again with a simpler search term.';
+          _isLoading = false;
+          // Fallback: show empty results instead of crashing
+          _filteredInvoices = [];
+          _allFilteredInvoices = [];
+        });
+      }
     }
   }
 
@@ -138,9 +141,11 @@ class _InvoicesPageState extends State<InvoicesPage> {
     try {
       // Handle empty results case
       if (_allFilteredInvoices.isEmpty) {
-        setState(() {
-          _filteredInvoices = [];
-        });
+        if (mounted) {
+          setState(() {
+            _filteredInvoices = [];
+          });
+        }
         return;
       }
 
@@ -150,67 +155,52 @@ class _InvoicesPageState extends State<InvoicesPage> {
       // Ensure startIndex is not greater than the list length
       if (startIndex >= _allFilteredInvoices.length) {
         // Reset to page 1 if current page is out of bounds
-        setState(() {
-          currentPage = 1;
-        });
+        if (mounted) {
+          setState(() {
+            currentPage = 1;
+          });
+        }
         _paginateFilteredInvoices(); // Recursive call with corrected page
         return;
       }
 
-      setState(() {
-        _filteredInvoices = _allFilteredInvoices.sublist(
-          startIndex,
-          endIndex > _allFilteredInvoices.length
-              ? _allFilteredInvoices.length
-              : endIndex,
-        );
-      });
+      if (mounted) {
+        setState(() {
+          _filteredInvoices = _allFilteredInvoices.sublist(
+            startIndex,
+            endIndex > _allFilteredInvoices.length
+                ? _allFilteredInvoices.length
+                : endIndex,
+          );
+        });
+      }
 
       print(
         'Paginated to ${_filteredInvoices.length} items for display (page $currentPage)',
       );
     } catch (e) {
       print('❌ Error in _paginateFilteredInvoices: $e');
-      setState(() {
-        _filteredInvoices = [];
-        currentPage = 1;
-      });
+      if (mounted) {
+        setState(() {
+          _filteredInvoices = [];
+          currentPage = 1;
+        });
+      }
     }
   }
 
   // Handle page changes
   Future<void> _changePage(int newPage) async {
-    setState(() {
-      currentPage = newPage;
-    });
+    if (mounted) {
+      setState(() {
+        currentPage = newPage;
+      });
+    }
 
     // Use client-side pagination when we have cached invoices
     if (_allInvoicesCache.isNotEmpty) {
       _paginateFilteredInvoices();
     }
-  }
-
-  List<Invoice> _getFilteredInvoices() {
-    return _invoices.where((invoice) {
-      // Date filtering based on time filter
-      bool dateMatch = true;
-      final now = DateTime.now();
-      final invoiceDate = DateTime.parse(invoice.invDate);
-
-      if (_selectedTimeFilter == 'Day') {
-        dateMatch =
-            invoiceDate.year == now.year &&
-            invoiceDate.month == now.month &&
-            invoiceDate.day == now.day;
-      } else if (_selectedTimeFilter == 'Month') {
-        dateMatch =
-            invoiceDate.year == now.year && invoiceDate.month == now.month;
-      } else if (_selectedTimeFilter == 'Year') {
-        dateMatch = invoiceDate.year == now.year;
-      }
-
-      return dateMatch;
-    }).toList();
   }
 
   bool _canGoToNextPage() {
@@ -313,43 +303,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
   }
 
   void _editInvoice(Invoice invoice) async {
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text('Loading invoice for editing...'),
-            ],
-          ),
-        );
-      },
-    );
-
-    try {
-      final invoiceDetail = await SalesService.getInvoiceById(invoice.invId);
-
-      // Close loading dialog and show edit dialog
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        _showEditInvoiceDialog(invoiceDetail);
-      }
-    } catch (e) {
-      // Close loading dialog and show error
-      if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load invoice for editing: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    // Navigate to POS page with invoice data for editing
+    Navigator.pushNamed(context, '/pos', arguments: invoice);
   }
 
   void _deleteInvoice(Invoice invoice) async {
@@ -379,9 +334,13 @@ class _InvoicesPageState extends State<InvoicesPage> {
         await SalesService.deleteInvoice(invoice.invId);
 
         // Remove the invoice from local lists in real-time
-        setState(() {
-          _allInvoicesCache.removeWhere((item) => item.invId == invoice.invId);
-        });
+        if (mounted) {
+          setState(() {
+            _allInvoicesCache.removeWhere(
+              (item) => item.invId == invoice.invId,
+            );
+          });
+        }
 
         // Re-apply filters to update the displayed list
         _applyFiltersClientSide();
@@ -399,429 +358,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
         }
       }
     }
-  }
-
-  // Helper method to show edit invoice dialog
-  void _showEditInvoiceDialog(InvoiceDetailResponse invoiceDetail) {
-    // Controllers for form fields
-    final _invDateController = TextEditingController(
-      text: invoiceDetail.invDate,
-    );
-    final _customerIdController = TextEditingController(
-      text: '1',
-    ); // Default customer ID
-    final _taxController = TextEditingController(text: '50');
-    final _discPerController = TextEditingController(text: '50');
-    final _discAmountController = TextEditingController(text: '5050');
-    final _invAmountController = TextEditingController(text: '15050');
-    final _paidController = TextEditingController(text: '15050');
-
-    // Details list for products
-    List<Map<String, dynamic>> _details = invoiceDetail.details.map((detail) {
-      return {
-        'product_id': int.tryParse(detail.productId) ?? 0,
-        'qty': int.tryParse(detail.quantity) ?? 0,
-        'sale_price': double.tryParse(detail.price) ?? 0.0,
-      };
-    }).toList();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                constraints: BoxConstraints(maxHeight: 700),
-                child: Column(
-                  children: [
-                    // Header
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
-                        ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                          topRight: Radius.circular(16),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.edit, color: Colors.white, size: 28),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Edit Invoice',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  'INV-${invoiceDetail.invId}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Basic Information
-                            const Text(
-                              'Basic Information',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0D1845),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _invDateController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Invoice Date',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _customerIdController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Customer ID',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _taxController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Tax',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _discPerController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Discount Percent',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Financial Information
-                            const Text(
-                              'Financial Information',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0D1845),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _discAmountController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Discount Amount',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _invAmountController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Invoice Amount',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            TextFormField(
-                              controller: _paidController,
-                              decoration: const InputDecoration(
-                                labelText: 'Paid Amount',
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Invoice Items
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Invoice Items',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0D1845),
-                                  ),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      _details.add({
-                                        'product_id': 0,
-                                        'qty': 0,
-                                        'sale_price': 0.0,
-                                      });
-                                    });
-                                  },
-                                  icon: const Icon(Icons.add, size: 16),
-                                  label: const Text('Add Item'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0D1845),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            ..._details.asMap().entries.map((entry) {
-                              final index = entry.key;
-                              final detail = entry.value;
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextFormField(
-                                            initialValue: detail['product_id']
-                                                .toString(),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Product ID',
-                                              border: OutlineInputBorder(),
-                                            ),
-                                            keyboardType: TextInputType.number,
-                                            onChanged: (value) =>
-                                                detail['product_id'] =
-                                                    int.tryParse(value) ?? 0,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: TextFormField(
-                                            initialValue: detail['qty']
-                                                .toString(),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Quantity',
-                                              border: OutlineInputBorder(),
-                                            ),
-                                            keyboardType: TextInputType.number,
-                                            onChanged: (value) =>
-                                                detail['qty'] =
-                                                    int.tryParse(value) ?? 0,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextFormField(
-                                            initialValue: detail['sale_price']
-                                                .toString(),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Sale Price',
-                                              border: OutlineInputBorder(),
-                                            ),
-                                            keyboardType: TextInputType.number,
-                                            onChanged: (value) =>
-                                                detail['sale_price'] =
-                                                    double.tryParse(value) ??
-                                                    0.0,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              _details.removeAt(index);
-                                            });
-                                          },
-                                          icon: const Icon(
-                                            Icons.delete,
-                                            color: Colors.red,
-                                          ),
-                                          tooltip: 'Remove Item',
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Footer
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: const BorderRadius.only(
-                          bottomLeft: Radius.circular(16),
-                          bottomRight: Radius.circular(16),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Cancel'),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton(
-                            onPressed: () async {
-                              try {
-                                final updateData = {
-                                  'inv_date': _invDateController.text,
-                                  'customer_id': int.tryParse(
-                                    _customerIdController.text,
-                                  ),
-                                  'tax': int.tryParse(_taxController.text),
-                                  'discPer': int.tryParse(
-                                    _discPerController.text,
-                                  ),
-                                  'discAmount': int.tryParse(
-                                    _discAmountController.text,
-                                  ),
-                                  'inv_amount': int.tryParse(
-                                    _invAmountController.text,
-                                  ),
-                                  'paid': int.tryParse(_paidController.text),
-                                  'details': _details,
-                                };
-
-                                await SalesService.updateInvoice(
-                                  invoiceDetail.invId,
-                                  updateData,
-                                );
-
-                                if (mounted) {
-                                  Navigator.of(context).pop();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Invoice updated successfully',
-                                      ),
-                                    ),
-                                  );
-                                  // Refresh the invoice list
-                                  _fetchAllInvoicesOnInit();
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Failed to update invoice: $e',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0D1845),
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Update Invoice'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   // Helper method to show invoice details dialog
@@ -960,9 +496,18 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    DateFormat('dd MMM yyyy').format(
-                                      DateTime.parse(invoiceDetail.invDate),
-                                    ),
+                                    (() {
+                                      try {
+                                        return DateFormat('dd MMM yyyy').format(
+                                          DateTime.parse(invoiceDetail.invDate),
+                                        );
+                                      } catch (e) {
+                                        print(
+                                          '❌ Error parsing invoice date: $e',
+                                        );
+                                        return 'Invalid Date';
+                                      }
+                                    })(),
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade600,
@@ -1222,22 +767,14 @@ class _InvoicesPageState extends State<InvoicesPage> {
     );
   }
 
-  String _getInvoiceStatus(Invoice invoice) {
-    if (invoice.dueAmount == 0) return 'Paid';
-    if (invoice.paidAmount > 0) return 'Partial';
-    return 'Unpaid';
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Paid':
+  Color _getPaymentModeColor(String paymentMode) {
+    switch (paymentMode.toLowerCase()) {
+      case 'cash':
         return Colors.green;
-      case 'Unpaid':
-        return Colors.red;
-      case 'Partial':
+      case 'bank':
+        return Colors.blue;
+      case 'credit':
         return Colors.orange;
-      case 'Overdue':
-        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -1509,7 +1046,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                             )
                                             .toList(),
                                         onChanged: (value) {
-                                          if (value != null) {
+                                          if (value != null && mounted) {
                                             setState(() {
                                               _selectedTimeFilter = value;
                                             });
@@ -1580,7 +1117,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           const SizedBox(width: 16),
                           Expanded(
                             flex: 2,
-                            child: Text('Status', style: _headerStyle()),
+                            child: Text(
+                              'Mode of Payment',
+                              style: _headerStyle(),
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -1679,7 +1219,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                                     const SizedBox(width: 12),
                                                     Expanded(
                                                       child: Text(
-                                                        invoice.customerName,
+                                                        invoice.isCreditCustomer
+                                                            ? invoice
+                                                                  .customerName
+                                                            : 'Walk-in Customer',
                                                         style: _cellStyle(),
                                                       ),
                                                     ),
@@ -1762,10 +1305,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                                         vertical: 4,
                                                       ),
                                                   decoration: BoxDecoration(
-                                                    color: _getStatusColor(
-                                                      _getInvoiceStatus(
-                                                        invoice,
-                                                      ),
+                                                    color: _getPaymentModeColor(
+                                                      invoice.paymentMode,
                                                     ).withOpacity(0.1),
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -1773,13 +1314,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                                         ),
                                                   ),
                                                   child: Text(
-                                                    _getInvoiceStatus(invoice),
+                                                    invoice.paymentMode,
                                                     style: TextStyle(
-                                                      color: _getStatusColor(
-                                                        _getInvoiceStatus(
-                                                          invoice,
-                                                        ),
-                                                      ),
+                                                      color:
+                                                          _getPaymentModeColor(
+                                                            invoice.paymentMode,
+                                                          ),
                                                       fontSize: 12,
                                                       fontWeight:
                                                           FontWeight.w500,
