@@ -466,13 +466,19 @@ class InventoryService {
   }
 
   // Get single category by ID from API
-  static Future<category.Category> getCategory(int categoryId) async {
-    print('� INVENTORY: Getting category $categoryId');
+  static Future<category.CategoryDetails> getCategory(int categoryId) async {
+    print('📂 INVENTORY: Getting category $categoryId');
     final response = await _authenticatedRequest(
       'GET',
       '/categories/$categoryId',
     );
-    return category.Category.fromJson(response);
+    // API returns data wrapped in "data" key
+    if (response.containsKey('data')) {
+      return category.CategoryDetails.fromJson(response['data']);
+    } else {
+      // Fallback for direct response
+      return category.CategoryDetails.fromJson(response);
+    }
   }
 
   // Create category via API
@@ -600,7 +606,13 @@ class InventoryService {
       'GET',
       '/subcategories/$subCategoryId',
     );
-    return subCategory.SubCategory.fromJson(response);
+    // API returns data wrapped in "data" key
+    if (response.containsKey('data')) {
+      return subCategory.SubCategory.fromJson(response['data']);
+    } else {
+      // Fallback for direct response
+      return subCategory.SubCategory.fromJson(response);
+    }
   }
 
   // Create subcategory via API

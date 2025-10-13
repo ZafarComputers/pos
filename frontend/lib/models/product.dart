@@ -38,14 +38,19 @@ class Product {
       return null;
     }
 
-    final id = parseId(json['id']) ??
-              parseId(json['product_id']) ??
-              parseId(json['ID']) ??
-              0;
+    final id =
+        parseId(json['id']) ??
+        parseId(json['product_id']) ??
+        parseId(json['ID']) ??
+        0;
 
     return Product(
       id: id,
-      title: json['title']?.toString() ?? json['name']?.toString() ?? '',
+      title:
+          json['title']?.toString() ??
+          json['name']?.toString() ??
+          json['productName']?.toString() ??
+          '',
       designCode: json['design_code']?.toString() ?? '',
       imagePath: json['image_path']?.toString(),
       subCategoryId: json['sub_category_id']?.toString() ?? '',
@@ -85,15 +90,23 @@ class ProductVendor {
   });
 
   factory ProductVendor.fromJson(Map<String, dynamic> json) {
+    // Combine first_name and last_name if available, otherwise use name
+    String? vendorName;
+    if (json['first_name'] != null && json['last_name'] != null) {
+      vendorName = '${json['first_name']} ${json['last_name']}';
+    } else {
+      vendorName = json['name']?.toString();
+    }
+
     return ProductVendor(
       id: json['id'] ?? 0,
-      name: json['name'],
-      email: json['email'],
-      phone: json['phone'],
-      address: json['address'],
-      status: json['status'] ?? '',
-      createdAt: json['created_at'] ?? '',
-      updatedAt: json['updated_at'] ?? '',
+      name: vendorName,
+      email: json['email']?.toString(),
+      phone: json['phone']?.toString(),
+      address: json['address']?.toString(),
+      status: json['status']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString() ?? '',
     );
   }
 

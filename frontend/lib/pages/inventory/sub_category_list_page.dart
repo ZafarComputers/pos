@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as excel_pkg;
 import '../../services/inventory_service.dart';
 import '../../models/sub_category.dart';
 import '../../models/category.dart';
+import 'add_sub_category_page.dart';
+import 'sub_category_detail_page.dart';
+import 'edit_sub_category_page.dart';
 
 class SubCategoryListPage extends StatefulWidget {
   const SubCategoryListPage({super.key});
@@ -35,10 +37,6 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   String selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounceTimer;
-
-  // Image-related state variables
-  File? _selectedImage;
-  String? _imagePath;
 
   List<Category> categories = [];
 
@@ -458,7 +456,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
         }
 
         // Color code status
-        if (subCategory.status == 'Active') {
+        if (subCategory.status == 'active') {
           row.cells[3].style.backgroundBrush = PdfSolidBrush(
             PdfColor(212, 237, 218),
           );
@@ -840,701 +838,30 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   }
 
   void addNewSubCategory() async {
-    final titleController = TextEditingController();
-    int? selectedCategoryId;
-    String selectedStatus = 'Active';
-
-    // Reset image state
-    _selectedImage = null;
-    _imagePath = null;
-
-    await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Icon(Icons.add_circle, color: Color(0xFF17A2B8)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Add New Sub Category',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF343A40),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: 'Sub Category Title *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Image Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sub Category Image (optional)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Color(0xFFDEE2E6)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: _selectedImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.image,
-                                      color: Color(0xFF6C757D),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'No image selected',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                        SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final picker = ImagePicker();
-                            final pickedFile = await picker.pickImage(
-                              source: ImageSource.gallery,
-                            );
-                            if (pickedFile != null) {
-                              final imageFile = File(pickedFile.path);
-                              // Save to local storage
-                              try {
-                                final directory = Directory(
-                                  '${Directory.current.path}/assets/images/subcategories',
-                                );
-                                if (!await directory.exists()) {
-                                  await directory.create(recursive: true);
-                                }
-                                final fileName =
-                                    'subcategory_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                final savedImage = await imageFile.copy(
-                                  '${directory.path}/$fileName',
-                                );
-                                setState(() {
-                                  _selectedImage = savedImage;
-                                  _imagePath =
-                                      'https://zafarcomputers.com/assets/images/subcategories/$fileName';
-                                });
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to save image: $e'),
-                                    backgroundColor: Color(0xFFDC3545),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: Icon(Icons.photo_library),
-                          label: Text(
-                            _selectedImage == null
-                                ? 'Select Image'
-                                : 'Change Image',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF0D1845),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      value: selectedCategoryId,
-                      decoration: InputDecoration(
-                        labelText: 'Parent Category *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: categories.map((category) {
-                        return DropdownMenuItem<int>(
-                          value: category.id,
-                          child: Text(category.title),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() => selectedCategoryId = value);
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select a parent category';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: ['Active', 'Inactive']
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => selectedStatus = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Color(0xFF6C757D)),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please enter a sub category title'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (selectedCategoryId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please select a parent category'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      setState(() => isLoading = true);
-                      Navigator.of(context).pop(true); // Close dialog first
-
-                      // First create the subcategory without image
-                      final createData = {
-                        'title': titleController.text.trim(),
-                        'category_id': selectedCategoryId,
-                        'status': selectedStatus,
-                      };
-
-                      final createdResponse =
-                          await InventoryService.createSubCategory(createData);
-                      final createdSubCategory = SubCategory.fromJson(
-                        createdResponse,
-                      );
-
-                      // If we have an image, rename it to use the subcategory ID
-                      if (_selectedImage != null && _imagePath != null) {
-                        try {
-                          final directory = Directory(
-                            '${Directory.current.path}/assets/images/subcategories',
-                          );
-                          final oldFileName = _imagePath!.split('/').last;
-                          final newFileName =
-                              'subcategory_${createdSubCategory.id}.jpg';
-                          final oldFile = File(
-                            '${directory.path}/$oldFileName',
-                          );
-                          final newFile = File(
-                            '${directory.path}/$newFileName',
-                          );
-
-                          if (await oldFile.exists()) {
-                            await oldFile.rename(newFile.path);
-
-                            // Update the subcategory with the correct image path
-                            final updateData = {
-                              'title': createdSubCategory.title,
-                              'category_id': createdSubCategory.categoryId,
-                              'status': createdSubCategory.status,
-                              'img_path':
-                                  'https://zafarcomputers.com/assets/images/subcategories/$newFileName',
-                            };
-
-                            await InventoryService.updateSubCategory(
-                              createdSubCategory.id,
-                              updateData,
-                            );
-                          }
-                        } catch (e) {
-                          // Handle file operation errors silently or log them
-                          print('Error handling image file: $e');
-                        }
-                      }
-
-                      // Refresh the subcategories list
-                      await _fetchAllSubCategoriesOnInit();
-                      await _fetchSubCategories(page: currentPage);
-
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Sub category created successfully'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFF28A745),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.error, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Failed to create sub category: $e'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFFDC3545),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF17A2B8),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddSubCategoryPage()),
     );
+
+    if (result == true) {
+      // Refresh the sub categories list
+      await _fetchAllSubCategoriesOnInit();
+      await _fetchSubCategories(page: currentPage);
+    }
   }
 
   void editSubCategory(SubCategory subCategory) async {
-    final titleController = TextEditingController(text: subCategory.title);
-    int? selectedCategoryId = subCategory.categoryId;
-    String selectedStatus = subCategory.status;
-
-    // Reset image state
-    _selectedImage = null;
-    _imagePath = subCategory.imgPath;
-
-    await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Icon(Icons.edit, color: Color(0xFF28A745)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Edit Sub Category',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF343A40),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: 'Sub Category Title *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Image Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sub Category Image (optional)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Color(0xFFDEE2E6)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: _selectedImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : _imagePath != null && _imagePath!.isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    _imagePath!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.broken_image,
-                                            color: Color(0xFF6C757D),
-                                            size: 48,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Image not available',
-                                            style: TextStyle(
-                                              color: Color(0xFF6C757D),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.image,
-                                      color: Color(0xFF6C757D),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'No image selected',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                        SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final picker = ImagePicker();
-                            final pickedFile = await picker.pickImage(
-                              source: ImageSource.gallery,
-                            );
-                            if (pickedFile != null) {
-                              final imageFile = File(pickedFile.path);
-                              // Save to local storage
-                              try {
-                                final directory = Directory(
-                                  '${Directory.current.path}/assets/images/subcategories',
-                                );
-                                if (!await directory.exists()) {
-                                  await directory.create(recursive: true);
-                                }
-                                final fileName =
-                                    'subcategory_${subCategory.id}.jpg';
-                                final savedImage = await imageFile.copy(
-                                  '${directory.path}/$fileName',
-                                );
-                                setState(() {
-                                  _selectedImage = savedImage;
-                                  _imagePath =
-                                      'https://zafarcomputers.com/assets/images/subcategories/$fileName';
-                                });
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to save image: $e'),
-                                    backgroundColor: Color(0xFFDC3545),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: Icon(Icons.photo_library),
-                          label: Text(
-                            _selectedImage != null ||
-                                    (_imagePath != null &&
-                                        _imagePath!.isNotEmpty)
-                                ? 'Change Image'
-                                : 'Select Image',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF0D1845),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      value: selectedCategoryId,
-                      decoration: InputDecoration(
-                        labelText: 'Parent Category *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: categories.map((category) {
-                        return DropdownMenuItem<int>(
-                          value: category.id,
-                          child: Text(category.title),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() => selectedCategoryId = value);
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Please select a parent category';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: ['Active', 'Inactive']
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => selectedStatus = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Color(0xFF6C757D)),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please enter a sub category title'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (selectedCategoryId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please select a parent category'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      setState(() => isLoading = true);
-                      Navigator.of(context).pop(true); // Close dialog first
-
-                      final updateData = {
-                        'title': titleController.text.trim(),
-                        'category_id': selectedCategoryId,
-                        'status': selectedStatus,
-                        if (_imagePath != null) 'img_path': _imagePath,
-                      };
-
-                      await InventoryService.updateSubCategory(
-                        subCategory.id,
-                        updateData,
-                      );
-
-                      // Refresh the subcategories list
-                      await _fetchAllSubCategoriesOnInit();
-                      await _fetchSubCategories(page: currentPage);
-
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Sub category updated successfully'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFF28A745),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.error, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Failed to update sub category: $e'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFFDC3545),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF28A745),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditSubCategoryPage(subCategory: subCategory),
+      ),
     );
+
+    if (result == true) {
+      // Refresh the subcategories list
+      await _fetchAllSubCategoriesOnInit();
+    }
   }
 
   void deleteSubCategory(SubCategory subCategory) {
@@ -1564,50 +891,94 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  Navigator.of(context).pop(); // Close dialog first
                   setState(() => isLoading = true);
+                  Navigator.of(context).pop(); // Close dialog first
 
-                  await InventoryService.deleteSubCategory(subCategory.id);
-
-                  // Refresh the subcategories list
-                  await _fetchAllSubCategoriesOnInit();
-                  await _fetchSubCategories(page: currentPage);
-
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text('Sub category deleted successfully'),
-                        ],
-                      ),
-                      backgroundColor: Color(0xFFDC3545),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                  final response = await InventoryService.deleteSubCategory(
+                    subCategory.id,
                   );
+
+                  // Check if the response indicates success
+                  if (response['status'] == true) {
+                    // Clear the cache and refresh from server
+                    setState(() {
+                      _allSubCategoriesCache.clear();
+                      _allFilteredSubCategories.clear();
+                      subCategories.clear();
+                      totalSubCategories = 0;
+                      currentPage = 1;
+                      totalPages = 1;
+                    });
+
+                    // Refresh the subcategories list
+                    await _fetchAllSubCategoriesOnInit();
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                response['message'] ??
+                                    'Sub category deleted successfully',
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFF28A745),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    }
+                  } else {
+                    // API returned status: false
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              Icon(Icons.error, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                response['message'] ??
+                                    'Failed to delete sub category',
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                    }
+                  }
                 } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.error, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text('Failed to delete sub category: $e'),
-                        ],
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.error, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Failed to delete sub category: ${e.toString()}',
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Color(0xFFDC3545),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      backgroundColor: Color(0xFFDC3545),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  );
+                    );
+                  }
                 } finally {
                   if (mounted) setState(() => isLoading = false);
                 }
@@ -1628,253 +999,12 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   }
 
   void viewSubCategoryDetails(SubCategory subCategory) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return FutureBuilder<SubCategory>(
-              future: InventoryService.getSubCategory(subCategory.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Icon(Icons.visibility, color: Color(0xFF17A2B8)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Sub Category Details',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Container(
-                      width: 400,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF0D1845),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Loading sub category details...',
-                            style: TextStyle(
-                              color: Color(0xFF6C757D),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                } else if (snapshot.hasError) {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Icon(Icons.error, color: Color(0xFFDC3545)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Error',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Container(
-                      width: 400,
-                      child: Text(
-                        'Failed to load sub category details: ${snapshot.error}',
-                        style: TextStyle(color: Color(0xFF6C757D)),
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                } else if (snapshot.hasData) {
-                  final details = snapshot.data!;
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Icon(Icons.visibility, color: Color(0xFF17A2B8)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Sub Category Details',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Image Section
-                          Container(
-                            width: 300,
-                            height: 150,
-                            margin: EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Color(0xFFDEE2E6)),
-                            ),
-                            child: FutureBuilder<Uint8List?>(
-                              future: _loadSubCategoryImage(
-                                'subcategory_${details.id}.jpg',
-                              ),
-                              builder: (context, imageSnapshot) {
-                                if (imageSnapshot.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF0D1845),
-                                      ),
-                                    ),
-                                  );
-                                } else if (imageSnapshot.hasData &&
-                                    imageSnapshot.data != null) {
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.memory(
-                                      imageSnapshot.data!,
-                                      fit: BoxFit.cover,
-                                      width: 300,
-                                      height: 150,
-                                    ),
-                                  );
-                                } else {
-                                  return Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.image_not_supported,
-                                        color: Color(0xFF6C757D),
-                                        size: 48,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'No image available',
-                                        style: TextStyle(
-                                          color: Color(0xFF6C757D),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-
-                          // Details
-                          _buildDetailRow('Title', details.title),
-                          _buildDetailRow('Code', details.subCategoryCode),
-                          _buildDetailRow(
-                            'Category',
-                            details.category?.title ?? 'N/A',
-                          ),
-                          _buildDetailRow('Status', details.status),
-                          _buildDetailRow(
-                            'Created',
-                            _formatDate(details.createdAt),
-                          ),
-                          _buildDetailRow(
-                            'Updated',
-                            _formatDate(details.updatedAt),
-                          ),
-                        ],
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                } else {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Icon(Icons.error, color: Color(0xFFDC3545)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Error',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Container(
-                      width: 400,
-                      child: Text(
-                        'No data available',
-                        style: TextStyle(color: Color(0xFF6C757D)),
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-              },
-            );
-          },
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            SubCategoryDetailPage(subCategoryId: subCategory.id),
+      ),
     );
   }
 
@@ -1988,7 +1118,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                       _buildSummaryCard(
                         'Active Sub Categories',
                         subCategories
-                            .where((s) => s.status == 'Active')
+                            .where((s) => s.status == 'active')
                             .length
                             .toString(),
                         Icons.check_circle,
@@ -1998,7 +1128,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                       _buildSummaryCard(
                         'Inactive Sub Categories',
                         subCategories
-                            .where((s) => s.status != 'Active')
+                            .where((s) => s.status != 'active')
                             .length
                             .toString(),
                         Icons.cancel,
@@ -2111,7 +1241,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                 child: DropdownButton<String>(
                                   value: selectedStatus,
                                   underline: const SizedBox(),
-                                  items: ['All', 'Active', 'Inactive']
+                                  items: ['All', 'active', 'inactive']
                                       .map(
                                         (status) => DropdownMenuItem<String>(
                                           value: status,
@@ -2505,7 +1635,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                             ),
                                             decoration: BoxDecoration(
                                               color:
-                                                  subCategory.status == 'Active'
+                                                  subCategory.status == 'active'
                                                   ? Colors.green.withOpacity(
                                                       0.1,
                                                     )
@@ -2520,7 +1650,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                                                 fontWeight: FontWeight.w500,
                                                 color:
                                                     subCategory.status ==
-                                                        'Active'
+                                                        'active'
                                                     ? Colors.green
                                                     : Colors.red,
                                               ),
@@ -2761,19 +1891,6 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
     }
   }
 
-  Color _getSubCategoryColor(String categoryName) {
-    switch (categoryName.toLowerCase()) {
-      case 'computers':
-        return Color(0xFF17A2B8);
-      case 'electronics':
-        return Color(0xFF28A745);
-      case 'shoe':
-        return Color(0xFFDC3545);
-      default:
-        return Color(0xFF0D1845);
-    }
-  }
-
   IconData _getSubCategoryIcon(String subCategoryName) {
     switch (subCategoryName.toLowerCase()) {
       case 'laptop':
@@ -2790,43 +1907,6 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
         return Icons.tablet;
       default:
         return Icons.inventory;
-    }
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF343A40),
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return dateString;
     }
   }
 }

@@ -25,7 +25,9 @@ class SubCategory {
     return SubCategory(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
-      imgPath: json['img_path'],
+      imgPath:
+          json['img_url'] ??
+          json['img_path'], // Handle both img_url and img_path
       categoryId: int.tryParse(json['category_id'].toString()) ?? 0,
       status: json['status'] ?? '',
       createdAt: json['created_at'] ?? '',

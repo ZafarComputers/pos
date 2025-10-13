@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +9,9 @@ import '../../services/inventory_service.dart';
 import '../../models/category.dart';
 import 'package:excel/excel.dart' as excel_pkg;
 import '../../providers/providers.dart';
+import 'category_details_page.dart';
+import 'edit_category_page.dart';
+import 'add_category_page.dart';
 
 class CategoryListPage extends StatefulWidget {
   const CategoryListPage({super.key});
@@ -37,10 +39,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
   List<Category> _allCategoriesCache = [];
   List<Category> _allFilteredCategories =
       []; // Store all filtered categories for local pagination
-
-  // Image-related state variables
-  File? _selectedImage;
-  String? _imagePath;
 
   @override
   void initState() {
@@ -182,6 +180,58 @@ class _CategoryListPageState extends State<CategoryListPage> {
           isLoading = false;
         });
       }
+    }
+  }
+
+  // Force refresh categories from API (bypasses provider cache)
+  Future<void> _refreshCategoriesAfterChange() async {
+    print('🔄 Force refreshing categories from API after change');
+    try {
+      setState(() {
+        errorMessage = null;
+      });
+
+      // Fetch all categories from all pages (force fresh data)
+      List<Category> allCategories = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        try {
+          print('📡 Force fetching page $currentFetchPage');
+          final response = await InventoryService.getCategories(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
+
+          allCategories.addAll(response.data);
+          print(
+            '📦 Force fetch page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
+          );
+
+          // Check if there are more pages
+          if (response.meta.currentPage >= response.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error force fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allCategoriesCache = allCategories;
+      print('💾 Force cached ${_allCategoriesCache.length} total categories');
+
+      // Apply current filters to the fresh data
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _refreshCategoriesAfterChange: $e');
+      setState(() {
+        errorMessage = 'Failed to refresh categories. Please try again.';
+        isLoading = false;
+      });
     }
   }
 
@@ -559,7 +609,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
         }
 
         // Color code status
-        if (category.status == 'Active') {
+        if (category.status == 'active') {
           row.cells[2].style.backgroundBrush = PdfSolidBrush(
             PdfColor(212, 237, 218),
           );
@@ -918,626 +968,15 @@ class _CategoryListPageState extends State<CategoryListPage> {
   }
 
   void addNewCategory() async {
-    final titleController = TextEditingController();
-    String selectedStatus = 'Active';
-
-    // Reset image state
-    _selectedImage = null;
-    _imagePath = null;
-
-    await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Icon(Icons.add_circle, color: Color(0xFF17A2B8)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Add New Category',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF343A40),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: 'Category Title *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Image Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Category Image (optional)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Color(0xFFDEE2E6)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: _selectedImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.image,
-                                      color: Color(0xFF6C757D),
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'No image selected',
-                                      style: TextStyle(
-                                        color: Color(0xFF6C757D),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                        SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final picker = ImagePicker();
-                            final pickedFile = await picker.pickImage(
-                              source: ImageSource.gallery,
-                            );
-                            if (pickedFile != null) {
-                              final imageFile = File(pickedFile.path);
-                              // Save to local storage
-                              try {
-                                final directory = Directory(
-                                  '${Directory.current.path}/assets/images/categories',
-                                );
-                                if (!await directory.exists()) {
-                                  await directory.create(recursive: true);
-                                }
-                                final fileName =
-                                    'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                final savedImage = await imageFile.copy(
-                                  '${directory.path}/$fileName',
-                                );
-                                setState(() {
-                                  _selectedImage = savedImage;
-                                  _imagePath =
-                                      'https://zafarcomputers.com/assets/images/categories/$fileName';
-                                });
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to save image: $e'),
-                                    backgroundColor: Color(0xFFDC3545),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: Icon(Icons.photo_library),
-                          label: Text(
-                            _selectedImage == null
-                                ? 'Select Image'
-                                : 'Change Image',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF0D1845),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: ['Active', 'Inactive']
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => selectedStatus = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Color(0xFF6C757D)),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please enter a category title'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      setState(() => isLoading = true);
-                      Navigator.of(context).pop(true); // Close dialog first
-
-                      final createData = {
-                        'title': titleController.text.trim(),
-                        'status': selectedStatus,
-                        if (_imagePath != null) 'img_path': _imagePath,
-                      };
-
-                      await InventoryService.createCategory(createData);
-
-                      // Refresh the categories cache and apply current filters
-                      await _fetchAllCategoriesOnInit();
-
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Category created successfully'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFF28A745),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.error, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Failed to create category: $e'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFFDC3545),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF17A2B8),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddCategoryPage()),
     );
-  }
 
-  void editCategory(Category category) async {
-    final titleController = TextEditingController(text: category.title);
-    final categoryCodeController = TextEditingController(
-      text: category.categoryCode,
-    );
-    String selectedStatus = category.status;
-
-    // Reset image state for editing
-    _selectedImage = null;
-    _imagePath = category.imgPath;
-
-    await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: [
-                  Icon(Icons.edit, color: Color(0xFF28A745)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Edit Category',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF343A40),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: 'Category Title',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: categoryCodeController,
-                      decoration: InputDecoration(
-                        labelText: 'Category Code',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Image Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Category Image (optional)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        if (_selectedImage != null)
-                          Container(
-                            width: double.infinity,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Color(0xFFDEE2E6)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                _selectedImage!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          )
-                        else if (_imagePath != null && _imagePath!.isNotEmpty)
-                          Container(
-                            width: double.infinity,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Color(0xFFDEE2E6)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child:
-                                _imagePath!.startsWith('http') &&
-                                    !_imagePath!.contains('zafarcomputers.com')
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      _imagePath!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) => Icon(
-                                            Icons.category,
-                                            color: Color(0xFF6C757D),
-                                            size: 48,
-                                          ),
-                                    ),
-                                  )
-                                : FutureBuilder<Uint8List?>(
-                                    future: _loadCategoryImage(_imagePath!),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return Center(
-                                          child: CircularProgressIndicator(),
-                                        );
-                                      } else if (snapshot.hasData &&
-                                          snapshot.data != null) {
-                                        return ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          child: Image.memory(
-                                            snapshot.data!,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        );
-                                      } else {
-                                        return Icon(
-                                          Icons.category,
-                                          color: Color(0xFF6C757D),
-                                          size: 48,
-                                        );
-                                      }
-                                    },
-                                  ),
-                          )
-                        else
-                          Container(
-                            width: double.infinity,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Color(0xFFDEE2E6)),
-                              borderRadius: BorderRadius.circular(8),
-                              color: Color(0xFFF8F9FA),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.image,
-                                  color: Color(0xFF6C757D),
-                                  size: 48,
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'No image selected',
-                                  style: TextStyle(color: Color(0xFF6C757D)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final picker = ImagePicker();
-                            final pickedFile = await picker.pickImage(
-                              source: ImageSource.gallery,
-                            );
-                            if (pickedFile != null) {
-                              final imageFile = File(pickedFile.path);
-                              // Save to local storage
-                              try {
-                                final directory = Directory(
-                                  '${Directory.current.path}/assets/images/categories',
-                                );
-                                if (!await directory.exists()) {
-                                  await directory.create(recursive: true);
-                                }
-                                final fileName =
-                                    'category_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                final savedImage = await imageFile.copy(
-                                  '${directory.path}/$fileName',
-                                );
-                                setState(() {
-                                  _selectedImage = savedImage;
-                                  _imagePath =
-                                      'https://zafarcomputers.com/assets/images/categories/$fileName';
-                                });
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to save image: $e'),
-                                    backgroundColor: Color(0xFFDC3545),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: Icon(Icons.photo_library),
-                          label: Text(
-                            _selectedImage != null ||
-                                    (_imagePath != null &&
-                                        _imagePath!.isNotEmpty)
-                                ? 'Change Image'
-                                : 'Select Image',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF0D1845),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      decoration: InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: ['Active', 'Inactive']
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => selectedStatus = value);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Color(0xFF6C757D)),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty ||
-                        categoryCodeController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please fill in all required fields'),
-                          backgroundColor: Color(0xFFDC3545),
-                        ),
-                      );
-                      return;
-                    }
-
-                    try {
-                      setState(() => isLoading = true);
-                      Navigator.of(context).pop(true); // Close dialog first
-
-                      final updateData = {
-                        'title': titleController.text.trim(),
-                        'category_code': categoryCodeController.text.trim(),
-                        'status': selectedStatus,
-                        if (_imagePath != null) 'img_path': _imagePath,
-                      };
-
-                      await InventoryService.updateCategory(
-                        category.id,
-                        updateData,
-                      );
-
-                      // Refresh the categories cache and apply current filters
-                      await _fetchAllCategoriesOnInit();
-
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Category updated successfully'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFF28A745),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.error, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Failed to update category: $e'),
-                            ],
-                          ),
-                          backgroundColor: Color(0xFFDC3545),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => isLoading = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF28A745),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    if (result == true) {
+      // Category was created, refresh the list
+      await _refreshCategoriesAfterChange();
+    }
   }
 
   void deleteCategory(Category category) {
@@ -1572,8 +1011,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
 
                   await InventoryService.deleteCategory(category.id);
 
-                  // Refresh the categories cache and apply current filters
-                  await _fetchAllCategoriesOnInit();
+                  // Force refresh the categories cache and apply current filters
+                  await _refreshCategoriesAfterChange();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1631,240 +1070,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
     );
   }
 
-  void viewCategoryDetails(Category category) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return FutureBuilder<Category>(
-              future: InventoryService.getCategory(category.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: _getCategoryColor(category.title),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            _getCategoryIcon(category.title),
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Loading Category Details...',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF0D1845),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Fetching category information...',
-                          style: TextStyle(
-                            color: Color(0xFF6C757D),
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                } else if (snapshot.hasError) {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Icon(Icons.error, color: Color(0xFFDC3545)),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Error Loading Details',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Text(
-                      'Failed to load category details: ${snapshot.error}',
-                      style: TextStyle(color: Color(0xFF6C757D)),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          viewCategoryDetails(category); // Retry
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF0D1845),
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text('Retry'),
-                      ),
-                    ],
-                  );
-                } else if (snapshot.hasData) {
-                  final categoryDetails = snapshot.data!;
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: _getCategoryColor(categoryDetails.title),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            _getCategoryIcon(categoryDetails.title),
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Category Details',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF343A40),
-                          ),
-                        ),
-                      ],
-                    ),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildDetailRow('Title', categoryDetails.title),
-                        _buildDetailRow(
-                          'Category Code',
-                          categoryDetails.categoryCode,
-                        ),
-                        _buildDetailRow('Status', categoryDetails.status),
-                        _buildDetailRow(
-                          'Created',
-                          _formatDate(categoryDetails.createdAt),
-                        ),
-                        _buildDetailRow(
-                          'Updated',
-                          _formatDate(categoryDetails.updatedAt),
-                        ),
-                        if (categoryDetails.imgPath != null)
-                          _buildDetailRow(
-                            'Image Path',
-                            categoryDetails.imgPath!,
-                          ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Close',
-                          style: TextStyle(color: Color(0xFF6C757D)),
-                        ),
-                      ),
-                    ],
-                  );
-                } else {
-                  return AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Text('Unknown Error'),
-                    content: Text('An unexpected error occurred.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text('Close'),
-                      ),
-                    ],
-                  );
-                }
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF495057),
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: Color(0xFF6C757D), fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _formatDate(String dateString) {
     try {
       final date = DateTime.parse(dateString);
@@ -1890,58 +1095,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
     } catch (e) {
       return dateString; // Fallback to original string if parsing fails
     }
-  }
-
-  List<Widget> _buildPageButtons() {
-    List<Widget> buttons = [];
-    int startPage = 1;
-    int endPage = totalPages;
-
-    // Show max 5 page buttons
-    if (totalPages > 5) {
-      if (currentPage <= 3) {
-        endPage = 5;
-      } else if (currentPage >= totalPages - 2) {
-        startPage = totalPages - 4;
-      } else {
-        startPage = currentPage - 2;
-        endPage = currentPage + 2;
-      }
-    }
-
-    for (int i = startPage; i <= endPage; i++) {
-      buttons.add(
-        Container(
-          margin: EdgeInsets.symmetric(horizontal: 2),
-          child: ElevatedButton(
-            onPressed: () => _changePage(i),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: i == currentPage
-                  ? Color(0xFF0D1845)
-                  : Colors.white,
-              foregroundColor: i == currentPage
-                  ? Colors.white
-                  : Color(0xFF6C757D),
-              elevation: i == currentPage ? 2 : 0,
-              side: i == currentPage
-                  ? null
-                  : BorderSide(color: Color(0xFFDEE2E6)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              minimumSize: Size(36, 36),
-            ),
-            child: Text(
-              i.toString(),
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return buttons;
   }
 
   @override
@@ -2052,7 +1205,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       _buildSummaryCard(
                         'Active Categories',
                         categories
-                            .where((c) => c.status == 'Active')
+                            .where((c) => c.status == 'active')
                             .length
                             .toString(),
                         Icons.check_circle,
@@ -2062,7 +1215,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                       _buildSummaryCard(
                         'Inactive Categories',
                         categories
-                            .where((c) => c.status != 'Active')
+                            .where((c) => c.status != 'active')
                             .length
                             .toString(),
                         Icons.cancel,
@@ -2134,7 +1287,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                 child: DropdownButton<String>(
                                   value: selectedStatus,
                                   underline: const SizedBox(),
-                                  items: ['All', 'Active', 'Inactive']
+                                  items: ['All', 'active', 'inactive']
                                       .map(
                                         (status) => DropdownMenuItem<String>(
                                           value: status,
@@ -2465,7 +1618,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                               vertical: 4,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: category.status == 'Active'
+                                              color: category.status == 'active'
                                                   ? Colors.green.withOpacity(
                                                       0.1,
                                                     )
@@ -2479,7 +1632,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w500,
                                                 color:
-                                                    category.status == 'Active'
+                                                    category.status == 'active'
                                                     ? Colors.green
                                                     : Colors.red,
                                               ),
@@ -2502,8 +1655,15 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                                 color: const Color(0xFF17A2B8),
                                                 size: 16,
                                               ),
-                                              onPressed: () =>
-                                                  viewCategoryDetails(category),
+                                              onPressed: () => Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      CategoryDetailsPage(
+                                                        categoryId: category.id,
+                                                      ),
+                                                ),
+                                              ),
                                               tooltip: 'View Details',
                                               padding: const EdgeInsets.all(4),
                                               constraints:
@@ -2515,8 +1675,23 @@ class _CategoryListPageState extends State<CategoryListPage> {
                                                 color: Colors.blue,
                                                 size: 16,
                                               ),
-                                              onPressed: () =>
-                                                  editCategory(category),
+                                              onPressed: () async {
+                                                final result =
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            EditCategoryPage(
+                                                              category:
+                                                                  category,
+                                                            ),
+                                                      ),
+                                                    );
+                                                if (result == true) {
+                                                  // Category was updated, refresh the list
+                                                  await _refreshCategoriesAfterChange();
+                                                }
+                                              },
                                               tooltip: 'Edit',
                                               padding: const EdgeInsets.all(4),
                                               constraints:
@@ -2648,31 +1823,6 @@ class _CategoryListPageState extends State<CategoryListPage> {
         ),
       ),
     );
-  }
-
-  Color _getCategoryColor(String categoryName) {
-    switch (categoryName.toLowerCase()) {
-      case 'computers':
-        return Color(0xFF17A2B8);
-      case 'electronics':
-        return Color(0xFF28A745);
-      case 'shoe':
-        return Color(0xFFDC3545);
-      case 'cosmetics':
-        return Color(0xFFE83E8C);
-      case 'groceries':
-        return Color(0xFFFD7E14);
-      case 'fashion':
-        return Color(0xFF6F42C1);
-      case 'bridal':
-        return Color(0xFFE91E63);
-      case 'fancy':
-        return Color(0xFF9C27B0);
-      case 'casual':
-        return Color(0xFF2196F3);
-      default:
-        return Color(0xFF6C757D);
-    }
   }
 
   IconData _getCategoryIcon(String categoryName) {

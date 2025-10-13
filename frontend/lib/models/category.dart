@@ -1,3 +1,5 @@
+import 'sub_category.dart';
+
 class Category {
   final int id;
   final String title;
@@ -19,10 +21,48 @@ class Category {
     return Category(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
-      imgPath: json['img_path'],
+      imgPath:
+          json['img_url'] ??
+          json['img_path'], // Handle both img_url and img_path
       status: json['status'] ?? '',
       createdAt: json['created_at'] ?? '',
       updatedAt: json['updated_at'] ?? '',
+    );
+  }
+
+  String get categoryCode => 'C${id.toString().padLeft(3, '0')}';
+}
+
+class CategoryDetails {
+  final int id;
+  final String title;
+  final String? imgPath;
+  final String status;
+  final String createdAt;
+  final String updatedAt;
+  final List<SubCategory> subcategories;
+
+  CategoryDetails({
+    required this.id,
+    required this.title,
+    this.imgPath,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.subcategories,
+  });
+
+  factory CategoryDetails.fromJson(Map<String, dynamic> json) {
+    return CategoryDetails(
+      id: json['id'] ?? 0,
+      title: json['title'] ?? '',
+      imgPath: json['img_url'], // Note: API uses img_url instead of img_path
+      status: json['status'] ?? '',
+      createdAt: json['created_at'] ?? '',
+      updatedAt: json['updated_at'] ?? '',
+      subcategories: (json['subcategories'] as List? ?? [])
+          .map((item) => SubCategory.fromJson(item))
+          .toList(),
     );
   }
 
