@@ -982,7 +982,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
   void deleteCategory(Category category) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -1000,19 +1000,33 @@ class _CategoryListPageState extends State<CategoryListPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text('Cancel', style: TextStyle(color: Color(0xFF6C757D))),
             ),
             ElevatedButton(
               onPressed: () async {
                 try {
                   setState(() => isLoading = true);
-                  Navigator.of(context).pop(); // Close dialog first
+                  Navigator.of(dialogContext).pop(); // Close dialog first
 
                   await InventoryService.deleteCategory(category.id);
 
-                  // Force refresh the categories cache and apply current filters
-                  await _refreshCategoriesAfterChange();
+                  // Remove the deleted category from local cache immediately
+                  setState(() {
+                    categories.removeWhere((item) => item.id == category.id);
+                    totalCategories = categories.length;
+                    totalPages = (totalCategories / itemsPerPage).ceil();
+
+                    // Adjust current page if necessary
+                    if (currentPage > totalPages && totalPages > 0) {
+                      currentPage = totalPages;
+                    } else if (totalPages == 0) {
+                      currentPage = 1;
+                    }
+                  });
+
+                  // Refresh from server in background (don't await)
+                  _refreshCategoriesAfterChange();
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1034,6 +1048,27 @@ class _CategoryListPageState extends State<CategoryListPage> {
                     ),
                   );
                 } catch (e) {
+                  // Handle specific error cases
+                  String errorMessage = 'Failed to delete category';
+                  if (e.toString().contains('404')) {
+                    // Category doesn't exist on server, remove from local cache
+                    setState(() {
+                      categories.removeWhere((item) => item.id == category.id);
+                      totalCategories = categories.length;
+                      totalPages = (totalCategories / itemsPerPage).ceil();
+
+                      // Adjust current page if necessary
+                      if (currentPage > totalPages && totalPages > 0) {
+                        currentPage = totalPages;
+                      } else if (totalPages == 0) {
+                        currentPage = 1;
+                      }
+                    });
+                    errorMessage = 'Category was already deleted or doesn\'t exist';
+                  } else {
+                    errorMessage = e.toString().replaceFirst('Exception: ', '');
+                  }
+
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1041,7 +1076,7 @@ class _CategoryListPageState extends State<CategoryListPage> {
                         children: [
                           Icon(Icons.error, color: Colors.white),
                           SizedBox(width: 8),
-                          Text('Failed to delete category: $e'),
+                          Text(errorMessage),
                         ],
                       ),
                       backgroundColor: Color(0xFFDC3545),

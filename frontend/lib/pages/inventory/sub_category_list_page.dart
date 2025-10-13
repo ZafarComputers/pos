@@ -867,7 +867,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
   void deleteSubCategory(SubCategory subCategory) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -885,14 +885,16 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text('Cancel', style: TextStyle(color: Color(0xFF6C757D))),
             ),
             ElevatedButton(
               onPressed: () async {
+                // Close dialog first
+                Navigator.of(dialogContext).pop();
+
                 try {
                   setState(() => isLoading = true);
-                  Navigator.of(context).pop(); // Close dialog first
 
                   final response = await InventoryService.deleteSubCategory(
                     subCategory.id,
@@ -900,42 +902,80 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
 
                   // Check if the response indicates success
                   if (response['status'] == true) {
-                    // Clear the cache and refresh from server
+                    // Remove the deleted subcategory from local cache immediately
                     setState(() {
-                      _allSubCategoriesCache.clear();
-                      _allFilteredSubCategories.clear();
-                      subCategories.clear();
-                      totalSubCategories = 0;
-                      currentPage = 1;
-                      totalPages = 1;
+                      _allSubCategoriesCache.removeWhere((item) => item.id == subCategory.id);
+                      _allFilteredSubCategories.removeWhere((item) => item.id == subCategory.id);
+                      subCategories.removeWhere((item) => item.id == subCategory.id);
+                      totalSubCategories = _allFilteredSubCategories.length;
+                      totalPages = (totalSubCategories / itemsPerPage).ceil();
+
+                      // Adjust current page if necessary
+                      if (currentPage > totalPages && totalPages > 0) {
+                        currentPage = totalPages;
+                      } else if (totalPages == 0) {
+                        currentPage = 1;
+                      }
+
+                      // Re-apply pagination
+                      _paginateFilteredSubCategories();
                     });
 
-                    // Refresh the subcategories list
-                    await _fetchAllSubCategoriesOnInit();
+                    // Refresh from server in background (don't await)
+                    _fetchAllSubCategoriesOnInit();
 
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text(
-                                response['message'] ??
-                                    'Sub category deleted successfully',
-                              ),
-                            ],
+                    // Show success snackbar after the frame is built
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  response['message'] ??
+                                      'Sub category deleted successfully',
+                                ),
+                              ],
+                            ),
+                            backgroundColor: Color(0xFF28A745),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          backgroundColor: Color(0xFF28A745),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      );
-                    }
+                        );
+                      }
+                    });
                   } else {
                     // API returned status: false
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.error, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  response['message'] ??
+                                      'Failed to delete sub category',
+                                ),
+                              ],
+                            ),
+                            backgroundColor: Color(0xFFDC3545),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        );
+                      }
+                    });
+                  }
+                } catch (e) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -944,8 +984,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                               Icon(Icons.error, color: Colors.white),
                               SizedBox(width: 8),
                               Text(
-                                response['message'] ??
-                                    'Failed to delete sub category',
+                                'Failed to delete sub category: ${e.toString()}',
                               ),
                             ],
                           ),
@@ -957,28 +996,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                         ),
                       );
                     }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.error, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              'Failed to delete sub category: ${e.toString()}',
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Color(0xFFDC3545),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    );
-                  }
+                  });
                 } finally {
                   if (mounted) setState(() => isLoading = false);
                 }
@@ -996,9 +1014,7 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
         );
       },
     );
-  }
-
-  void viewSubCategoryDetails(SubCategory subCategory) {
+  }  void viewSubCategoryDetails(SubCategory subCategory) {
     Navigator.push(
       context,
       MaterialPageRoute(

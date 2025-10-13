@@ -125,7 +125,7 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                 'Finance & Accounts': false,
                 'General Settings': false,
                 'Users': false,
-              }
+              },
             },
           );
         }
@@ -388,7 +388,8 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                       width: 50,
                                       child: Checkbox(
                                         value: _isAllUsersSelected(),
-                                        onChanged: (value) => _toggleSelectAllUsers(),
+                                        onChanged: (value) =>
+                                            _toggleSelectAllUsers(),
                                         activeColor: const Color(0xFF0D1845),
                                       ),
                                     ),
@@ -445,11 +446,14 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                         itemCount: _filteredUsers.length,
                                         itemBuilder: (context, index) {
                                           final user = _filteredUsers[index];
-                                          final permissions = _userPermissions[user.id];
-                                          final grantedSections = permissions?.permissions.entries
-                                              .where((entry) => entry.value)
-                                              .map((entry) => entry.key)
-                                              .toList() ?? [];
+                                          final permissions =
+                                              _userPermissions[user.id];
+                                          final grantedSections =
+                                              permissions?.permissions.entries
+                                                  .where((entry) => entry.value)
+                                                  .map((entry) => entry.key)
+                                                  .toList() ??
+                                              [];
 
                                           return Container(
                                             padding: const EdgeInsets.symmetric(
@@ -469,9 +473,16 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                                 SizedBox(
                                                   width: 50,
                                                   child: Checkbox(
-                                                    value: _isUserSelected(user.id),
-                                                    onChanged: (value) => _toggleUserSelection(user.id),
-                                                    activeColor: const Color(0xFF0D1845),
+                                                    value: _isUserSelected(
+                                                      user.id,
+                                                    ),
+                                                    onChanged: (value) =>
+                                                        _toggleUserSelection(
+                                                          user.id,
+                                                        ),
+                                                    activeColor: const Color(
+                                                      0xFF0D1845,
+                                                    ),
                                                   ),
                                                 ),
                                                 Expanded(
@@ -495,20 +506,25 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                                       Container(
                                                         padding:
                                                             const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
                                                         decoration: BoxDecoration(
-                                                          color: Colors.blue.withOpacity(0.1),
+                                                          color: Colors.blue
+                                                              .withOpacity(0.1),
                                                           borderRadius:
-                                                              BorderRadius.circular(4),
+                                                              BorderRadius.circular(
+                                                                4,
+                                                              ),
                                                         ),
                                                         child: Text(
                                                           '${grantedSections.length}/${_systemSections.length} modules',
                                                           style: TextStyle(
-                                                            color: Colors.blue[800],
+                                                            color: Colors
+                                                                .blue[800],
                                                             fontSize: 12,
-                                                            fontWeight: FontWeight.w500,
+                                                            fontWeight:
+                                                                FontWeight.w500,
                                                           ),
                                                         ),
                                                       ),
@@ -519,10 +535,18 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                                           color: Colors.blue,
                                                           size: 18,
                                                         ),
-                                                        onPressed: () => _openPermissionsDialog(user),
-                                                        tooltip: 'Edit Permissions',
-                                                        padding: const EdgeInsets.all(6),
-                                                        constraints: const BoxConstraints(),
+                                                        onPressed: () =>
+                                                            _openPermissionsDialog(
+                                                              user,
+                                                            ),
+                                                        tooltip:
+                                                            'Edit Permissions',
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              6,
+                                                            ),
+                                                        constraints:
+                                                            const BoxConstraints(),
                                                       ),
                                                     ],
                                                   ),
@@ -575,7 +599,9 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                             color: const Color(0xFFDEE2E6),
                                           ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(5),
+                                            borderRadius: BorderRadius.circular(
+                                              5,
+                                            ),
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 10,
@@ -615,10 +641,14 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                           side: _canGoToNextPage()
                                               ? null
                                               : BorderSide(
-                                                  color: const Color(0xFFDEE2E6),
+                                                  color: const Color(
+                                                    0xFFDEE2E6,
+                                                  ),
                                                 ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(5),
+                                            borderRadius: BorderRadius.circular(
+                                              5,
+                                            ),
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 10,
@@ -636,7 +666,9 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFF8F9FA),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
                                           'Page $currentPage of ${_getTotalPages()} (${_users.length} total)',
@@ -820,7 +852,9 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                           children: [
                             CircleAvatar(
                               radius: 24,
-                              backgroundImage: NetworkImage(_selectedUser!.picture),
+                              backgroundImage: NetworkImage(
+                                _selectedUser!.picture,
+                              ),
                               onBackgroundImageError: (_, __) =>
                                   const Icon(Icons.person),
                             ),
@@ -871,7 +905,8 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                         ),
                         child: Column(
                           children: _systemSections.map((section) {
-                            final isGranted = permissions?.permissions[section] ?? false;
+                            final isGranted =
+                                permissions?.permissions[section] ?? false;
                             return Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -881,7 +916,9 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                 border: Border(
                                   bottom: BorderSide(
                                     color: Colors.grey.shade200,
-                                    width: section == _systemSections.last ? 0 : 1,
+                                    width: section == _systemSections.last
+                                        ? 0
+                                        : 1,
                                   ),
                                 ),
                               ),
@@ -894,8 +931,12 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                           width: 32,
                                           height: 32,
                                           decoration: BoxDecoration(
-                                            color: _getSectionColor(section).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(6),
+                                            color: _getSectionColor(
+                                              section,
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                           ),
                                           child: Icon(
                                             _getSectionIcon(section),
@@ -918,7 +959,10 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                                   Checkbox(
                                     value: isGranted,
                                     onChanged: (value) {
-                                      _updatePermission(section, value ?? false);
+                                      _updatePermission(
+                                        section,
+                                        value ?? false,
+                                      );
                                     },
                                     activeColor: const Color(0xFF0D1845),
                                   ),
@@ -971,21 +1015,26 @@ class _RolesPermissionsPageState extends State<RolesPermissionsPage> {
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: _isUpdatingPermissions ? null : _savePermissions,
+                              onPressed: _isUpdatingPermissions
+                                  ? null
+                                  : _savePermissions,
                               icon: _isUpdatingPermissions
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     )
                                   : const Icon(Icons.save),
                               label: Text(
-                                _isUpdatingPermissions ? 'Updating...' : 'Save Permissions',
+                                _isUpdatingPermissions
+                                    ? 'Updating...'
+                                    : 'Save Permissions',
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF0D1845),

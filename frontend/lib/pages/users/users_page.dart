@@ -187,9 +187,9 @@ class _UsersPageState extends State<UsersPage> {
       _applyPagination();
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('User created successfully')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('User created successfully')));
   }
 
   void _submitEditUser() async {
@@ -234,9 +234,9 @@ class _UsersPageState extends State<UsersPage> {
       _applyPagination();
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('User updated successfully')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('User updated successfully')));
   }
 
   void viewUser(User user) {
@@ -253,7 +253,9 @@ class _UsersPageState extends State<UsersPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete User'),
-          content: Text('Are you sure you want to delete ${user.username}? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete ${user.username}? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -268,7 +270,9 @@ class _UsersPageState extends State<UsersPage> {
                 });
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${user.username} deleted successfully')),
+                  SnackBar(
+                    content: Text('${user.username} deleted successfully'),
+                  ),
                 );
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -303,7 +307,8 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   bool _isAllUsersSelected() {
-    return _filteredUsers.isNotEmpty && _selectedUserIds.length == _filteredUsers.length;
+    return _filteredUsers.isNotEmpty &&
+        _selectedUserIds.length == _filteredUsers.length;
   }
 
   bool _isUserSelected(int userId) {
@@ -479,7 +484,8 @@ class _UsersPageState extends State<UsersPage> {
                                       width: 50,
                                       child: Checkbox(
                                         value: _isAllUsersSelected(),
-                                        onChanged: (value) => _toggleSelectAllUsers(),
+                                        onChanged: (value) =>
+                                            _toggleSelectAllUsers(),
                                       ),
                                     ),
                                     const SizedBox(width: 16),
@@ -586,8 +592,13 @@ class _UsersPageState extends State<UsersPage> {
                                                 SizedBox(
                                                   width: 50,
                                                   child: Checkbox(
-                                                    value: _isUserSelected(user.id),
-                                                    onChanged: (value) => _toggleUserSelection(user.id),
+                                                    value: _isUserSelected(
+                                                      user.id,
+                                                    ),
+                                                    onChanged: (value) =>
+                                                        _toggleUserSelection(
+                                                          user.id,
+                                                        ),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 16),
@@ -604,9 +615,14 @@ class _UsersPageState extends State<UsersPage> {
                                                   child: Center(
                                                     child: CircleAvatar(
                                                       radius: 20,
-                                                      backgroundImage: NetworkImage(user.picture),
-                                                      onBackgroundImageError: (_, __) =>
-                                                          const Icon(Icons.person),
+                                                      backgroundImage:
+                                                          NetworkImage(
+                                                            user.picture,
+                                                          ),
+                                                      onBackgroundImageError:
+                                                          (_, __) => const Icon(
+                                                            Icons.person,
+                                                          ),
                                                     ),
                                                   ),
                                                 ),
@@ -640,19 +656,31 @@ class _UsersPageState extends State<UsersPage> {
                                                           ),
                                                       decoration: BoxDecoration(
                                                         color: user.isActive
-                                                            ? Colors.green.withOpacity(0.1)
-                                                            : Colors.red.withOpacity(0.1),
+                                                            ? Colors.green
+                                                                  .withOpacity(
+                                                                    0.1,
+                                                                  )
+                                                            : Colors.red
+                                                                  .withOpacity(
+                                                                    0.1,
+                                                                  ),
                                                         borderRadius:
-                                                            BorderRadius.circular(4),
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
                                                       ),
                                                       child: Text(
-                                                        user.isActive ? 'Active' : 'Inactive',
+                                                        user.isActive
+                                                            ? 'Active'
+                                                            : 'Inactive',
                                                         style: TextStyle(
                                                           color: user.isActive
-                                                              ? Colors.green[800]
+                                                              ? Colors
+                                                                    .green[800]
                                                               : Colors.red[800],
                                                           fontSize: 12,
-                                                          fontWeight: FontWeight.w500,
+                                                          fontWeight:
+                                                              FontWeight.w500,
                                                         ),
                                                       ),
                                                     ),
@@ -662,7 +690,8 @@ class _UsersPageState extends State<UsersPage> {
                                                 SizedBox(
                                                   width: 60,
                                                   child: Row(
-                                                    mainAxisAlignment: MainAxisAlignment.start,
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.start,
                                                     children: [
                                                       IconButton(
                                                         icon: Icon(
@@ -670,10 +699,17 @@ class _UsersPageState extends State<UsersPage> {
                                                           color: Colors.blue,
                                                           size: 16,
                                                         ),
-                                                        onPressed: () => _openEditUserDialog(user),
+                                                        onPressed: () =>
+                                                            _openEditUserDialog(
+                                                              user,
+                                                            ),
                                                         tooltip: 'Edit',
-                                                        padding: const EdgeInsets.all(4),
-                                                        constraints: const BoxConstraints(),
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              4,
+                                                            ),
+                                                        constraints:
+                                                            const BoxConstraints(),
                                                       ),
                                                     ],
                                                   ),
@@ -726,7 +762,9 @@ class _UsersPageState extends State<UsersPage> {
                                             color: const Color(0xFFDEE2E6),
                                           ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(5),
+                                            borderRadius: BorderRadius.circular(
+                                              5,
+                                            ),
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 10,
@@ -766,10 +804,14 @@ class _UsersPageState extends State<UsersPage> {
                                           side: _canGoToNextPage()
                                               ? null
                                               : BorderSide(
-                                                  color: const Color(0xFFDEE2E6),
+                                                  color: const Color(
+                                                    0xFFDEE2E6,
+                                                  ),
                                                 ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(5),
+                                            borderRadius: BorderRadius.circular(
+                                              5,
+                                            ),
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 10,
@@ -787,7 +829,9 @@ class _UsersPageState extends State<UsersPage> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFF8F9FA),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
                                           'Page $currentPage of ${_getTotalPages()} (${_users.length} total)',
@@ -1041,16 +1085,19 @@ class _UsersPageState extends State<UsersPage> {
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: _isSubmitting ? null : _submitCreateUser,
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : _submitCreateUser,
                               icon: _isSubmitting
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     )
                                   : const Icon(Icons.save),
@@ -1251,9 +1298,10 @@ class _UsersPageState extends State<UsersPage> {
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     )
                                   : const Icon(Icons.save),

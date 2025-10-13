@@ -42,10 +42,7 @@ class UserPermissions {
   final int userId;
   final Map<String, bool> permissions;
 
-  UserPermissions({
-    required this.userId,
-    required this.permissions,
-  });
+  UserPermissions({required this.userId, required this.permissions});
 
   factory UserPermissions.fromJson(Map<String, dynamic> json) {
     return UserPermissions(
@@ -55,9 +52,6 @@ class UserPermissions {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'user_id': userId,
-      'permissions': permissions,
-    };
+    return {'user_id': userId, 'permissions': permissions};
   }
 }
