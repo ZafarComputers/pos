@@ -42,6 +42,9 @@ import 'users/users_page.dart';
 import 'users/roles_permissions_page.dart';
 import 'finance & accounts/expenses_page.dart';
 import 'finance & accounts/expense_category_page.dart';
+import 'finance & accounts/income_category_page.dart';
+import 'finance & accounts/income_page.dart';
+import 'finance & accounts/bank_account_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -268,6 +271,12 @@ class _DashboardPageState extends State<DashboardPage>
         return const ExpensesPage();
       case 'Expense Category':
         return const ExpenseCategoryPage();
+      case 'Income Category':
+        return const IncomeCategoryPage();
+      case 'Income':
+        return const IncomePage();
+      case 'Bank Accounts':
+        return const BankAccountPage();
       case 'Users':
         return const UsersPage();
       case 'Roles & Permissions':
@@ -1277,7 +1286,13 @@ class _DashboardPageState extends State<DashboardPage>
                             Icons.category,
                           ),
                         ]),
-                        _buildPrimarySubTile('Income', Icons.trending_up),
+                        _buildParentSubTile('Income', Icons.trending_up, [
+                          _buildNestedSubTile('Income', Icons.attach_money),
+                          _buildNestedSubTile(
+                            'Income Category',
+                            Icons.category,
+                          ),
+                        ]),
                         _buildPrimarySubTile(
                           'Bank Accounts',
                           Icons.account_balance,
