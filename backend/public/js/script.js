@@ -1,1 +1,0 @@
-console.log('Hi, it is my script js file:')
