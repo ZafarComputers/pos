@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:barcode_widget/barcode_widget.dart';
-import '../../services/inventory_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:convert';
 import '../../models/product.dart';
+import '../../services/inventory_service.dart';
+import 'package:barcode_widget/barcode_widget.dart';
 
 class PrintBarcodePage extends StatefulWidget {
   const PrintBarcodePage({super.key});
@@ -646,7 +646,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               children: [
                 Text('${selectedProducts.length} product(s) selected'),
                 const SizedBox(height: 16),
-                // Show barcode preview for first selected product
+                // Show QR code preview for first selected product
                 if (selectedProducts.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -665,17 +665,14 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        BarcodeWidget(
-                          barcode: Barcode.code128(),
-                          data: selectedProducts[0].barcode,
-                          width: 200,
-                          height: 60,
-                          drawText: true,
-                          style: TextStyle(fontSize: 10, color: Colors.black),
+                        QrImageView(
+                          data: _generateProductQRData(selectedProducts[0]),
+                          size: 120,
+                          backgroundColor: Colors.white,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Code: ${selectedProducts[0].barcode}',
+                          'Code: ${selectedProducts[0].designCode}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6C757D),
@@ -686,9 +683,10 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                const Text(
-                  'QR code generation feature coming soon!',
+                Text(
+                  'QR codes will be generated for ${selectedProducts.length} product(s)',
                   style: TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -720,6 +718,29 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
         );
       },
     );
+  }
+
+  String _generateProductQRData(Product product) {
+    final qrData = {
+      'product_id': product.id,
+      'title': product.title,
+      'design_code': product.designCode,
+      'barcode': product.barcode,
+      'sale_price': product.salePrice,
+      'buying_price': product.buyingPrice ?? 0,
+      'opening_stock_quantity': product.openingStockQuantity,
+      'vendor': {
+        'id': product.vendorId,
+        'name': product.vendor.name ?? 'Vendor ${product.vendorId}',
+      },
+      'category': product.subCategoryId,
+      'images': product.imagePaths ?? [],
+      'qr_code_data': product.qrCodeData,
+      'status': product.status,
+      'created_at': product.createdAt,
+    };
+
+    return jsonEncode(qrData);
   }
 
   Widget _buildSummaryCard(

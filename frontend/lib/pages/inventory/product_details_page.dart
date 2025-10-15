@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:barcode_widget/barcode_widget.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../models/vendor.dart' as vendor;
@@ -325,6 +326,65 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                               ],
                             ),
                           ),
+                          // QR Code display
+                          if (widget.product.qrCodeData != null &&
+                              widget.product.qrCodeData!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Colors.grey.shade200,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'QR Code:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border.all(
+                                        color: Color(0xFFDEE2E6),
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        QrImageView(
+                                          data: widget.product.qrCodeData!,
+                                          size: 120,
+                                          backgroundColor: Colors.white,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Contains complete product information',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF6C757D),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           _buildDetailRow('Category', _getCategoryName()),
                           _buildDetailRow(
                             'Sub Category',
@@ -415,10 +475,133 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                     // Image Content
                     Padding(
                       padding: const EdgeInsets.all(20),
-                      child:
-                          widget.product.imagePath != null &&
-                              widget.product.imagePath!.isNotEmpty
-                          ? FutureBuilder<Uint8List?>(
+                      child: Column(
+                        children: [
+                          // Show multiple images if available
+                          if (widget.product.imagePaths != null &&
+                              widget.product.imagePaths!.isNotEmpty)
+                            Column(
+                              children: [
+                                Text(
+                                  'Product Images (${widget.product.imagePaths!.length})',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF343A40),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: 280,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount:
+                                        widget.product.imagePaths!.length,
+                                    itemBuilder: (context, index) {
+                                      final imagePath =
+                                          widget.product.imagePaths![index];
+                                      return Container(
+                                        width: 120,
+                                        margin: const EdgeInsets.only(
+                                          right: 12,
+                                        ),
+                                        child: FutureBuilder<Uint8List?>(
+                                          future: _loadProductImage(imagePath),
+                                          builder: (context, snapshot) {
+                                            if (snapshot.connectionState ==
+                                                ConnectionState.waiting) {
+                                              return Container(
+                                                height: 120,
+                                                decoration: BoxDecoration(
+                                                  color: Color(0xFFF8F9FA),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Color(0xFFDEE2E6),
+                                                  ),
+                                                ),
+                                                child: Center(
+                                                  child: SizedBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(Color(0xFF0D1845)),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            } else if (snapshot.hasData &&
+                                                snapshot.data != null) {
+                                              return Container(
+                                                height: 120,
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Color(0xFFDEE2E6),
+                                                  ),
+                                                ),
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  child: Image.memory(
+                                                    snapshot.data!,
+                                                    fit: BoxFit.cover,
+                                                    width: 120,
+                                                    height: 120,
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              return Container(
+                                                height: 120,
+                                                decoration: BoxDecoration(
+                                                  color: Color(0xFFF8F9FA),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Color(0xFFDEE2E6),
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.broken_image,
+                                                      color: Color(0xFF6C757D),
+                                                      size: 32,
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Image ${index + 1}',
+                                                      style: TextStyle(
+                                                        color: Color(
+                                                          0xFF6C757D,
+                                                        ),
+                                                        fontSize: 10,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            )
+                          // Fallback to single image for backward compatibility
+                          else if (widget.product.imagePath != null &&
+                              widget.product.imagePath!.isNotEmpty)
+                            FutureBuilder<Uint8List?>(
                               future: _loadProductImage(
                                 widget.product.imagePath!,
                               ),
@@ -496,7 +679,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                 }
                               },
                             )
-                          : Container(
+                          else
+                            Container(
                               height: 300,
                               decoration: BoxDecoration(
                                 color: Color(0xFFF8F9FA),
@@ -513,7 +697,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No image available',
+                                    'No images available',
                                     style: TextStyle(
                                       color: Color(0xFF6C757D),
                                       fontSize: 16,
@@ -522,6 +706,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                 ],
                               ),
                             ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

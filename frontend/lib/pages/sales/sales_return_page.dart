@@ -745,13 +745,6 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                       ),
                                     ),
                                     Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        'Customer Type',
-                                        style: _headerStyle(),
-                                      ),
-                                    ),
-                                    Expanded(
                                       flex: 1,
                                       child: Text(
                                         'Status',
@@ -903,35 +896,8 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                                         ? returnItem
                                                               .customer
                                                               .name
-                                                        : 'Walk-in Customer',
+                                                        : 'Walk-in',
                                                     style: _cellStyle(),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      'Customer',
-                                                      style: TextStyle(
-                                                        color: Colors.blue[800],
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
                                                   ),
                                                 ),
                                                 Expanded(
@@ -2004,7 +1970,7 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                                   child: _buildInfoItem(
                                     'Amount',
                                     'Rs. ${double.tryParse(_currentReturn!.returnInvAmount)?.toStringAsFixed(2) ?? '0.00'}',
-                                    Icons.currency_rupee,
+                                    Icons.receipt,
                                   ),
                                 ),
                                 Expanded(
@@ -2223,26 +2189,6 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
                       ],
 
                       const SizedBox(height: 24),
-
-                      // Action Button
-                      Center(
-                        child: ElevatedButton.icon(
-                          onPressed: _closeViewDialog,
-                          icon: const Icon(Icons.close, size: 18),
-                          label: const Text('Close'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0D1845),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),

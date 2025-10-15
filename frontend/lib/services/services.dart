@@ -196,6 +196,54 @@ class ApiService {
     }
   }
 
+  // Generic PUT request with auth token
+  static Future<Map<String, dynamic>> put(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(data),
+      );
+
+      print('📡 PUT Response Status: ${response.statusCode}');
+      print('📨 PUT Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        print('📄 PUT Decoded Response: $decoded');
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        } else {
+          print('⚠️ PUT Response is not a Map, returning empty Map');
+          return {};
+        }
+      } else if (response.statusCode == 401) {
+        // Token expired, logout
+        await logout();
+        throw Exception('Session expired. Please login again.');
+      } else {
+        throw Exception(
+          'Request failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('💥 PUT error: $e');
+      throw Exception('Network error: $e');
+    }
+  }
+
   // Update user profile
   static Future<Map<String, dynamic>> updateProfile(
     int userId,

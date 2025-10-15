@@ -60,7 +60,7 @@ class _PosOrderListState extends State<PosOrderList> {
         children: [
           // Header - Order List Title
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(15),
             decoration: const BoxDecoration(
               color: Color(0xFF0D1845),
               borderRadius: BorderRadius.only(
@@ -110,7 +110,7 @@ class _PosOrderListState extends State<PosOrderList> {
 
           // Order Details Section
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -190,7 +190,7 @@ class _PosOrderListState extends State<PosOrderList> {
                       Row(
                         children: [
                           Icon(
-                            Icons.attach_money,
+                            Icons.receipt_long,
                             color: Colors.teal[700],
                             size: 20,
                           ),
@@ -269,7 +269,7 @@ class _PosOrderListState extends State<PosOrderList> {
                         child: ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(20),
                           itemCount: widget.orderItems.length,
                           itemBuilder: (context, index) {
                             final item = widget.orderItems[index];
@@ -449,7 +449,7 @@ class _PosOrderListState extends State<PosOrderList> {
                                 prefixIcon: Icon(
                                   _isDiscountPercentage
                                       ? Icons.percent
-                                      : Icons.attach_money,
+                                      : Icons.currency_rupee,
                                   color: Colors.purple[400],
                                 ),
                                 border: OutlineInputBorder(
@@ -653,8 +653,11 @@ class _PosOrderListState extends State<PosOrderList> {
   }
 
   Widget _buildEnhancedOrderItem(Map<String, dynamic> item) {
+    final price = double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0;
+    final itemTotal = price * (item['quantity'] ?? 1);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -664,22 +667,53 @@ class _PosOrderListState extends State<PosOrderList> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Product Name Only
+          // Product Name and Price (compact layout)
           Expanded(
-            child: Text(
-              item['name'],
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF0D1845),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['name'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0D1845),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Row(
+                  children: [
+                    Text(
+                      '${price.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.teal,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      ' × ${item['quantity']} = ',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                    Text(
+                      'Rs${itemTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
 
           // Quantity Controls
           Container(
+            margin: const EdgeInsets.only(left: 20),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(6),
@@ -712,7 +746,7 @@ class _PosOrderListState extends State<PosOrderList> {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 4,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0D1845),
@@ -745,12 +779,21 @@ class _PosOrderListState extends State<PosOrderList> {
             ),
           ),
 
+          const SizedBox(width: 4),
+
           // Remove Button
-          IconButton(
-            onPressed: () => widget.onRemoveItem(item['id'].toString()),
-            icon: Icon(Icons.delete_outline, size: 16, color: Colors.red[600]),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          Container(
+            margin: const EdgeInsets.only(left: 40),
+            child: IconButton(
+              onPressed: () => widget.onRemoveItem(item['id'].toString()),
+              icon: Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: Colors.red[600],
+              ),
+              padding: const EdgeInsets.all(3),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
           ),
         ],
       ),

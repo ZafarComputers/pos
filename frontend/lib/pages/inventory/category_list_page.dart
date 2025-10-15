@@ -1064,7 +1064,8 @@ class _CategoryListPageState extends State<CategoryListPage> {
                         currentPage = 1;
                       }
                     });
-                    errorMessage = 'Category was already deleted or doesn\'t exist';
+                    errorMessage =
+                        'Category was already deleted or doesn\'t exist';
                   } else {
                     errorMessage = e.toString().replaceFirst('Exception: ', '');
                   }

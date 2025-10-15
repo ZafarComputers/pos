@@ -64,16 +64,38 @@ class _EditProductPageState extends State<EditProductPage> {
     _fetchCategories();
     _fetchVendors();
     _fetchSubCategoriesForProduct();
+    // Add listener to design code controller to auto-generate barcode
+    _designCodeController.addListener(_generateBarcodeFromDesignCode);
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _designCodeController.dispose();
+    _designCodeController.removeListener(_generateBarcodeFromDesignCode);
     _salePriceController.dispose();
     _openingStockQuantityController.dispose();
     _barcodeController.dispose();
     super.dispose();
+  }
+
+  void _generateBarcodeFromDesignCode() {
+    final designCode = _designCodeController.text.trim();
+    if (designCode.isNotEmpty) {
+      // Generate barcode by converting design code to a numerical representation
+      // Use a simple hash-like approach to create a consistent numerical barcode
+      int barcodeValue = 0;
+      for (int i = 0; i < designCode.length; i++) {
+        barcodeValue = barcodeValue * 31 + designCode.codeUnitAt(i);
+      }
+      // Ensure it's positive and within reasonable barcode length
+      barcodeValue = barcodeValue.abs() % 999999999;
+      // Pad with zeros to ensure consistent length
+      final barcodeString = barcodeValue.toString().padLeft(9, '0');
+      _barcodeController.text = barcodeString;
+    } else {
+      _barcodeController.text = '';
+    }
   }
 
   Future<void> _fetchVendors() async {
@@ -569,19 +591,18 @@ class _EditProductPageState extends State<EditProductPage> {
                             child: TextFormField(
                               controller: _barcodeController,
                               decoration: InputDecoration(
-                                labelText: 'Barcode (Numerical) *',
-                                hintText: 'Enter numerical barcode value',
+                                labelText: 'Barcode (Auto-generated) *',
+                                hintText: 'Generated from design code',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
                               ),
-                              keyboardType: TextInputType.number,
+                              readOnly: true,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Please enter barcode';
-                                }
-                                if (int.tryParse(value) == null) {
-                                  return 'Barcode must be a valid number';
+                                  return 'Barcode is required';
                                 }
                                 return null;
                               },

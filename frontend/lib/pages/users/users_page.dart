@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'models.dart';
+import '../../models/models.dart';
+import '../../services/user_service.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -18,10 +19,14 @@ class _UsersPageState extends State<UsersPage> {
   late bool _isSubmitting = false;
 
   // Form controllers
-  late TextEditingController _usernameController = TextEditingController();
+  late TextEditingController _firstNameController = TextEditingController();
+  late TextEditingController _lastNameController = TextEditingController();
   late TextEditingController _emailController = TextEditingController();
+  late TextEditingController _cellNo1Controller = TextEditingController();
   late TextEditingController _passwordController = TextEditingController();
-  late TextEditingController _pictureController = TextEditingController();
+  late TextEditingController _cellNo2Controller = TextEditingController();
+  late TextEditingController _roleIdController = TextEditingController();
+  late String _selectedStatus = 'Active';
 
   // Pagination variables
   int currentPage = 1;
@@ -39,10 +44,13 @@ class _UsersPageState extends State<UsersPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
+    _cellNo1Controller.dispose();
     _passwordController.dispose();
-    _pictureController.dispose();
+    _cellNo2Controller.dispose();
+    _roleIdController.dispose();
     super.dispose();
   }
 
@@ -52,47 +60,24 @@ class _UsersPageState extends State<UsersPage> {
       _errorMessage = '';
     });
 
-    // Dummy data for now
-    Future.delayed(const Duration(seconds: 1), () {
-      setState(() {
-        _users = [
-          User(
-            id: 1,
-            username: 'admin',
-            email: 'admin@pos.com',
-            password: '********',
-            picture: 'https://via.placeholder.com/50',
-            isActive: true,
-          ),
-          User(
-            id: 2,
-            username: 'manager',
-            email: 'manager@pos.com',
-            password: '********',
-            picture: 'https://via.placeholder.com/50',
-            isActive: true,
-          ),
-          User(
-            id: 3,
-            username: 'cashier',
-            email: 'cashier@pos.com',
-            password: '********',
-            picture: 'https://via.placeholder.com/50',
-            isActive: false,
-          ),
-          User(
-            id: 4,
-            username: 'sales_rep',
-            email: 'sales@pos.com',
-            password: '********',
-            picture: 'https://via.placeholder.com/50',
-            isActive: true,
-          ),
-        ];
-        _isLoading = false;
-        _applyPagination();
-      });
-    });
+    // Call API to get users
+    UserService.getUsers(perPage: 1000)
+        .then((response) {
+          setState(() {
+            _users = response.data;
+            _isLoading = false;
+            _applyPagination();
+          });
+        })
+        .catchError((e) {
+          setState(() {
+            _errorMessage = 'Failed to load users: $e';
+            _isLoading = false;
+            // Keep empty list on error
+            _users = [];
+            _applyPagination();
+          });
+        });
   }
 
   void _applyPagination() {
@@ -125,10 +110,13 @@ class _UsersPageState extends State<UsersPage> {
   void _openCreateUserDialog() {
     setState(() {
       _showCreateUserDialog = true;
-      _usernameController.clear();
+      _firstNameController.clear();
+      _lastNameController.clear();
       _emailController.clear();
+      _cellNo1Controller.clear();
       _passwordController.clear();
-      _pictureController.clear();
+      _cellNo2Controller.clear();
+      _selectedStatus = 'Active';
     });
   }
 
@@ -136,10 +124,13 @@ class _UsersPageState extends State<UsersPage> {
     setState(() {
       _showEditUserDialog = true;
       _currentUser = user;
-      _usernameController.text = user.username;
+      _firstNameController.text = user.firstName;
+      _lastNameController.text = user.lastName;
       _emailController.text = user.email;
-      _passwordController.text = user.password;
-      _pictureController.text = user.picture;
+      _cellNo1Controller.text = user.cellNo1 ?? '';
+      _cellNo2Controller.text = user.cellNo2 ?? '';
+      _roleIdController.text = user.roleId?.toString() ?? '1';
+      _selectedStatus = user.status == 'active' ? 'Active' : 'Inactive';
     });
   }
 
@@ -152,12 +143,19 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   void _submitCreateUser() async {
-    final username = _usernameController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
+    final cellNo1 = _cellNo1Controller.text.trim();
     final password = _passwordController.text.trim();
-    final picture = _pictureController.text.trim();
+    final cellNo2 = _cellNo2Controller.text.trim();
+    final status = _selectedStatus;
 
-    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+    if (firstName.isEmpty ||
+        lastName.isEmpty ||
+        email.isEmpty ||
+        cellNo1.isEmpty ||
+        password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields')),
       );
@@ -168,39 +166,49 @@ class _UsersPageState extends State<UsersPage> {
       _isSubmitting = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final newUser = await UserService.createUser({
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'cell_no1': cellNo1,
+        'password': password,
+        'cell_no2': cellNo2.isNotEmpty ? cellNo2 : null,
+        'status': status,
+      });
 
-    final newUser = User(
-      id: _users.length + 1,
-      username: username,
-      email: email,
-      password: password,
-      picture: picture.isNotEmpty ? picture : 'https://via.placeholder.com/50',
-      isActive: true,
-    );
+      setState(() {
+        _users.add(newUser);
+        _applyPagination();
+        _isSubmitting = false;
+        _showCreateUserDialog = false;
+      });
 
-    setState(() {
-      _users.add(newUser);
-      _isSubmitting = false;
-      _showCreateUserDialog = false;
-      _applyPagination();
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('User created successfully')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${newUser.fullName} created successfully')),
+      );
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to create user: $e')));
+    }
   }
 
   void _submitEditUser() async {
     if (_currentUser == null) return;
 
-    final username = _usernameController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final picture = _pictureController.text.trim();
+    final cellNo1 = _cellNo1Controller.text.trim();
+    final cellNo2 = _cellNo2Controller.text.trim();
+    final roleId = int.tryParse(_roleIdController.text.trim()) ?? 1;
+    final status = _selectedStatus;
 
-    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields')),
       );
@@ -211,39 +219,46 @@ class _UsersPageState extends State<UsersPage> {
       _isSubmitting = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final updatedUser = await UserService.updateUser(_currentUser!.id, {
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'cell_no1': cellNo1.isNotEmpty ? cellNo1 : null,
+        'cell_no2': cellNo2.isNotEmpty ? cellNo2 : null,
+        'status': status,
+        'role_id': roleId,
+      });
 
-    final updatedUser = User(
-      id: _currentUser!.id,
-      username: username,
-      email: email,
-      password: password,
-      picture: picture.isNotEmpty ? picture : _currentUser!.picture,
-      isActive: _currentUser!.isActive,
-    );
+      setState(() {
+        final index = _users.indexWhere((u) => u.id == updatedUser.id);
+        if (index != -1) {
+          _users[index] = updatedUser;
+          _applyPagination();
+        }
+        _isSubmitting = false;
+        _showEditUserDialog = false;
+        _currentUser = null;
+      });
 
-    setState(() {
-      final index = _users.indexWhere((u) => u.id == _currentUser!.id);
-      if (index != -1) {
-        _users[index] = updatedUser;
-      }
-      _isSubmitting = false;
-      _showEditUserDialog = false;
-      _currentUser = null;
-      _applyPagination();
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('User updated successfully')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${updatedUser.fullName} updated successfully')),
+      );
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update user: $e')));
+    }
   }
 
   void viewUser(User user) {
     // Navigate to user details page or show dialog
     // For now, just show a snackbar
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Viewing details for ${user.username}')),
+      SnackBar(content: Text('Viewing details for ${user.fullName}')),
     );
   }
 
@@ -254,7 +269,7 @@ class _UsersPageState extends State<UsersPage> {
         return AlertDialog(
           title: const Text('Delete User'),
           content: Text(
-            'Are you sure you want to delete ${user.username}? This action cannot be undone.',
+            'Are you sure you want to delete ${user.fullName}? This action cannot be undone.',
           ),
           actions: [
             TextButton(
@@ -271,7 +286,7 @@ class _UsersPageState extends State<UsersPage> {
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('${user.username} deleted successfully'),
+                    content: Text('${user.fullName} deleted successfully'),
                   ),
                 );
               },
@@ -492,7 +507,7 @@ class _UsersPageState extends State<UsersPage> {
                                     Expanded(
                                       flex: 2,
                                       child: Text(
-                                        'UserName',
+                                        'Full Name',
                                         style: _headerStyle(),
                                       ),
                                     ),
@@ -512,16 +527,6 @@ class _UsersPageState extends State<UsersPage> {
                                       child: Text(
                                         'Email',
                                         style: _headerStyle(),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Center(
-                                        child: Text(
-                                          'Password',
-                                          style: _headerStyle(),
-                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 16),
@@ -605,7 +610,7 @@ class _UsersPageState extends State<UsersPage> {
                                                 Expanded(
                                                   flex: 2,
                                                   child: Text(
-                                                    user.username,
+                                                    user.fullName,
                                                     style: _cellStyle(),
                                                   ),
                                                 ),
@@ -615,10 +620,14 @@ class _UsersPageState extends State<UsersPage> {
                                                   child: Center(
                                                     child: CircleAvatar(
                                                       radius: 20,
-                                                      backgroundImage:
-                                                          NetworkImage(
-                                                            user.picture,
-                                                          ),
+                                                      backgroundImage: NetworkImage(
+                                                        user.imgPath != null &&
+                                                                user
+                                                                    .imgPath!
+                                                                    .isNotEmpty
+                                                            ? user.imgPath!
+                                                            : 'https://via.placeholder.com/50',
+                                                      ),
                                                       onBackgroundImageError:
                                                           (_, __) => const Icon(
                                                             Icons.person,
@@ -638,16 +647,6 @@ class _UsersPageState extends State<UsersPage> {
                                                 Expanded(
                                                   flex: 1,
                                                   child: Center(
-                                                    child: Text(
-                                                      '••••••••',
-                                                      style: _cellStyle(),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                Expanded(
-                                                  flex: 1,
-                                                  child: Center(
                                                     child: Container(
                                                       padding:
                                                           const EdgeInsets.symmetric(
@@ -655,7 +654,9 @@ class _UsersPageState extends State<UsersPage> {
                                                             vertical: 4,
                                                           ),
                                                       decoration: BoxDecoration(
-                                                        color: user.isActive
+                                                        color:
+                                                            user.status ==
+                                                                'active'
                                                             ? Colors.green
                                                                   .withOpacity(
                                                                     0.1,
@@ -670,11 +671,13 @@ class _UsersPageState extends State<UsersPage> {
                                                             ),
                                                       ),
                                                       child: Text(
-                                                        user.isActive
+                                                        user.status == 'active'
                                                             ? 'Active'
                                                             : 'Inactive',
                                                         style: TextStyle(
-                                                          color: user.isActive
+                                                          color:
+                                                              user.status ==
+                                                                  'active'
                                                               ? Colors
                                                                     .green[800]
                                                               : Colors.red[800],
@@ -982,9 +985,9 @@ class _UsersPageState extends State<UsersPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Username
+                      // First Name
                       const Text(
-                        'Username *',
+                        'First Name *',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -993,10 +996,34 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _usernameController,
+                        controller: _firstNameController,
                         decoration: InputDecoration(
-                          labelText: 'Username',
-                          hintText: 'Enter username',
+                          labelText: 'First Name',
+                          hintText: 'Enter first name',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.person),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Last Name
+                      const Text(
+                        'Last Name *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _lastNameController,
+                        decoration: InputDecoration(
+                          labelText: 'Last Name',
+                          hintText: 'Enter last name',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -1031,6 +1058,31 @@ class _UsersPageState extends State<UsersPage> {
 
                       const SizedBox(height: 24),
 
+                      // Cell No1
+                      const Text(
+                        'Cell No1 *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _cellNo1Controller,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'Cell No1',
+                          hintText: 'Enter primary cell number',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.phone),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
                       // Password
                       const Text(
                         'Password *',
@@ -1056,9 +1108,9 @@ class _UsersPageState extends State<UsersPage> {
 
                       const SizedBox(height: 24),
 
-                      // Picture URL
+                      // Cell No2
                       const Text(
-                        'Picture URL',
+                        'Cell No2',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1067,15 +1119,50 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _pictureController,
+                        controller: _cellNo2Controller,
+                        keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
-                          labelText: 'Picture URL',
-                          hintText: 'Enter picture URL (optional)',
+                          labelText: 'Cell No2',
+                          hintText: 'Enter secondary cell number (optional)',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          prefixIcon: const Icon(Icons.image),
+                          prefixIcon: const Icon(Icons.phone),
                         ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Status
+                      const Text(
+                        'Status *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.toggle_on),
+                        ),
+                        items: ['Active', 'Inactive'].map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedStatus = newValue!;
+                          });
+                        },
                       ),
 
                       const SizedBox(height: 32),
@@ -1188,9 +1275,9 @@ class _UsersPageState extends State<UsersPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Username
+                      // First Name
                       const Text(
-                        'Username *',
+                        'First Name *',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1199,10 +1286,34 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _usernameController,
+                        controller: _firstNameController,
                         decoration: InputDecoration(
-                          labelText: 'Username',
-                          hintText: 'Enter username',
+                          labelText: 'First Name',
+                          hintText: 'Enter first name',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.person),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Last Name
+                      const Text(
+                        'Last Name *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _lastNameController,
+                        decoration: InputDecoration(
+                          labelText: 'Last Name',
+                          hintText: 'Enter last name',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -1237,9 +1348,9 @@ class _UsersPageState extends State<UsersPage> {
 
                       const SizedBox(height: 24),
 
-                      // Password
+                      // Cell No1
                       const Text(
-                        'Password *',
+                        'Cell No1',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1248,23 +1359,23 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _passwordController,
-                        obscureText: true,
+                        controller: _cellNo1Controller,
+                        keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
-                          labelText: 'Password',
-                          hintText: 'Enter password',
+                          labelText: 'Cell No1',
+                          hintText: 'Enter primary cell number',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          prefixIcon: const Icon(Icons.lock),
+                          prefixIcon: const Icon(Icons.phone),
                         ),
                       ),
 
                       const SizedBox(height: 24),
 
-                      // Picture URL
+                      // Cell No2
                       const Text(
-                        'Picture URL',
+                        'Cell No2',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1273,15 +1384,75 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _pictureController,
+                        controller: _cellNo2Controller,
+                        keyboardType: TextInputType.phone,
                         decoration: InputDecoration(
-                          labelText: 'Picture URL',
-                          hintText: 'Enter picture URL (optional)',
+                          labelText: 'Cell No2',
+                          hintText: 'Enter secondary cell number (optional)',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          prefixIcon: const Icon(Icons.image),
+                          prefixIcon: const Icon(Icons.phone),
                         ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Role ID
+                      const Text(
+                        'Role ID',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _roleIdController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Role ID',
+                          hintText: 'Enter role ID',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.badge),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Status
+                      const Text(
+                        'Status',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.toggle_on),
+                        ),
+                        items: ['Active', 'Inactive'].map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedStatus = newValue!;
+                          });
+                        },
                       ),
 
                       const SizedBox(height: 32),

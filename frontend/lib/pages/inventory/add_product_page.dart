@@ -3,8 +3,14 @@ import '../../services/inventory_service.dart';
 import '../../models/vendor.dart' as vendor;
 import '../../models/category.dart';
 import '../../models/sub_category.dart';
+import '../../models/color.dart' as colorModel;
+import '../../models/size.dart' as sizeModel;
+import '../../models/material.dart' as materialModel;
+import '../../models/season.dart' as seasonModel;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'dart:convert';
 
 class AddProductPage extends StatefulWidget {
   final VoidCallback? onProductAdded;
@@ -20,25 +26,226 @@ class _AddProductPageState extends State<AddProductPage> {
   final _titleController = TextEditingController();
   final _designCodeController = TextEditingController();
   final _salePriceController = TextEditingController();
+  final _buyingPriceController = TextEditingController();
   final _openingStockQuantityController = TextEditingController();
   final _barcodeController = TextEditingController();
+  final _qrCodeController = TextEditingController();
 
   String _selectedStatus = 'Active';
   int? _selectedVendorId;
   int? _selectedCategoryId;
   int? _selectedSubCategoryId;
+  int? _selectedSizeId;
+  int? _selectedColorId;
+  int? _selectedMaterialId;
+  int? _selectedSeasonId;
+
+  // Variant data
+  List<colorModel.Color> colors = [];
+  List<sizeModel.Size> sizes = [];
+  List<materialModel.Material> materials = [];
+  List<seasonModel.Season> seasons = [];
+
+  // Existing data
   List<Category> categories = [];
   List<SubCategory> subCategories = [];
   List<vendor.Vendor> vendors = [];
+
   bool isSubmitting = false;
-  File? _selectedImage;
-  String? _imagePath;
+  List<File> _selectedImages = [];
+  List<String> _imagePaths = [];
+  String? _qrCodeData;
+  String? _qrCodeImagePath;
+  bool _showQrCode = false;
 
   @override
   void initState() {
     super.initState();
     _fetchCategories();
     _fetchVendors();
+    _fetchVariants();
+    // Add listener to design code controller to auto-generate barcode and QR code
+    _designCodeController.addListener(_generateBarcodeAndQrFromDesignCode);
+  }
+
+  @override
+  void dispose() {
+    _designCodeController.removeListener(_generateBarcodeAndQrFromDesignCode);
+    super.dispose();
+  }
+
+  void _generateBarcodeAndQrFromDesignCode() {
+    final designCode = _designCodeController.text.trim();
+    if (designCode.isNotEmpty) {
+      // Generate barcode by converting design code to a numerical representation
+      int barcodeValue = 0;
+      for (int i = 0; i < designCode.length; i++) {
+        barcodeValue = barcodeValue * 31 + designCode.codeUnitAt(i);
+      }
+      // Ensure it's positive and within reasonable barcode length
+      barcodeValue = barcodeValue.abs() % 999999999;
+      // Pad with zeros to ensure consistent length
+      final barcodeString = barcodeValue.toString().padLeft(9, '0');
+      _barcodeController.text = barcodeString;
+
+      // Generate QR code data
+      _generateQrCode();
+    } else {
+      _barcodeController.text = '';
+      _qrCodeData = null;
+      setState(() {
+        _showQrCode = false;
+      });
+    }
+  }
+
+  void _generateQrCode() {
+    if (_titleController.text.isEmpty || _designCodeController.text.isEmpty) {
+      return;
+    }
+
+    // Get selected vendor details
+    vendor.Vendor? selectedVendor;
+    if (_selectedVendorId != null) {
+      try {
+        selectedVendor = vendors.firstWhere((v) => v.id == _selectedVendorId);
+      } catch (e) {
+        // Vendor not found
+      }
+    }
+
+    // Get selected category details
+    Category? selectedCategory;
+    if (_selectedCategoryId != null) {
+      try {
+        selectedCategory = categories.firstWhere((c) => c.id == _selectedCategoryId);
+      } catch (e) {
+        // Category not found
+      }
+    }
+
+    // Get selected variants
+    sizeModel.Size? selectedSize;
+    colorModel.Color? selectedColor;
+    materialModel.Material? selectedMaterial;
+    seasonModel.Season? selectedSeason;
+
+    if (_selectedSizeId != null) {
+      try {
+        selectedSize = sizes.firstWhere((s) => s.id == _selectedSizeId);
+      } catch (e) {}
+    }
+    if (_selectedColorId != null) {
+      try {
+        selectedColor = colors.firstWhere((c) => c.id == _selectedColorId);
+      } catch (e) {}
+    }
+    if (_selectedMaterialId != null) {
+      try {
+        selectedMaterial = materials.firstWhere((m) => m.id == _selectedMaterialId);
+      } catch (e) {}
+    }
+    if (_selectedSeasonId != null) {
+      try {
+        selectedSeason = seasons.firstWhere((s) => s.id == _selectedSeasonId);
+      } catch (e) {}
+    }
+
+    // Create comprehensive QR code data
+    final qrData = {
+      'vendor_info': selectedVendor != null ? {
+        'id': selectedVendor.id,
+        'name': selectedVendor.fullName,
+        'code': selectedVendor.vendorCode,
+        'cnic': selectedVendor.cnic,
+        'address': selectedVendor.address,
+        'city': selectedVendor.city.title,
+      } : null,
+      'vendor_barcode': selectedVendor?.vendorCode ?? '',
+      'our_barcode': _barcodeController.text,
+      'product_images': _imagePaths,
+      'data_entry_date': DateTime.now().toIso8601String(),
+      'buying_price': _buyingPriceController.text,
+      'selling_price': _salePriceController.text,
+      'product_name': _titleController.text,
+      'category': selectedCategory?.title ?? '',
+      'size': selectedSize?.title ?? '',
+      'color': selectedColor?.title ?? '',
+      'fabric': selectedMaterial?.title ?? '',
+      'quantity': _openingStockQuantityController.text,
+      'design_code': _designCodeController.text,
+      'status': _selectedStatus,
+    };
+
+    _qrCodeData = jsonEncode(qrData);
+    setState(() {
+      _showQrCode = true;
+    });
+
+    // Save QR code as image file
+    _saveQrCodeAsImage();
+  }
+
+  Future<void> _saveQrCodeAsImage() async {
+    try {
+      final directory = Directory('${Directory.current.path}/assets/images/products');
+      if (!await directory.exists()) {
+        await directory.create(recursive: true);
+      }
+
+      final fileName = 'qr_${_designCodeController.text}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final filePath = '${directory.path}/$fileName';
+
+      // Create QR code image data
+      final qrPainter = QrPainter(
+        data: _qrCodeData!,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.M,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0xFFFFFFFF),
+      );
+
+      final picData = await qrPainter.toImageData(200);
+      if (picData != null) {
+        final buffer = picData.buffer.asUint8List();
+        final file = File(filePath);
+        await file.writeAsBytes(buffer);
+
+        // Store QR code image path
+        _qrCodeImagePath = 'https://zafarcomputers.com/assets/images/products/$fileName';
+        print('✅ QR Code saved: $_qrCodeImagePath');
+      }
+    } catch (e) {
+      print('❌ Error saving QR code: $e');
+    }
+  }
+
+  Future<void> _fetchVariants() async {
+    try {
+      // Fetch all variants in parallel
+      final results = await Future.wait([
+        InventoryService.getColors(),
+        InventoryService.getSizes(),
+        InventoryService.getMaterials(),
+        InventoryService.getSeasons(),
+      ]);
+
+      setState(() {
+        colors = (results[0] as colorModel.ColorResponse).data;
+        sizes = (results[1] as sizeModel.SizeResponse).data;
+        materials = (results[2] as materialModel.MaterialResponse).data;
+        seasons = (results[3] as seasonModel.SeasonResponse).data;
+      });
+    } catch (e) {
+      print('Error fetching variants: $e');
+      // Set empty lists on error
+      setState(() {
+        colors = [];
+        sizes = [];
+        materials = [];
+        seasons = [];
+      });
+    }
   }
 
   Future<void> _fetchVendors() async {
@@ -105,6 +312,16 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Future<void> _pickImage() async {
+    if (_selectedImages.length >= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum 3 images allowed'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
@@ -123,11 +340,16 @@ class _AddProductPageState extends State<AddProductPage> {
       }
       final fileName = 'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final savedImage = await imageFile.copy('${directory.path}/$fileName');
+
+      final imagePath = 'https://zafarcomputers.com/assets/images/products/$fileName';
+
       setState(() {
-        _selectedImage = savedImage;
-        _imagePath =
-            'https://zafarcomputers.com/assets/images/products/$fileName';
+        _selectedImages.add(savedImage);
+        _imagePaths.add(imagePath);
       });
+
+      // Regenerate QR code with new image
+      _generateQrCode();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -136,6 +358,15 @@ class _AddProductPageState extends State<AddProductPage> {
         ),
       );
     }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+      _imagePaths.removeAt(index);
+    });
+    // Regenerate QR code after image removal
+    _generateQrCode();
   }
 
   Future<void> _submitForm() async {
@@ -147,9 +378,10 @@ class _AddProductPageState extends State<AddProductPage> {
       final productData = {
         'title': _titleController.text,
         'design_code': _designCodeController.text,
-        'image_path': _imagePath,
+        'image_paths': _imagePaths, // Changed to array
         'sub_category_id': _selectedSubCategoryId,
         'sale_price': double.parse(_salePriceController.text),
+        'buying_price': double.tryParse(_buyingPriceController.text) ?? 0, // Added buying price
         'opening_stock_quantity': int.parse(
           _openingStockQuantityController.text,
         ),
@@ -159,7 +391,14 @@ class _AddProductPageState extends State<AddProductPage> {
         'vendor_id': _selectedVendorId,
         'user_id': 1,
         'barcode': _barcodeController.text,
+        'qr_code_data': _qrCodeData, // Added QR code data
+        'qr_code_image_path': _qrCodeImagePath, // Added QR code image path
         'status': _selectedStatus,
+        // Variant data
+        'size_id': _selectedSizeId,
+        'color_id': _selectedColorId,
+        'material_id': _selectedMaterialId,
+        'season_id': _selectedSeasonId,
       };
 
       await InventoryService.createProduct(productData);
@@ -389,6 +628,44 @@ class _AddProductPageState extends State<AddProductPage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+
+                      // QR Code Section
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _qrCodeController,
+                              decoration: InputDecoration(
+                                labelText: 'QR Code (Auto-generated)',
+                                hintText: 'Generated from product data',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                              readOnly: true,
+                              maxLines: 3,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          if (_showQrCode && _qrCodeData != null)
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Color(0xFFDEE2E6)),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: QrImageView(
+                                data: _qrCodeData!,
+                                size: 80,
+                                backgroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 24),
 
                       // Category Section
@@ -480,19 +757,18 @@ class _AddProductPageState extends State<AddProductPage> {
                             child: TextFormField(
                               controller: _barcodeController,
                               decoration: InputDecoration(
-                                labelText: 'Barcode (Numerical) *',
-                                hintText: 'Enter numerical barcode value',
+                                labelText: 'Barcode (Auto-generated) *',
+                                hintText: 'Generated from design code',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
                               ),
-                              keyboardType: TextInputType.number,
+                              readOnly: true,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Please enter barcode';
-                                }
-                                if (int.tryParse(value) == null) {
-                                  return 'Barcode must be a valid number';
+                                  return 'Barcode is required';
                                 }
                                 return null;
                               },
@@ -539,22 +815,146 @@ class _AddProductPageState extends State<AddProductPage> {
                           const SizedBox(width: 16),
                           Expanded(
                             child: TextFormField(
-                              controller: _openingStockQuantityController,
+                              controller: _buyingPriceController,
                               decoration: InputDecoration(
-                                labelText: 'Opening Stock Quantity *',
+                                labelText: 'Buying Price (PKR)',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                               keyboardType: TextInputType.number,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter opening stock quantity';
-                                }
-                                if (int.tryParse(value) == null) {
-                                  return 'Please enter a valid number';
-                                }
-                                return null;
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _openingStockQuantityController,
+                        decoration: InputDecoration(
+                          labelText: 'Opening Stock Quantity *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter opening stock quantity';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Variants Section
+                      _buildSectionHeader('Variants & Attributes', Icons.palette),
+                      const SizedBox(height: 24),
+
+                      // Size and Color row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedSizeId,
+                              decoration: InputDecoration(
+                                labelText: 'Size',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: sizes.map((size) {
+                                return DropdownMenuItem<int>(
+                                  value: size.id,
+                                  child: Text('${size.title}'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedSizeId = value;
+                                });
+                                _generateQrCode();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedColorId,
+                              decoration: InputDecoration(
+                                labelText: 'Color',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: colors.map((color) {
+                                return DropdownMenuItem<int>(
+                                  value: color.id,
+                                  child: Text('${color.title}'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedColorId = value;
+                                });
+                                _generateQrCode();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Material and Season row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedMaterialId,
+                              decoration: InputDecoration(
+                                labelText: 'Material/Fabric',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: materials.map((material) {
+                                return DropdownMenuItem<int>(
+                                  value: material.id,
+                                  child: Text('${material.title}'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedMaterialId = value;
+                                });
+                                _generateQrCode();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedSeasonId,
+                              decoration: InputDecoration(
+                                labelText: 'Season',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              items: seasons.map((season) {
+                                return DropdownMenuItem<int>(
+                                  value: season.id,
+                                  child: Text('${season.title}'),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedSeasonId = value;
+                                });
+                                _generateQrCode();
                               },
                             ),
                           ),
@@ -595,52 +995,102 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(height: 24),
 
                       // Image Section
-                      _buildSectionHeader('Product Image', Icons.image),
+                      _buildSectionHeader('Product Images (Max 3)', Icons.image),
                       const SizedBox(height: 16),
+
+                      // Display selected images
+                      if (_selectedImages.isNotEmpty)
+                        Container(
+                          height: 120,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _selectedImages.length,
+                            itemBuilder: (context, index) {
+                              return Container(
+                                width: 100,
+                                height: 100,
+                                margin: const EdgeInsets.only(right: 12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Color(0xFFDEE2E6)),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        _selectedImages[index],
+                                        fit: BoxFit.cover,
+                                        width: 100,
+                                        height: 100,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () => _removeImage(index),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.withOpacity(0.8),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
 
                       Container(
                         width: double.infinity,
-                        height: 200,
+                        height: 120,
                         decoration: BoxDecoration(
                           border: Border.all(color: Color(0xFFDEE2E6)),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: _selectedImage != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  _selectedImage!,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.image,
-                                    color: Color(0xFF6C757D),
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'No image selected',
-                                    style: TextStyle(color: Color(0xFF6C757D)),
-                                  ),
-                                ],
-                              ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.image,
+                              color: Color(0xFF6C757D),
+                              size: 32,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _selectedImages.isEmpty
+                                  ? 'No images selected'
+                                  : '${_selectedImages.length}/3 images selected',
+                              style: TextStyle(color: Color(0xFF6C757D)),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 16),
 
                       ElevatedButton.icon(
-                        onPressed: _pickImage,
+                        onPressed: _selectedImages.length < 3 ? _pickImage : null,
                         icon: Icon(Icons.photo_library),
                         label: Text(
-                          _selectedImage == null
-                              ? 'Select Image'
-                              : 'Change Image',
+                          _selectedImages.isEmpty
+                              ? 'Select Images'
+                              : 'Add More Images (${_selectedImages.length}/3)',
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF0D1845),
+                          backgroundColor: _selectedImages.length < 3
+                              ? Color(0xFF0D1845)
+                              : Colors.grey,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),

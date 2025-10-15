@@ -904,9 +904,15 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
                   if (response['status'] == true) {
                     // Remove the deleted subcategory from local cache immediately
                     setState(() {
-                      _allSubCategoriesCache.removeWhere((item) => item.id == subCategory.id);
-                      _allFilteredSubCategories.removeWhere((item) => item.id == subCategory.id);
-                      subCategories.removeWhere((item) => item.id == subCategory.id);
+                      _allSubCategoriesCache.removeWhere(
+                        (item) => item.id == subCategory.id,
+                      );
+                      _allFilteredSubCategories.removeWhere(
+                        (item) => item.id == subCategory.id,
+                      );
+                      subCategories.removeWhere(
+                        (item) => item.id == subCategory.id,
+                      );
                       totalSubCategories = _allFilteredSubCategories.length;
                       totalPages = (totalSubCategories / itemsPerPage).ceil();
 
@@ -1014,7 +1020,9 @@ class _SubCategoryListPageState extends State<SubCategoryListPage> {
         );
       },
     );
-  }  void viewSubCategoryDetails(SubCategory subCategory) {
+  }
+
+  void viewSubCategoryDetails(SubCategory subCategory) {
     Navigator.push(
       context,
       MaterialPageRoute(

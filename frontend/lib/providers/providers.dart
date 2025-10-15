@@ -27,6 +27,11 @@ class AuthProvider with ChangeNotifier {
   bool get isLoggedIn => _token != null && _user != null;
   int get imageVersion => _imageVersion;
 
+  // Constructor - initialize auth state
+  AuthProvider() {
+    initAuth();
+  }
+
   void incrementImageVersion() {
     _imageVersion++;
     notifyListeners();

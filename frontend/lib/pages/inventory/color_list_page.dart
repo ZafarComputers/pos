@@ -49,23 +49,6 @@ class _ColorListPageState extends State<ColorListPage> {
     'Grey',
     'Navy',
     'Maroon',
-    'Teal',
-    'Olive',
-    'Lime',
-    'Aqua',
-    'Silver',
-    'Gold',
-    'Beige',
-    'Coral',
-    'Crimson',
-    'Indigo',
-    'Violet',
-    'Turquoise',
-    'Magenta',
-    'Cyan',
-    'Lavender',
-    'Salmon',
-    'Khaki',
   ];
 
   @override
@@ -903,6 +886,8 @@ class _ColorListPageState extends State<ColorListPage> {
   void addNewColor() async {
     String selectedColor = predefinedColors[0]; // Default to first color
     String selectedStatus = 'Active';
+    bool isCustomField = false;
+    String customColorName = '';
 
     final parentContext = context; // Store parent context
 
@@ -939,17 +924,21 @@ class _ColorListPageState extends State<ColorListPage> {
                       height: 60,
                       margin: EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: _getColorFromName(selectedColor),
+                        color: isCustomField
+                            ? Colors.grey
+                            : _getColorFromName(selectedColor),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Color(0xFFDEE2E6)),
                       ),
                       child: Center(
                         child: Text(
-                          selectedColor,
+                          isCustomField ? customColorName : selectedColor,
                           style: TextStyle(
-                            color: _getContrastColor(
-                              _getColorFromName(selectedColor),
-                            ),
+                            color: isCustomField
+                                ? Colors.black
+                                : _getContrastColor(
+                                    _getColorFromName(selectedColor),
+                                  ),
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -957,7 +946,7 @@ class _ColorListPageState extends State<ColorListPage> {
                       ),
                     ),
                     DropdownButtonFormField<String>(
-                      value: selectedColor,
+                      value: isCustomField ? 'Custom Field' : selectedColor,
                       decoration: InputDecoration(
                         labelText: 'Select Color *',
                         border: OutlineInputBorder(
@@ -968,36 +957,98 @@ class _ColorListPageState extends State<ColorListPage> {
                           vertical: 12,
                         ),
                       ),
-                      items: predefinedColors
-                          .map(
-                            (color) => DropdownMenuItem(
-                              value: color,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    margin: EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      color: _getColorFromName(color),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: Color(0xFFDEE2E6),
-                                      ),
+                      items: [
+                        ...predefinedColors.map(
+                          (color) => DropdownMenuItem(
+                            value: color,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  margin: EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: _getColorFromName(color),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Color(0xFFDEE2E6),
                                     ),
                                   ),
-                                  Text(color),
-                                ],
-                              ),
+                                ),
+                                Text(color),
+                              ],
                             ),
-                          )
-                          .toList(),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Custom Field',
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                margin: EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Color(0xFFDEE2E6)),
+                                ),
+                                child: Icon(
+                                  Icons.edit,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text('Custom Field'),
+                            ],
+                          ),
+                        ),
+                      ],
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() => selectedColor = value);
+                          if (value == 'Custom Field') {
+                            setState(() {
+                              isCustomField = true;
+                              selectedColor = '';
+                            });
+                          } else {
+                            setState(() {
+                              isCustomField = false;
+                              selectedColor = value;
+                              customColorName = '';
+                            });
+                          }
                         }
                       },
                     ),
+                    if (isCustomField) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        initialValue: customColorName,
+                        decoration: InputDecoration(
+                          labelText: 'Enter Custom Color Name *',
+                          hintText: 'e.g., Electric Blue, Pastel Pink',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            customColorName = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Custom color name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: selectedStatus,
@@ -1038,12 +1089,25 @@ class _ColorListPageState extends State<ColorListPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    // Validate custom field input
+                    if (isCustomField && (customColorName.trim().isEmpty)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a custom color name'),
+                          backgroundColor: Color(0xFFDC3545),
+                        ),
+                      );
+                      return;
+                    }
+
                     try {
                       Navigator.of(context).pop(true); // Close dialog first
                       if (mounted) setState(() => isLoading = true);
 
                       final createData = {
-                        'title': selectedColor,
+                        'title': isCustomField
+                            ? customColorName.trim()
+                            : selectedColor,
                         'status': selectedStatus,
                       };
 

@@ -3,30 +3,47 @@ class Product {
   final String title;
   final String designCode;
   final String? imagePath;
+  final List<String>? imagePaths; // Added for multiple images
   final String subCategoryId;
   final String salePrice;
+  final String? buyingPrice; // Added buying price
   final String openingStockQuantity;
   final String vendorId;
   final ProductVendor vendor;
   final String barcode;
+  final String? qrCodeData; // Added QR code data
+  final String? qrCodeImagePath; // Added QR code image path
   final String status;
   final String createdAt;
   final String updatedAt;
+  // Variant IDs
+  final int? sizeId;
+  final int? colorId;
+  final int? materialId;
+  final int? seasonId;
 
   Product({
     required this.id,
     required this.title,
     required this.designCode,
     this.imagePath,
+    this.imagePaths, // Added for multiple images
     required this.subCategoryId,
     required this.salePrice,
+    this.buyingPrice, // Added buying price
     required this.openingStockQuantity,
     required this.vendorId,
     required this.vendor,
     required this.barcode,
+    this.qrCodeData, // Added QR code data
+    this.qrCodeImagePath, // Added QR code image path
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.sizeId, // Added variant IDs
+    this.colorId,
+    this.materialId,
+    this.seasonId,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -53,17 +70,36 @@ class Product {
           '',
       designCode: json['design_code']?.toString() ?? '',
       imagePath: json['image_path']?.toString(),
+      imagePaths: json['image_paths'] != null
+          ? (json['image_paths'] as List).map((e) => e.toString()).toList()
+          : null, // Added for multiple images
       subCategoryId: json['sub_category_id']?.toString() ?? '',
       salePrice: json['sale_price']?.toString() ?? '',
+      buyingPrice: json['buying_price']?.toString(), // Added buying price
       openingStockQuantity: json['opening_stock_quantity']?.toString() ?? '',
       vendorId: json['vendor_id']?.toString() ?? '',
       vendor: json['vendor'] != null
           ? ProductVendor.fromJson(json['vendor'])
           : ProductVendor.empty(),
       barcode: json['barcode']?.toString() ?? '',
+      qrCodeData: json['qr_code_data']?.toString(), // Added QR code data
+      qrCodeImagePath: json['qr_code_image_path']
+          ?.toString(), // Added QR code image path
       status: json['status']?.toString() ?? '',
       createdAt: json['created_at']?.toString() ?? '',
       updatedAt: json['updated_at']?.toString() ?? '',
+      sizeId: json['size_id'] != null
+          ? int.tryParse(json['size_id'].toString())
+          : null, // Added variant IDs
+      colorId: json['color_id'] != null
+          ? int.tryParse(json['color_id'].toString())
+          : null,
+      materialId: json['material_id'] != null
+          ? int.tryParse(json['material_id'].toString())
+          : null,
+      seasonId: json['season_id'] != null
+          ? int.tryParse(json['season_id'].toString())
+          : null,
     );
   }
 }

@@ -42,18 +42,6 @@ class _SizeListPageState extends State<SizeListPage> {
     'Large',
     'XL',
     'XXL',
-    'XXXL',
-    'Extra Small',
-    'Extra Large',
-    'Extra Extra Large',
-    '2XL',
-    '3XL',
-    '4XL',
-    '5XL',
-    'One Size',
-    'S/M',
-    'L/XL',
-    'Free Size',
   ];
 
   @override
@@ -218,6 +206,8 @@ class _SizeListPageState extends State<SizeListPage> {
   void addNewSize() async {
     String selectedSize = predefinedSizes.first;
     String selectedStatus = 'Active';
+    bool isCustomField = false;
+    String customSizeName = '';
 
     final parentContext = context; // Store parent context
 
@@ -260,7 +250,7 @@ class _SizeListPageState extends State<SizeListPage> {
                       ),
                       child: Center(
                         child: Text(
-                          selectedSize,
+                          isCustomField ? customSizeName : selectedSize,
                           style: TextStyle(
                             color: Color(0xFF343A40),
                             fontWeight: FontWeight.bold,
@@ -281,20 +271,54 @@ class _SizeListPageState extends State<SizeListPage> {
                           vertical: 12,
                         ),
                       ),
-                      items: predefinedSizes
-                          .map(
-                            (size) => DropdownMenuItem(
-                              value: size,
-                              child: Text(size),
-                            ),
-                          )
-                          .toList(),
+                      items: [
+                        ...predefinedSizes.map(
+                          (size) =>
+                              DropdownMenuItem(value: size, child: Text(size)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Custom Field',
+                          child: Text('Custom Field'),
+                        ),
+                      ],
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() => selectedSize = value);
+                          setState(() {
+                            selectedSize = value;
+                            isCustomField = value == 'Custom Field';
+                            if (!isCustomField) {
+                              customSizeName = '';
+                            }
+                          });
                         }
                       },
                     ),
+                    if (isCustomField) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        initialValue: customSizeName,
+                        decoration: InputDecoration(
+                          labelText: 'Enter Custom Size Name *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() => customSizeName = value);
+                        },
+                        validator: (value) {
+                          if (isCustomField &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'Custom size name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: selectedStatus,
@@ -335,12 +359,29 @@ class _SizeListPageState extends State<SizeListPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    // Validate custom field
+                    if (isCustomField && customSizeName.trim().isEmpty) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a custom size name'),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
                     try {
                       Navigator.of(context).pop(true); // Close dialog first
                       if (mounted) setState(() => isLoading = true);
 
                       final createData = {
-                        'title': selectedSize,
+                        'title': isCustomField
+                            ? customSizeName.trim()
+                            : selectedSize,
                         'status': selectedStatus,
                       };
 

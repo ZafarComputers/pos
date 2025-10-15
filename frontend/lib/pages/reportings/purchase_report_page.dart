@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/purchase_reporting_service.dart';
 
 class PurchaseReportPage extends StatefulWidget {
   const PurchaseReportPage({super.key});
@@ -9,10 +10,23 @@ class PurchaseReportPage extends StatefulWidget {
 }
 
 class _PurchaseReportPageState extends State<PurchaseReportPage> {
-  // Mock data for purchase report
-  List<Map<String, dynamic>> _purchaseReport = [];
-  List<Map<String, dynamic>> _selectedReports = [];
+  // API data
+  List<PurchaseReport> _purchaseReports = [];
+  List<PurchaseReport> _selectedReports = [];
   bool _selectAll = false;
+
+  // Loading and error states
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  // Pagination
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
+
+  int get _totalPages => (_getFilteredReports().length / _itemsPerPage).ceil();
+
+  // Table scroll controller
+  final ScrollController _tableScrollController = ScrollController();
 
   // Filter states
   String _selectedPeriod = 'Last 7 Days';
@@ -22,116 +36,54 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
   @override
   void initState() {
     super.initState();
-    _loadMockPurchaseReport();
+    _loadPurchaseReports();
   }
 
-  void _loadMockPurchaseReport() {
-    // Mock purchase report data
-    _purchaseReport = [
-      {
-        'id': '1',
-        'date': DateTime(2025, 10, 8),
-        'reference': 'PUR-2025-001',
-        'supplier': 'TechCorp Supplies',
-        'totalItems': 15,
-        'totalQuantity': 45,
-        'subtotal': 22500.0,
-        'tax': 2250.0,
-        'discount': 500.0,
-        'shipping': 200.0,
-        'grandTotal': 24450.0,
-        'paidAmount': 24450.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Bank Transfer',
-        'status': 'Completed',
-        'receivedBy': 'John Smith',
-      },
-      {
-        'id': '2',
-        'date': DateTime(2025, 10, 7),
-        'reference': 'PUR-2025-002',
-        'supplier': 'Global Electronics',
-        'totalItems': 8,
-        'totalQuantity': 24,
-        'subtotal': 16800.0,
-        'tax': 1680.0,
-        'discount': 0.0,
-        'shipping': 150.0,
-        'grandTotal': 18630.0,
-        'paidAmount': 9300.0,
-        'dueAmount': 9330.0,
-        'paymentMethod': 'Partial Payment',
-        'status': 'Pending',
-        'receivedBy': 'Sarah Johnson',
-      },
-      {
-        'id': '3',
-        'date': DateTime(2025, 10, 6),
-        'reference': 'PUR-2025-003',
-        'supplier': 'Fashion Wholesale',
-        'totalItems': 12,
-        'totalQuantity': 36,
-        'subtotal': 12600.0,
-        'tax': 1260.0,
-        'discount': 300.0,
-        'shipping': 100.0,
-        'grandTotal': 13660.0,
-        'paidAmount': 13660.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Cash',
-        'status': 'Completed',
-        'receivedBy': 'Mike Davis',
-      },
-      {
-        'id': '4',
-        'date': DateTime(2025, 10, 5),
-        'reference': 'PUR-2025-004',
-        'supplier': 'Home & Kitchen Ltd',
-        'totalItems': 6,
-        'totalQuantity': 18,
-        'subtotal': 9600.0,
-        'tax': 960.0,
-        'discount': 200.0,
-        'shipping': 80.0,
-        'grandTotal': 10440.0,
-        'paidAmount': 0.0,
-        'dueAmount': 10440.0,
-        'paymentMethod': 'Unpaid',
-        'status': 'Cancelled',
-        'receivedBy': 'Lisa Wilson',
-      },
-      {
-        'id': '5',
-        'date': DateTime(2025, 10, 4),
-        'reference': 'PUR-2025-005',
-        'supplier': 'Sports Equipment Co',
-        'totalItems': 10,
-        'totalQuantity': 30,
-        'subtotal': 19500.0,
-        'tax': 1950.0,
-        'discount': 400.0,
-        'shipping': 120.0,
-        'grandTotal': 21170.0,
-        'paidAmount': 21170.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Card',
-        'status': 'Completed',
-        'receivedBy': 'Tom Brown',
-      },
-    ];
-  }
-
-  void _toggleReportSelection(Map<String, dynamic> report) {
+  Future<void> _loadPurchaseReports() async {
     setState(() {
-      final reportId = report['id'];
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await PurchaseReportingService.getPurchaseReports();
+      _purchaseReports = response.data;
+
+      // Calculate total pages
+      _currentPage = 1;
+      _selectedReports.clear();
+      _selectAll = false;
+    } catch (e) {
+      _errorMessage = 'Failed to load purchase reports: $e';
+      // Set empty data on error
+      _purchaseReports = [];
+      _currentPage = 1;
+      _selectedReports.clear();
+      _selectAll = false;
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tableScrollController.dispose();
+    super.dispose();
+  }
+
+  void _toggleReportSelection(PurchaseReport report) {
+    setState(() {
+      final reportId = report.purInvId;
       final existingIndex = _selectedReports.indexWhere(
-        (r) => r['id'] == reportId,
+        (r) => r.purInvId == reportId,
       );
 
       if (existingIndex >= 0) {
         _selectedReports.removeAt(existingIndex);
       } else {
-        _selectedReports.add(Map<String, dynamic>.from(report));
+        _selectedReports.add(report);
       }
 
       _updateSelectAllState();
@@ -150,40 +102,58 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
   }
 
   void _updateSelectAllState() {
-    final filteredReports = _getFilteredReports();
+    final paginatedReports = _getPaginatedReports();
     _selectAll =
-        filteredReports.isNotEmpty &&
-        _selectedReports.length == filteredReports.length;
+        paginatedReports.isNotEmpty &&
+        _selectedReports.length == paginatedReports.length &&
+        paginatedReports.every((report) => _selectedReports.contains(report));
   }
 
-  List<Map<String, dynamic>> _getFilteredReports() {
-    return _purchaseReport.where((report) {
+  List<PurchaseReport> _getFilteredReports() {
+    return _purchaseReports.where((report) {
       final supplierMatch =
-          _selectedSupplier == 'All' || report['supplier'] == _selectedSupplier;
+          _selectedSupplier == 'All' || report.vendorName == _selectedSupplier;
       final statusMatch =
-          _selectedStatus == 'All' || report['status'] == _selectedStatus;
+          _selectedStatus == 'All' || report.paymentStatus == _selectedStatus;
 
       // Date filtering
       bool dateMatch = true;
       if (_selectedPeriod == 'Last 7 Days') {
         final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-        dateMatch = report['date'].isAfter(sevenDaysAgo);
+        final reportDate = DateTime.tryParse(report.purDate) ?? DateTime.now();
+        dateMatch = reportDate.isAfter(sevenDaysAgo);
       } else if (_selectedPeriod == 'Last 30 Days') {
         final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-        dateMatch = report['date'].isAfter(thirtyDaysAgo);
+        final reportDate = DateTime.tryParse(report.purDate) ?? DateTime.now();
+        dateMatch = reportDate.isAfter(thirtyDaysAgo);
       }
 
       return supplierMatch && statusMatch && dateMatch;
     }).toList();
   }
 
+  List<PurchaseReport> _getPaginatedReports() {
+    final filteredReports = _getFilteredReports();
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+    return filteredReports.sublist(
+      startIndex,
+      endIndex > filteredReports.length ? filteredReports.length : endIndex,
+    );
+  }
+
+  int _calculateTotalQuantity(PurchaseReport report) {
+    return report.purDetails.fold(
+      0,
+      (sum, detail) => sum + (int.tryParse(detail.quantity) ?? 0),
+    );
+  }
+
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Completed':
+    switch (status.toLowerCase()) {
+      case 'paid':
         return Colors.green;
-      case 'Pending':
-        return Colors.orange;
-      case 'Cancelled':
+      case 'unpaid':
         return Colors.red;
       default:
         return Colors.grey;
@@ -191,21 +161,197 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
   }
 
   double _calculateTotal(String field) {
-    return _getFilteredReports().fold(
-      0.0,
-      (sum, report) => sum + (report[field] as double),
-    );
+    return _getFilteredReports().fold(0.0, (sum, report) {
+      switch (field) {
+        case 'grandTotal':
+          return sum + (double.tryParse(report.invAmount) ?? 0.0);
+        case 'paidAmount':
+          // For paid amount, we need to calculate from payment status
+          return sum +
+              (report.paymentStatus.toLowerCase() == 'paid'
+                  ? (double.tryParse(report.invAmount) ?? 0.0)
+                  : 0.0);
+        default:
+          return sum;
+      }
+    });
   }
 
   int _calculateTotalInt(String field) {
-    return _getFilteredReports().fold(
-      0,
-      (sum, report) => sum + (report[field] as int),
+    return _getFilteredReports().fold(0, (sum, report) {
+      switch (field) {
+        case 'totalItems':
+          return sum + report.purDetails.length;
+        case 'totalQuantity':
+          return sum +
+              report.purDetails.fold(
+                0,
+                (qSum, detail) => qSum + (int.tryParse(detail.quantity) ?? 0),
+              );
+        default:
+          return sum;
+      }
+    });
+  }
+
+  Widget _buildPaginationControls() {
+    // Show pagination controls even with 1 page
+    // if (_totalPages <= 1) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Previous button
+          IconButton(
+            onPressed: _currentPage > 1
+                ? () {
+                    setState(() {
+                      _currentPage--;
+                      _updateSelectAllState();
+                    });
+                    // Reset table scroll position
+                    _tableScrollController.jumpTo(0.0);
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: _currentPage > 1 ? Color(0xFF0D1845) : Colors.grey,
+            tooltip: 'Previous Page',
+          ),
+
+          // Page numbers
+          ..._buildPageNumbers(),
+
+          // Next button
+          IconButton(
+            onPressed: _currentPage < _totalPages
+                ? () {
+                    setState(() {
+                      _currentPage++;
+                      _updateSelectAllState();
+                    });
+                    // Reset table scroll position
+                    _tableScrollController.jumpTo(0.0);
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: _currentPage < _totalPages ? Color(0xFF0D1845) : Colors.grey,
+            tooltip: 'Next Page',
+          ),
+
+          // Page info
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Color(0xFF0D1845).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              'Page $_currentPage of $_totalPages',
+              style: TextStyle(
+                color: Color(0xFF0D1845),
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  List<Widget> _buildPageNumbers() {
+    List<Widget> pageNumbers = [];
+    int startPage = 1;
+    int endPage = _totalPages;
+
+    // Show max 10 page numbers at a time
+    if (_totalPages > 10) {
+      if (_currentPage <= 5) {
+        endPage = 10;
+      } else if (_currentPage >= _totalPages - 4) {
+        startPage = _totalPages - 9;
+      } else {
+        startPage = _currentPage - 4;
+        endPage = _currentPage + 5;
+      }
+    }
+
+    for (int i = startPage; i <= endPage; i++) {
+      pageNumbers.add(
+        InkWell(
+          onTap: () {
+            setState(() {
+              _currentPage = i;
+              _updateSelectAllState();
+            });
+            // Reset table scroll position
+            _tableScrollController.jumpTo(0.0);
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _currentPage == i ? Color(0xFF0D1845) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: _currentPage == i
+                    ? Color(0xFF0D1845)
+                    : Colors.grey.shade300,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              i.toString(),
+              style: TextStyle(
+                color: _currentPage == i ? Colors.white : Color(0xFF0D1845),
+                fontWeight: _currentPage == i
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return pageNumbers;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadPurchaseReports,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final filteredReports = _getFilteredReports();
 
     return Container(
@@ -446,6 +592,7 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                   if (value != null) {
                                     setState(() {
                                       _selectedPeriod = value;
+                                      _currentPage = 1;
                                       _updateSelectAllState();
                                     });
                                   }
@@ -527,11 +674,12 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                 items:
                                     [
                                           'All',
-                                          'TechCorp Supplies',
-                                          'Global Electronics',
-                                          'Fashion Wholesale',
-                                          'Home & Kitchen Ltd',
-                                          'Sports Equipment Co',
+                                          ..._purchaseReports
+                                              .map(
+                                                (report) => report.vendorName,
+                                              )
+                                              .toSet()
+                                              .toList(),
                                         ]
                                         .map(
                                           (supplier) => DropdownMenuItem(
@@ -564,6 +712,7 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                   if (value != null) {
                                     setState(() {
                                       _selectedSupplier = value;
+                                      _currentPage = 1;
                                       _updateSelectAllState();
                                     });
                                   }
@@ -643,7 +792,16 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                   ),
                                 ),
                                 items:
-                                    ['All', 'Completed', 'Pending', 'Cancelled']
+                                    [
+                                          'All',
+                                          ..._purchaseReports
+                                              .map(
+                                                (report) =>
+                                                    report.paymentStatus,
+                                              )
+                                              .toSet()
+                                              .toList(),
+                                        ]
                                         .map(
                                           (status) => DropdownMenuItem(
                                             value: status,
@@ -653,19 +811,23 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                                   status == 'All'
                                                       ? Icons
                                                             .inventory_2_rounded
-                                                      : status == 'Completed'
+                                                      : status.toLowerCase() ==
+                                                            'paid'
                                                       ? Icons
                                                             .check_circle_rounded
-                                                      : status == 'Pending'
-                                                      ? Icons.pending
-                                                      : Icons.cancel_rounded,
+                                                      : status.toLowerCase() ==
+                                                            'unpaid'
+                                                      ? Icons.cancel_rounded
+                                                      : Icons.pending,
                                                   color: status == 'All'
                                                       ? Color(0xFF6C757D)
-                                                      : status == 'Completed'
+                                                      : status.toLowerCase() ==
+                                                            'paid'
                                                       ? Color(0xFF28A745)
-                                                      : status == 'Pending'
-                                                      ? Color(0xFFFFA726)
-                                                      : Color(0xFFDC3545),
+                                                      : status.toLowerCase() ==
+                                                            'unpaid'
+                                                      ? Color(0xFFDC3545)
+                                                      : Color(0xFFFFA726),
                                                   size: 18,
                                                 ),
                                                 SizedBox(width: 8),
@@ -685,6 +847,7 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                   if (value != null) {
                                     setState(() {
                                       _selectedStatus = value;
+                                      _currentPage = 1;
                                       _updateSelectAllState();
                                     });
                                   }
@@ -775,6 +938,7 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                   ),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    controller: _tableScrollController,
                     child: DataTable(
                       headingRowColor: MaterialStateProperty.all(
                         Color(0xFFF8F9FA),
@@ -806,9 +970,9 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                         DataColumn(label: Text('Received By')),
                         DataColumn(label: Text('Actions')),
                       ],
-                      rows: filteredReports.map((report) {
+                      rows: _getPaginatedReports().map((report) {
                         final isSelected = _selectedReports.any(
-                          (r) => r['id'] == report['id'],
+                          (r) => r.purInvId == report.purInvId,
                         );
                         return DataRow(
                           selected: isSelected,
@@ -823,12 +987,13 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                             ),
                             DataCell(
                               Text(
-                                DateFormat(
-                                  'dd MMM yyyy',
-                                ).format(report['date']),
+                                DateFormat('dd MMM yyyy').format(
+                                  DateTime.tryParse(report.purDate) ??
+                                      DateTime.now(),
+                                ),
                               ),
                             ),
-                            DataCell(Text(report['reference'])),
+                            DataCell(Text(report.venInvNo)),
                             DataCell(
                               Row(
                                 children: [
@@ -846,47 +1011,41 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                     ),
                                   ),
                                   SizedBox(width: 8),
-                                  Text(report['supplier']),
+                                  Text(report.vendorName),
                                 ],
                               ),
                             ),
-                            DataCell(Text(report['totalItems'].toString())),
-                            DataCell(Text(report['totalQuantity'].toString())),
+                            DataCell(Text(report.purDetails.length.toString())),
+                            DataCell(
+                              Text(_calculateTotalQuantity(report).toString()),
+                            ),
                             DataCell(
                               Text(
-                                'Rs. ${report['subtotal'].toStringAsFixed(2)}',
+                                'Rs. ${double.tryParse(report.invAmount)?.toStringAsFixed(2) ?? '0.00'}',
                               ),
                             ),
+                            DataCell(Text('Rs. ${report.invDiscAmount}')),
+                            DataCell(Text('Rs. ${report.invDiscAmount}')),
                             DataCell(
-                              Text('Rs. ${report['tax'].toStringAsFixed(2)}'),
+                              Text('Rs. 0.00'), // No shipping in API
                             ),
                             DataCell(
                               Text(
-                                'Rs. ${report['discount'].toStringAsFixed(2)}',
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                'Rs. ${report['shipping'].toStringAsFixed(2)}',
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                'Rs. ${report['grandTotal'].toStringAsFixed(2)}',
+                                'Rs. ${double.tryParse(report.invAmount)?.toStringAsFixed(2) ?? '0.00'}',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
                             DataCell(
                               Text(
-                                'Rs. ${report['paidAmount'].toStringAsFixed(2)}',
+                                'Rs. ${report.paymentStatus.toLowerCase() == 'paid' ? (double.tryParse(report.invAmount)?.toStringAsFixed(2) ?? '0.00') : '0.00'}',
                               ),
                             ),
                             DataCell(
                               Text(
-                                'Rs. ${report['dueAmount'].toStringAsFixed(2)}',
+                                'Rs. ${report.paymentStatus.toLowerCase() == 'unpaid' ? (double.tryParse(report.invAmount)?.toStringAsFixed(2) ?? '0.00') : '0.00'}',
                               ),
                             ),
-                            DataCell(Text(report['paymentMethod'])),
+                            DataCell(Text(report.paymentStatus)),
                             DataCell(
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -895,21 +1054,23 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: _getStatusColor(
-                                    report['status'],
+                                    report.paymentStatus,
                                   ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  report['status'],
+                                  report.paymentStatus,
                                   style: TextStyle(
-                                    color: _getStatusColor(report['status']),
+                                    color: _getStatusColor(
+                                      report.paymentStatus,
+                                    ),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
                             ),
-                            DataCell(Text(report['receivedBy'])),
+                            DataCell(Text('N/A')), // No received by in API
                             DataCell(
                               Row(
                                 children: [
@@ -943,6 +1104,8 @@ class _PurchaseReportPageState extends State<PurchaseReportPage> {
                       }).toList(),
                     ),
                   ),
+                  // Pagination Controls
+                  _buildPaginationControls(),
                 ],
               ),
             ),

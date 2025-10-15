@@ -332,6 +332,8 @@ class _MaterialListPageState extends State<MaterialListPage> {
   void addNewMaterial() async {
     String selectedMaterial = predefinedMaterials.first;
     String selectedStatus = 'Active';
+    bool isCustomField = false;
+    String customMaterialName = '';
 
     final parentContext = context; // Store parent context
 
@@ -374,7 +376,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
                       ),
                       child: Center(
                         child: Text(
-                          selectedMaterial,
+                          isCustomField ? customMaterialName : selectedMaterial,
                           style: TextStyle(
                             color: Color(0xFF343A40),
                             fontWeight: FontWeight.bold,
@@ -395,20 +397,56 @@ class _MaterialListPageState extends State<MaterialListPage> {
                           vertical: 12,
                         ),
                       ),
-                      items: predefinedMaterials
-                          .map(
-                            (material) => DropdownMenuItem(
-                              value: material,
-                              child: Text(material),
-                            ),
-                          )
-                          .toList(),
+                      items: [
+                        ...predefinedMaterials.map(
+                          (material) => DropdownMenuItem(
+                            value: material,
+                            child: Text(material),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Custom Field',
+                          child: Text('Custom Field'),
+                        ),
+                      ],
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() => selectedMaterial = value);
+                          setState(() {
+                            selectedMaterial = value;
+                            isCustomField = value == 'Custom Field';
+                            if (!isCustomField) {
+                              customMaterialName = '';
+                            }
+                          });
                         }
                       },
                     ),
+                    if (isCustomField) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        initialValue: customMaterialName,
+                        decoration: InputDecoration(
+                          labelText: 'Enter Custom Material Name *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() => customMaterialName = value);
+                        },
+                        validator: (value) {
+                          if (isCustomField &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'Custom material name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: selectedStatus,
@@ -449,12 +487,29 @@ class _MaterialListPageState extends State<MaterialListPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    // Validate custom field
+                    if (isCustomField && customMaterialName.trim().isEmpty) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a custom material name'),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
                     try {
                       Navigator.of(context).pop(true); // Close dialog first
                       if (mounted) setState(() => isLoading = true);
 
                       final createData = {
-                        'title': selectedMaterial,
+                        'title': isCustomField
+                            ? customMaterialName.trim()
+                            : selectedMaterial,
                         'status': selectedStatus,
                       };
 

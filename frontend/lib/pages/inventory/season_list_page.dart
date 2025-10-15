@@ -43,9 +43,6 @@ class _SeasonListPageState extends State<SeasonListPage> {
     'Autumn',
     'Mid-Season',
     'All Seasons',
-    'Holiday',
-    'Festive',
-    'Year Round',
   ];
 
   @override
@@ -325,6 +322,8 @@ class _SeasonListPageState extends State<SeasonListPage> {
   void addNewSeason() async {
     String selectedSeason = predefinedSeasons.first;
     String selectedStatus = 'Active';
+    bool isCustomField = false;
+    String customSeasonName = '';
 
     final parentContext = context; // Store parent context
 
@@ -367,7 +366,7 @@ class _SeasonListPageState extends State<SeasonListPage> {
                       ),
                       child: Center(
                         child: Text(
-                          selectedSeason,
+                          isCustomField ? customSeasonName : selectedSeason,
                           style: TextStyle(
                             color: Color(0xFF343A40),
                             fontWeight: FontWeight.bold,
@@ -388,20 +387,56 @@ class _SeasonListPageState extends State<SeasonListPage> {
                           vertical: 12,
                         ),
                       ),
-                      items: predefinedSeasons
-                          .map(
-                            (season) => DropdownMenuItem(
-                              value: season,
-                              child: Text(season),
-                            ),
-                          )
-                          .toList(),
+                      items: [
+                        ...predefinedSeasons.map(
+                          (season) => DropdownMenuItem(
+                            value: season,
+                            child: Text(season),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Custom Field',
+                          child: Text('Custom Field'),
+                        ),
+                      ],
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() => selectedSeason = value);
+                          setState(() {
+                            selectedSeason = value;
+                            isCustomField = value == 'Custom Field';
+                            if (!isCustomField) {
+                              customSeasonName = '';
+                            }
+                          });
                         }
                       },
                     ),
+                    if (isCustomField) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        initialValue: customSeasonName,
+                        decoration: InputDecoration(
+                          labelText: 'Enter Custom Season Name *',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() => customSeasonName = value);
+                        },
+                        validator: (value) {
+                          if (isCustomField &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'Custom season name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: selectedStatus,
@@ -442,12 +477,29 @@ class _SeasonListPageState extends State<SeasonListPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    // Validate custom field
+                    if (isCustomField && customSeasonName.trim().isEmpty) {
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a custom season name'),
+                          backgroundColor: Color(0xFFDC3545),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
                     try {
                       Navigator.of(context).pop(true); // Close dialog first
                       if (mounted) setState(() => isLoading = true);
 
                       final createData = {
-                        'title': selectedSeason,
+                        'title': isCustomField
+                            ? customSeasonName.trim()
+                            : selectedSeason,
                         'status': selectedStatus,
                       };
 

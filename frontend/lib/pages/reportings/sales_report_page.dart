@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../services/sales_report_service.dart';
 
 class SalesReportPage extends StatefulWidget {
   const SalesReportPage({super.key});
@@ -9,126 +9,138 @@ class SalesReportPage extends StatefulWidget {
 }
 
 class _SalesReportPageState extends State<SalesReportPage> {
-  // Mock data for sales report
-  List<Map<String, dynamic>> _salesReport = [];
-  List<Map<String, dynamic>> _selectedReports = [];
+  // API data
+  List<SalesReport> _salesReport = [];
+  List<SalesReport> _selectedReports = [];
   bool _selectAll = false;
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  // Pagination
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
+  int _totalPages = 1;
 
   // Filter states
-  String _selectedPeriod = 'Last 7 Days';
+  String _selectedPeriod = 'All Time';
   String _selectedVendor = 'All';
-  String _selectedBiller = 'All';
-  DateTime? _startDate;
-  DateTime? _endDate;
+  String _selectedCategory = 'All';
 
   @override
   void initState() {
     super.initState();
-    _loadMockSalesReport();
+    _loadSalesReport();
   }
 
-  void _loadMockSalesReport() {
-    // Mock sales report data
-    _salesReport = [
-      {
-        'id': '1',
-        'date': DateTime(2025, 10, 8),
-        'reference': 'SALE-2025-001',
-        'vendor': 'Carl Evans',
-        'biller': 'John Smith',
-        'totalItems': 5,
-        'totalQuantity': 8,
-        'subtotal': 2200.0,
-        'tax': 300.0,
-        'discount': 50.0,
-        'grandTotal': 2450.0,
-        'paidAmount': 2450.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Cash',
-        'status': 'Completed',
-      },
-      {
-        'id': '2',
-        'date': DateTime(2025, 10, 7),
-        'reference': 'SALE-2025-002',
-        'vendor': 'Minerva Rameriz',
-        'biller': 'Sarah Johnson',
-        'totalItems': 3,
-        'totalQuantity': 5,
-        'subtotal': 1600.0,
-        'tax': 200.0,
-        'discount': 0.0,
-        'grandTotal': 1800.0,
-        'paidAmount': 900.0,
-        'dueAmount': 900.0,
-        'paymentMethod': 'Card',
-        'status': 'Pending',
-      },
-      {
-        'id': '3',
-        'date': DateTime(2025, 10, 6),
-        'reference': 'SALE-2025-003',
-        'vendor': 'Robert Lamon',
-        'biller': 'Mike Davis',
-        'totalItems': 7,
-        'totalQuantity': 12,
-        'subtotal': 2900.0,
-        'tax': 300.0,
-        'discount': 100.0,
-        'grandTotal': 3100.0,
-        'paidAmount': 3100.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Bank Transfer',
-        'status': 'Completed',
-      },
-      {
-        'id': '4',
-        'date': DateTime(2025, 10, 5),
-        'reference': 'SALE-2025-004',
-        'vendor': 'Mark Joslyn',
-        'biller': 'Lisa Wilson',
-        'totalItems': 2,
-        'totalQuantity': 3,
-        'subtotal': 1350.0,
-        'tax': 150.0,
-        'discount': 0.0,
-        'grandTotal': 1500.0,
-        'paidAmount': 0.0,
-        'dueAmount': 1500.0,
-        'paymentMethod': 'Unpaid',
-        'status': 'Cancelled',
-      },
-      {
-        'id': '5',
-        'date': DateTime(2025, 10, 4),
-        'reference': 'SALE-2025-005',
-        'vendor': 'Patricia Lewis',
-        'biller': 'Tom Brown',
-        'totalItems': 4,
-        'totalQuantity': 6,
-        'subtotal': 850.0,
-        'tax': 100.0,
-        'discount': 50.0,
-        'grandTotal': 900.0,
-        'paidAmount': 900.0,
-        'dueAmount': 0.0,
-        'paymentMethod': 'Cash',
-        'status': 'Completed',
-      },
+  Future<void> _loadSalesReport() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final response = await SalesReportService.getSalesReport();
+      setState(() {
+        _salesReport = response.data;
+        _selectedReports.clear(); // Clear selections when new data loads
+        _selectAll = false;
+        _currentPage = 1; // Reset to first page
+        _isLoading = false;
+      });
+    } catch (e) {
+      // Temporary mock data for testing pagination
+      setState(() {
+        _salesReport = _generateMockData();
+        _selectedReports.clear();
+        _selectAll = false;
+        _currentPage = 1; // Reset to first page
+        _errorMessage = 'API Error: $e\n\nShowing mock data for testing';
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<SalesReport> _generateMockData() {
+    return [
+      SalesReport(
+        posInvNo: 1,
+        productName: 'Product A',
+        vendor: 'Carl Evans',
+        category: 'Electronics',
+        qty: '5',
+        salePrice: '220.00',
+        amount: 1100.0,
+        openingStockQty: '10',
+        newStockQty: '5',
+        soldStockQty: '2',
+        instockQty: '13',
+      ),
+      SalesReport(
+        posInvNo: 2,
+        productName: 'Product B',
+        vendor: 'Minerva Rameriz',
+        category: 'Clothing',
+        qty: '3',
+        salePrice: '160.00',
+        amount: 480.0,
+        openingStockQty: '20',
+        newStockQty: '8',
+        soldStockQty: '1',
+        instockQty: '27',
+      ),
+      SalesReport(
+        posInvNo: 3,
+        productName: 'Product C',
+        vendor: 'Robert Lamon',
+        category: 'Home & Kitchen',
+        qty: '7',
+        salePrice: '290.00',
+        amount: 2030.0,
+        openingStockQty: '15',
+        newStockQty: '3',
+        soldStockQty: '4',
+        instockQty: '14',
+      ),
+      SalesReport(
+        posInvNo: 4,
+        productName: 'Product D',
+        vendor: 'Mark Joslyn',
+        category: 'Footwear',
+        qty: '2',
+        salePrice: '135.00',
+        amount: 270.0,
+        openingStockQty: '8',
+        newStockQty: '6',
+        soldStockQty: '0',
+        instockQty: '14',
+      ),
+      SalesReport(
+        posInvNo: 5,
+        productName: 'Product E',
+        vendor: 'Patricia Lewis',
+        category: 'Electronics',
+        qty: '4',
+        salePrice: '85.00',
+        amount: 340.0,
+        openingStockQty: '12',
+        newStockQty: '2',
+        soldStockQty: '3',
+        instockQty: '11',
+      ),
     ];
   }
 
-  void _toggleReportSelection(Map<String, dynamic> report) {
+  void _toggleReportSelection(SalesReport report) {
     setState(() {
-      final reportId = report['id'];
+      final reportId = report.posInvNo;
       final existingIndex = _selectedReports.indexWhere(
-        (r) => r['id'] == reportId,
+        (r) => r.posInvNo == reportId,
       );
 
       if (existingIndex >= 0) {
         _selectedReports.removeAt(existingIndex);
       } else {
-        _selectedReports.add(Map<String, dynamic>.from(report));
+        _selectedReports.add(report);
       }
 
       _updateSelectAllState();
@@ -137,71 +149,112 @@ class _SalesReportPageState extends State<SalesReportPage> {
 
   void _toggleSelectAll() {
     setState(() {
+      final currentPageReports = _getPaginatedReports();
       if (_selectAll) {
-        _selectedReports.clear();
+        // Remove all current page items from selection
+        for (final report in currentPageReports) {
+          _selectedReports.removeWhere((r) => r.posInvNo == report.posInvNo);
+        }
       } else {
-        _selectedReports = List.from(_getFilteredReports());
+        // Add all current page items to selection (avoiding duplicates)
+        for (final report in currentPageReports) {
+          if (!_selectedReports.any((r) => r.posInvNo == report.posInvNo)) {
+            _selectedReports.add(report);
+          }
+        }
       }
-      _selectAll = !_selectAll;
+      _updateSelectAllState();
     });
   }
 
   void _updateSelectAllState() {
-    final filteredReports = _getFilteredReports();
+    final currentPageReports = _getPaginatedReports();
     _selectAll =
-        filteredReports.isNotEmpty &&
-        _selectedReports.length == filteredReports.length;
+        currentPageReports.isNotEmpty &&
+        currentPageReports.every(
+          (report) =>
+              _selectedReports.any((r) => r.posInvNo == report.posInvNo),
+        );
   }
 
-  List<Map<String, dynamic>> _getFilteredReports() {
+  List<SalesReport> _getFilteredReports() {
     return _salesReport.where((report) {
-      final customerMatch =
-          _selectedVendor == 'All' || report['vendor'] == _selectedVendor;
-      final billerMatch =
-          _selectedBiller == 'All' || report['biller'] == _selectedBiller;
+      final vendorMatch =
+          _selectedVendor == 'All' || report.vendor == _selectedVendor;
+      final categoryMatch =
+          _selectedCategory == 'All' || report.category == _selectedCategory;
 
-      // Date filtering
-      bool dateMatch = true;
-      if (_startDate != null && _endDate != null) {
-        dateMatch =
-            report['date'].isAfter(
-              _startDate!.subtract(const Duration(days: 1)),
-            ) &&
-            report['date'].isBefore(_endDate!.add(const Duration(days: 1)));
-      } else if (_selectedPeriod == 'Last 7 Days') {
-        final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-        dateMatch = report['date'].isAfter(sevenDaysAgo);
-      } else if (_selectedPeriod == 'Last 30 Days') {
-        final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-        dateMatch = report['date'].isAfter(thirtyDaysAgo);
-      }
-
-      return customerMatch && billerMatch && dateMatch;
+      return vendorMatch && categoryMatch;
     }).toList();
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Completed':
-        return Colors.green;
-      case 'Pending':
-        return Colors.orange;
-      case 'Cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  List<SalesReport> _getPaginatedReports() {
+    final filteredReports = _getFilteredReports();
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+
+    _totalPages = (filteredReports.length / _itemsPerPage).ceil();
+    if (_totalPages == 0) _totalPages = 1;
+
+    return filteredReports.sublist(
+      startIndex,
+      endIndex > filteredReports.length ? filteredReports.length : endIndex,
+    );
   }
 
   double _calculateTotal(String field) {
-    return _getFilteredReports().fold(
-      0.0,
-      (sum, report) => sum + (report[field] as double),
-    );
+    return _getFilteredReports().fold(0.0, (sum, report) {
+      switch (field) {
+        case 'totalAmount':
+          return sum + report.amount;
+        case 'totalQty':
+          return sum + int.tryParse(report.qty)!.toDouble();
+        default:
+          return sum;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.warning, color: Colors.orange, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'API Error - Showing Mock Data',
+                style: const TextStyle(
+                  color: Colors.orange,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage.split('\n\n')[0], // Show only the error part
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadSalesReport,
+                child: const Text('Retry API Call'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final filteredReports = _getFilteredReports();
 
     return Container(
@@ -272,9 +325,29 @@ class _SalesReportPageState extends State<SalesReportPage> {
                       ],
                     ),
                   ),
+                  if (_errorMessage.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'MOCK DATA',
+                        style: TextStyle(
+                          fontSize: 8,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                   ElevatedButton.icon(
                     onPressed: () {
-                      // TODO: Implement export functionality
+                      _loadSalesReport();
                     },
                     icon: const Icon(Icons.download, size: 16),
                     label: const Text('Export Report'),
@@ -300,27 +373,29 @@ class _SalesReportPageState extends State<SalesReportPage> {
               children: [
                 _buildSummaryCard(
                   'Total Sales',
-                  'Rs. ${_calculateTotal('grandTotal').toStringAsFixed(2)}',
+                  'Rs. ${_calculateTotal('totalAmount').toStringAsFixed(2)}',
                   Icons.shopping_cart,
                   Colors.blue,
                 ),
                 _buildSummaryCard(
-                  'Total Paid',
-                  'Rs. ${_calculateTotal('paidAmount').toStringAsFixed(2)}',
-                  Icons.payments,
+                  'Total Items',
+                  '${_calculateTotal('totalQty').toInt()}',
+                  Icons.inventory,
                   Colors.green,
                 ),
                 _buildSummaryCard(
-                  'Total Due',
-                  'Rs. ${_calculateTotal('dueAmount').toStringAsFixed(2)}',
-                  Icons.pending,
-                  Colors.orange,
+                  'Total Records',
+                  '${filteredReports.length}',
+                  Icons.receipt,
+                  Colors.purple,
                 ),
                 _buildSummaryCard(
-                  'Total Tax',
-                  'Rs. ${_calculateTotal('tax').toStringAsFixed(2)}',
-                  Icons.account_balance,
-                  Colors.purple,
+                  'Avg. Sale Value',
+                  filteredReports.isNotEmpty
+                      ? 'Rs. ${(_calculateTotal('totalAmount') / filteredReports.length).toStringAsFixed(2)}'
+                      : 'Rs. 0.00',
+                  Icons.trending_up,
+                  Colors.orange,
                 ),
               ],
             ),
@@ -345,7 +420,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
                 children: [
                   Row(
                     children: [
-                      // Period Filter
+                      // Period Filter (placeholder for now since API doesn't have date)
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,7 +439,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                   ),
                                   SizedBox(width: 6),
                                   Text(
-                                    'Time Period',
+                                    'Period',
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -413,45 +488,35 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                     vertical: 16,
                                   ),
                                 ),
-                                items:
-                                    [
-                                          'Last 7 Days',
-                                          'Last 30 Days',
-                                          'Custom Range',
-                                        ]
-                                        .map(
-                                          (period) => DropdownMenuItem(
-                                            value: period,
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  period == 'Custom Range'
-                                                      ? Icons.calendar_today
-                                                      : Icons.schedule,
-                                                  color: Color(0xFF0D1845),
-                                                  size: 18,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  period,
-                                                  style: TextStyle(
-                                                    color: Color(0xFF343A40),
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ],
+                                items: ['All Time']
+                                    .map(
+                                      (period) => DropdownMenuItem(
+                                        value: period,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.schedule,
+                                              color: Color(0xFF0D1845),
+                                              size: 18,
                                             ),
-                                          ),
-                                        )
-                                        .toList(),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              period,
+                                              style: TextStyle(
+                                                color: Color(0xFF343A40),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                                 onChanged: (value) {
                                   if (value != null) {
                                     setState(() {
                                       _selectedPeriod = value;
-                                      if (value != 'Custom Range') {
-                                        _startDate = null;
-                                        _endDate = null;
-                                      }
+                                      _currentPage = 1; // Reset to first page
                                       _updateSelectAllState();
                                     });
                                   }
@@ -533,11 +598,10 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                 items:
                                     [
                                           'All',
-                                          'Carl Evans',
-                                          'Minerva Rameriz',
-                                          'Robert Lamon',
-                                          'Mark Joslyn',
-                                          'Patricia Lewis',
+                                          ..._salesReport
+                                              .map((r) => r.vendor)
+                                              .toSet()
+                                              .toList(),
                                         ]
                                         .map(
                                           (vendor) => DropdownMenuItem(
@@ -570,6 +634,125 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                   if (value != null) {
                                     setState(() {
                                       _selectedVendor = value;
+                                      _currentPage = 1; // Reset to first page
+                                      _updateSelectAllState();
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Category Filter
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 4,
+                                bottom: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.category,
+                                    size: 16,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Category',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedCategory,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFDEE2E6),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF0D1845),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                ),
+                                items:
+                                    [
+                                          'All',
+                                          ..._salesReport
+                                              .map((r) => r.category)
+                                              .toSet()
+                                              .toList(),
+                                        ]
+                                        .map(
+                                          (category) => DropdownMenuItem(
+                                            value: category,
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  category == 'All'
+                                                      ? Icons.inventory_2
+                                                      : Icons.category,
+                                                  color: category == 'All'
+                                                      ? Color(0xFF6C757D)
+                                                      : Color(0xFF0D1845),
+                                                  size: 18,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  category,
+                                                  style: TextStyle(
+                                                    color: Color(0xFF343A40),
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _selectedCategory = value;
+                                      _currentPage = 1; // Reset to first page
                                       _updateSelectAllState();
                                     });
                                   }
@@ -674,25 +857,21 @@ class _SalesReportPageState extends State<SalesReportPage> {
                       }),
                       columns: const [
                         DataColumn(label: Text('Select')),
-                        DataColumn(label: Text('Date')),
-                        DataColumn(label: Text('Reference')),
+                        DataColumn(label: Text('Invoice No')),
+                        DataColumn(label: Text('Product')),
                         DataColumn(label: Text('Vendor')),
-                        DataColumn(label: Text('Biller')),
-                        DataColumn(label: Text('Items')),
+                        DataColumn(label: Text('Category')),
                         DataColumn(label: Text('Qty')),
-                        DataColumn(label: Text('Subtotal')),
-                        DataColumn(label: Text('Tax')),
-                        DataColumn(label: Text('Discount')),
-                        DataColumn(label: Text('Grand Total')),
-                        DataColumn(label: Text('Paid')),
-                        DataColumn(label: Text('Due')),
-                        DataColumn(label: Text('Payment Method')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Actions')),
+                        DataColumn(label: Text('Sale Price')),
+                        DataColumn(label: Text('Amount')),
+                        DataColumn(label: Text('Opening Stock')),
+                        DataColumn(label: Text('New Stock')),
+                        DataColumn(label: Text('Sold Stock')),
+                        DataColumn(label: Text('In Stock')),
                       ],
-                      rows: filteredReports.map((report) {
+                      rows: _getPaginatedReports().map((report) {
                         final isSelected = _selectedReports.any(
-                          (r) => r['id'] == report['id'],
+                          (r) => r.posInvNo == report.posInvNo,
                         );
                         return DataRow(
                           selected: isSelected,
@@ -705,14 +884,8 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                 activeColor: Color(0xFF0D1845),
                               ),
                             ),
-                            DataCell(
-                              Text(
-                                DateFormat(
-                                  'dd MMM yyyy',
-                                ).format(report['date']),
-                              ),
-                            ),
-                            DataCell(Text(report['reference'])),
+                            DataCell(Text(report.posInvNo.toString())),
+                            DataCell(Text(report.productName)),
                             DataCell(
                               Row(
                                 children: [
@@ -730,93 +903,27 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                     ),
                                   ),
                                   SizedBox(width: 8),
-                                  Text(report['vendor']),
+                                  Text(report.vendor),
                                 ],
                               ),
                             ),
-                            DataCell(Text(report['biller'])),
-                            DataCell(Text(report['totalItems'].toString())),
-                            DataCell(Text(report['totalQuantity'].toString())),
+                            DataCell(Text(report.category)),
+                            DataCell(Text(report.qty.toString())),
                             DataCell(
                               Text(
-                                'Rs. ${report['subtotal'].toStringAsFixed(2)}',
-                              ),
-                            ),
-                            DataCell(
-                              Text('Rs. ${report['tax'].toStringAsFixed(2)}'),
-                            ),
-                            DataCell(
-                              Text(
-                                'Rs. ${report['discount'].toStringAsFixed(2)}',
+                                'Rs. ${double.parse(report.salePrice).toStringAsFixed(2)}',
                               ),
                             ),
                             DataCell(
                               Text(
-                                'Rs. ${report['grandTotal'].toStringAsFixed(2)}',
+                                'Rs. ${report.amount.toStringAsFixed(2)}',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
-                            DataCell(
-                              Text(
-                                'Rs. ${report['paidAmount'].toStringAsFixed(2)}',
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                'Rs. ${report['dueAmount'].toStringAsFixed(2)}',
-                              ),
-                            ),
-                            DataCell(Text(report['paymentMethod'])),
-                            DataCell(
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    report['status'],
-                                  ).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  report['status'],
-                                  style: TextStyle(
-                                    color: _getStatusColor(report['status']),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.visibility,
-                                      color: Color(0xFF0D1845),
-                                      size: 18,
-                                    ),
-                                    onPressed: () {
-                                      // TODO: Implement view details
-                                    },
-                                    tooltip: 'View Details',
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.print,
-                                      color: Color(0xFF28A745),
-                                      size: 18,
-                                    ),
-                                    onPressed: () {
-                                      // TODO: Implement print
-                                    },
-                                    tooltip: 'Print',
-                                  ),
-                                ],
-                              ),
-                            ),
+                            DataCell(Text(report.openingStockQty.toString())),
+                            DataCell(Text(report.newStockQty.toString())),
+                            DataCell(Text(report.soldStockQty.toString())),
+                            DataCell(Text(report.instockQty.toString())),
                           ],
                         );
                       }).toList(),
@@ -825,10 +932,139 @@ class _SalesReportPageState extends State<SalesReportPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Pagination Controls
+            _buildPaginationControls(),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildPaginationControls() {
+    // Show pagination controls even with 1 page for testing
+    // if (_totalPages <= 1) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Previous button
+          IconButton(
+            onPressed: _currentPage > 1
+                ? () {
+                    setState(() {
+                      _currentPage--;
+                      _updateSelectAllState();
+                    });
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: _currentPage > 1 ? Color(0xFF0D1845) : Colors.grey,
+            tooltip: 'Previous Page',
+          ),
+
+          // Page numbers
+          ..._buildPageNumbers(),
+
+          // Next button
+          IconButton(
+            onPressed: _currentPage < _totalPages
+                ? () {
+                    setState(() {
+                      _currentPage++;
+                      _updateSelectAllState();
+                    });
+                  }
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: _currentPage < _totalPages ? Color(0xFF0D1845) : Colors.grey,
+            tooltip: 'Next Page',
+          ),
+
+          // Page info
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Color(0xFF0D1845).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              'Page $_currentPage of $_totalPages',
+              style: TextStyle(
+                color: Color(0xFF0D1845),
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPageNumbers() {
+    List<Widget> pageNumbers = [];
+    int startPage = 1;
+    int endPage = _totalPages;
+
+    // Show max 5 page numbers at a time
+    if (_totalPages > 5) {
+      if (_currentPage <= 3) {
+        endPage = 5;
+      } else if (_currentPage >= _totalPages - 2) {
+        startPage = _totalPages - 4;
+      } else {
+        startPage = _currentPage - 2;
+        endPage = _currentPage + 2;
+      }
+    }
+
+    for (int i = startPage; i <= endPage; i++) {
+      pageNumbers.add(
+        InkWell(
+          onTap: () {
+            setState(() {
+              _currentPage = i;
+              _updateSelectAllState();
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _currentPage == i ? Color(0xFF0D1845) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: _currentPage == i
+                    ? Color(0xFF0D1845)
+                    : Colors.grey.shade300,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              i.toString(),
+              style: TextStyle(
+                color: _currentPage == i ? Colors.white : Color(0xFF0D1845),
+                fontWeight: _currentPage == i
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return pageNumbers;
   }
 
   Widget _buildSummaryCard(

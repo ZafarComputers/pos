@@ -1092,11 +1092,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           const SizedBox(width: 16),
                           Expanded(
                             flex: 2,
-                            child: Text('Customer Type', style: _headerStyle()),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 2,
                             child: Text('Date', style: _headerStyle()),
                           ),
                           const SizedBox(width: 16),
@@ -1222,39 +1217,11 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                                         invoice.isCreditCustomer
                                                             ? invoice
                                                                   .customerName
-                                                            : 'Walk-in Customer',
+                                                            : 'Walk-in',
                                                         style: _cellStyle(),
                                                       ),
                                                     ),
                                                   ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 16),
-                                              Expanded(
-                                                flex: 2,
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.green
-                                                        .withOpacity(0.1),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
-                                                        ),
-                                                  ),
-                                                  child: const Text(
-                                                    'Normal',
-                                                    style: TextStyle(
-                                                      color: Colors.green,
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(width: 16),
