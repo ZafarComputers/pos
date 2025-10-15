@@ -41,6 +41,7 @@ import 'peoples/credit_customer_page.dart';
 import 'users/users_page.dart';
 import 'users/roles_permissions_page.dart';
 import 'finance & accounts/expenses_page.dart';
+import 'finance & accounts/expense_category_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -265,6 +266,8 @@ class _DashboardPageState extends State<DashboardPage>
         return const AnnualReportPage();
       case 'Expenses':
         return const ExpensesPage();
+      case 'Expense Category':
+        return const ExpenseCategoryPage();
       case 'Users':
         return const UsersPage();
       case 'Roles & Permissions':
@@ -1267,7 +1270,13 @@ class _DashboardPageState extends State<DashboardPage>
                       Icons.account_balance_wallet,
                       'Finance & Accounts',
                       [
-                        _buildPrimarySubTile('Expenses', Icons.money_off),
+                        _buildParentSubTile('Expenses', Icons.money_off, [
+                          _buildNestedSubTile('Expenses', Icons.receipt_long),
+                          _buildNestedSubTile(
+                            'Expense Category',
+                            Icons.category,
+                          ),
+                        ]),
                         _buildPrimarySubTile('Income', Icons.trending_up),
                         _buildPrimarySubTile(
                           'Bank Accounts',
@@ -1833,6 +1842,93 @@ class _DashboardPageState extends State<DashboardPage>
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParentSubTile(
+    String title,
+    IconData icon,
+    List<Widget> children,
+  ) {
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(left: 16, right: 16, bottom: 6),
+          child: Container(
+            padding: _isSidebarOpen
+                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+                : const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.05),
+            ),
+            child: AnimatedCrossFade(
+              duration: const Duration(milliseconds: 300),
+              crossFadeState: _isSidebarOpen
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: Colors.white.withOpacity(0.8), size: 12),
+                ],
+              ),
+              secondChild: Row(
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Icon(icon, color: Colors.white.withOpacity(0.8), size: 16),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white.withOpacity(0.6),
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isSidebarOpen) ...children,
+      ],
+    );
+  }
+
+  Widget _buildNestedSubTile(String title, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(left: 40, right: 16, bottom: 4),
+      child: InkWell(
+        onTap: () => updateContent(title),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white.withOpacity(0.7), size: 14),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.8),
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

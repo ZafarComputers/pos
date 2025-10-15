@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../services/expenses_service.dart';
+import 'add_expense_page.dart';
 
 class ExpensesPage extends StatefulWidget {
   const ExpensesPage({super.key});
@@ -21,7 +23,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
   // Filter states
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
-  String _sortBy = 'Last 7 Days';
+  final String _sortBy = 'All';
 
   @override
   void initState() {
@@ -32,19 +34,16 @@ class _ExpensesPageState extends State<ExpensesPage> {
   // Fetch all expenses once when page loads
   Future<void> _fetchAllExpensesOnInit() async {
     try {
-      print('🚀 Initial load: Fetching all expenses');
       setState(() {
         _errorMessage = null;
       });
 
-      // Temporary mock data for now
-      _allExpensesCache = _generateMockExpenses();
-      print('💾 Cached ${_allExpensesCache.length} total expenses');
+      final expenses = await ExpenseService.getAllExpenses();
+      _allExpensesCache = expenses;
 
       // Apply initial filters
       _applyFiltersClientSide();
     } catch (e) {
-      print('❌ Critical error in _fetchAllExpensesOnInit: $e');
       setState(() {
         _errorMessage = 'Failed to load expenses. Please refresh the page.';
         _isLoading = false;
@@ -52,109 +51,28 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
   }
 
-  List<Expense> _generateMockExpenses() {
-    return [
-      Expense(
-        id: 1,
-        date: '2025-01-15',
-        category: 'Office Supplies',
-        amount: 2500.00,
-        description: 'Stationery and office materials',
-        status: 'Approved',
-        reference: 'EXP-001',
-      ),
-      Expense(
-        id: 2,
-        date: '2025-01-14',
-        category: 'Travel',
-        amount: 15000.00,
-        description: 'Business trip to client meeting',
-        status: 'Pending',
-        reference: 'EXP-002',
-      ),
-      Expense(
-        id: 3,
-        date: '2025-01-13',
-        category: 'Utilities',
-        amount: 8500.00,
-        description: 'Electricity and water bills',
-        status: 'Approved',
-        reference: 'EXP-003',
-      ),
-      Expense(
-        id: 4,
-        date: '2025-01-12',
-        category: 'Marketing',
-        amount: 12000.00,
-        description: 'Digital marketing campaign',
-        status: 'Rejected',
-        reference: 'EXP-004',
-      ),
-      Expense(
-        id: 5,
-        date: '2025-01-11',
-        category: 'Office Supplies',
-        amount: 3200.00,
-        description: 'Printer ink and paper',
-        status: 'Approved',
-        reference: 'EXP-005',
-      ),
-      Expense(
-        id: 6,
-        date: '2025-01-10',
-        category: 'Travel',
-        amount: 8000.00,
-        description: 'Conference registration and travel',
-        status: 'Pending',
-        reference: 'EXP-006',
-      ),
-      Expense(
-        id: 7,
-        date: '2025-01-09',
-        category: 'Utilities',
-        amount: 6500.00,
-        description: 'Internet and phone bills',
-        status: 'Approved',
-        reference: 'EXP-007',
-      ),
-      Expense(
-        id: 8,
-        date: '2025-01-08',
-        category: 'Marketing',
-        amount: 9500.00,
-        description: 'Social media advertising',
-        status: 'Approved',
-        reference: 'EXP-008',
-      ),
-    ];
-  }
-
   // Client-side only filter application
   void _applyFilters() {
-    print('🎯 _applyFilters called - performing client-side filtering only');
     _applyFiltersClientSide();
   }
 
   // Pure client-side filtering method
   void _applyFiltersClientSide() {
     try {
-      print(
-        '🎯 Client-side filtering - category: "$_selectedCategory", status: "$_selectedStatus"',
-      );
-
       // Apply filters to cached expenses
       _allFilteredExpenses = _allExpensesCache.where((expense) {
         try {
           // Category filter
           if (_selectedCategory != 'All' &&
-              expense.category != _selectedCategory) {
+              expense.category.category != _selectedCategory) {
             return false;
           }
 
-          // Status filter
-          if (_selectedStatus != 'All' && expense.status != _selectedStatus) {
-            return false;
-          }
+          // Status filter - API doesn't have status field, so skip for now
+          // The API response doesn't include status, so we'll remove this filter
+          // if (_selectedStatus != 'All' && expense.status != _selectedStatus) {
+          //   return false;
+          // }
 
           // Date filtering based on sortBy
           bool dateMatch = true;
@@ -172,14 +90,9 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
           return dateMatch;
         } catch (e) {
-          print('⚠️ Error filtering expense ${expense.id}: $e');
           return false;
         }
       }).toList();
-
-      print(
-        '🔍 After filtering: ${_allFilteredExpenses.length} expenses match criteria',
-      );
 
       // Apply local pagination to filtered results
       _paginateFilteredExpenses();
@@ -188,7 +101,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ Critical error in _applyFiltersClientSide: $e');
       setState(() {
         _errorMessage = 'Search error: Please try a different search term';
         _isLoading = false;
@@ -227,7 +139,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
         );
       });
     } catch (e) {
-      print('❌ Error in _paginateFilteredExpenses: $e');
       setState(() {
         _filteredExpenses = [];
         currentPage = 1;
@@ -245,125 +156,177 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
   // View expense details
   Future<void> _viewExpenseDetails(int expenseId) async {
-    final expense = _allExpensesCache.firstWhere((e) => e.id == expenseId);
+    try {
+      final response = await ExpenseService.getExpenseById(expenseId);
+      final expense = response.data;
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.6,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D1845),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.receipt_long,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Expense Details',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              'Reference: ${expense.reference}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.8),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Content
-                Expanded(
-                  child: SingleChildScrollView(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.7,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
                     padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1845),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        _buildDetailSection('Expense Information', Icons.info, [
-                          _buildDetailRow('Reference', expense.reference),
-                          _buildDetailRow(
-                            'Date',
-                            DateFormat(
-                              'dd MMM yyyy',
-                            ).format(DateTime.parse(expense.date)),
+                        const Icon(
+                          Icons.receipt_long,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Expense Details',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'ID: ${expense.id}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                            ],
                           ),
-                          _buildDetailRow('Category', expense.category),
-                          _buildDetailRow(
-                            'Amount',
-                            'Rs. ${expense.amount.toStringAsFixed(2)}',
-                          ),
-                          _buildDetailRow('Description', expense.description),
-                          _buildDetailRow('Status', expense.status),
-                        ]),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close, color: Colors.white),
+                        ),
                       ],
                     ),
                   ),
-                ),
 
-                // Footer
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
+                  // Content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildDetailSection(
+                            'Expense Information',
+                            Icons.info,
+                            [
+                              _buildDetailRow('Name', expense.name),
+                              _buildDetailRow(
+                                'Category',
+                                expense.category.category,
+                              ),
+                              _buildDetailRow(
+                                'Category Description',
+                                expense.category.description,
+                              ),
+                              _buildDetailRow(
+                                'Category Status',
+                                expense.category.status,
+                              ),
+                              _buildDetailRow(
+                                'Date',
+                                DateFormat(
+                                  'dd MMM yyyy',
+                                ).format(DateTime.parse(expense.date)),
+                              ),
+                              _buildDetailRow(
+                                'Amount',
+                                'Rs. ${expense.amount.toStringAsFixed(2)}',
+                              ),
+                              _buildDetailRow(
+                                'Description',
+                                expense.description.isEmpty
+                                    ? 'N/A'
+                                    : expense.description,
+                              ),
+                              _buildDetailRow(
+                                'Transaction Type',
+                                expense.transactionType.transType,
+                              ),
+                              _buildDetailRow(
+                                'Transaction Code',
+                                expense.transactionType.code,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _buildDetailSection('Timestamps', Icons.schedule, [
+                            _buildDetailRow(
+                              'Created At',
+                              DateFormat(
+                                'dd MMM yyyy, HH:mm',
+                              ).format(DateTime.parse(expense.createdAt)),
+                            ),
+                            _buildDetailRow(
+                              'Updated At',
+                              DateFormat(
+                                'dd MMM yyyy, HH:mm',
+                              ).format(DateTime.parse(expense.updatedAt)),
+                            ),
+                          ]),
+                        ],
+                      ),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Close'),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
                       ),
-                    ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load expense details: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildDetailSection(
@@ -419,7 +382,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 
   // Delete expense
-  Future<void> _deleteExpense(int expenseId, String reference) async {
+  Future<void> _deleteExpense(int expenseId, String expenseName) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -435,7 +398,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
             ],
           ),
           content: Text(
-            'Are you sure you want to delete expense "$reference"? This action cannot be undone.',
+            'Are you sure you want to delete expense "$expenseName"? This action cannot be undone.',
           ),
           actions: [
             TextButton(
@@ -457,6 +420,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
 
     if (confirmed == true) {
       try {
+        await ExpenseService.deleteExpense(expenseId);
+
         // Remove from local cache
         _allExpensesCache.removeWhere((expense) => expense.id == expenseId);
 
@@ -482,6 +447,22 @@ class _ExpensesPageState extends State<ExpensesPage> {
         }
       }
     }
+  }
+
+  // Edit expense
+  Future<void> _editExpense(Expense expense) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return EditExpenseDialog(
+          expense: expense,
+          onExpenseUpdated: () {
+            // Refresh the expense list
+            _fetchAllExpensesOnInit();
+          },
+        );
+      },
+    );
   }
 
   bool _canGoToNextPage() {
@@ -538,19 +519,6 @@ class _ExpensesPageState extends State<ExpensesPage> {
     }
 
     return buttons;
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   double _getTotalExpenses() {
@@ -637,8 +605,18 @@ class _ExpensesPageState extends State<ExpensesPage> {
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () {
-                          // TODO: Navigate to add expense page
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddExpensePage(),
+                            ),
+                          );
+
+                          // If expense was created successfully, refresh the list
+                          if (result == true) {
+                            _fetchAllExpensesOnInit();
+                          }
                         },
                         icon: const Icon(Icons.add, size: 15),
                         label: const Text('Add Expense'),
@@ -673,15 +651,15 @@ class _ExpensesPageState extends State<ExpensesPage> {
                         const Color(0xFF4CAF50),
                       ),
                       _buildSummaryCard(
-                        'Approved',
-                        '${_allExpensesCache.where((e) => e.status == 'Approved').length}',
-                        Icons.check_circle,
+                        'This Month',
+                        '${_getThisMonthExpenses()}',
+                        Icons.calendar_today,
                         const Color(0xFF8BC34A),
                       ),
                       _buildSummaryCard(
-                        'Pending',
-                        '${_allExpensesCache.where((e) => e.status == 'Pending').length}',
-                        Icons.pending,
+                        'Avg. Expense',
+                        'Rs. ${_getAverageExpense().toStringAsFixed(2)}',
+                        Icons.trending_up,
                         const Color(0xFFFF9800),
                       ),
                     ],
@@ -998,7 +976,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                         children: [
                           Expanded(
                             flex: 1,
-                            child: Text('Reference', style: _headerStyle()),
+                            child: Text('ID', style: _headerStyle()),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -1097,7 +1075,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                       Expanded(
                                         flex: 1,
                                         child: Text(
-                                          expense.reference,
+                                          expense.id.toString(),
                                           style: TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF0D1845),
@@ -1130,7 +1108,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                             ),
                                           ),
                                           child: Text(
-                                            expense.category,
+                                            expense.category.category,
                                             style: TextStyle(
                                               color: Color(0xFF0D1845),
                                               fontSize: 12,
@@ -1168,19 +1146,17 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: _getStatusColor(
-                                              expense.status,
-                                            ).withOpacity(0.1),
+                                            color: Colors.green.withOpacity(
+                                              0.1,
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
                                           ),
                                           child: Text(
-                                            expense.status,
+                                            'Active', // API doesn't have status, so we'll show 'Active'
                                             style: TextStyle(
-                                              color: _getStatusColor(
-                                                expense.status,
-                                              ),
+                                              color: Colors.green,
                                               fontSize: 12,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -1211,9 +1187,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                                 color: Color(0xFFFFA726),
                                                 size: 18,
                                               ),
-                                              onPressed: () {
-                                                // TODO: Edit expense
-                                              },
+                                              onPressed: () =>
+                                                  _editExpense(expense),
                                               tooltip: 'Edit',
                                             ),
                                             IconButton(
@@ -1224,7 +1199,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                               ),
                                               onPressed: () => _deleteExpense(
                                                 expense.id,
-                                                expense.reference,
+                                                expense.name,
                                               ),
                                               tooltip: 'Delete',
                                             ),
@@ -1326,6 +1301,25 @@ class _ExpensesPageState extends State<ExpensesPage> {
     );
   }
 
+  int _getThisMonthExpenses() {
+    final now = DateTime.now();
+    final thisMonth = DateTime(now.year, now.month);
+    return _allExpensesCache.where((expense) {
+      try {
+        final expenseDate = DateTime.parse(expense.date);
+        return expenseDate.year == thisMonth.year &&
+            expenseDate.month == thisMonth.month;
+      } catch (e) {
+        return false;
+      }
+    }).length;
+  }
+
+  double _getAverageExpense() {
+    if (_allExpensesCache.isEmpty) return 0.0;
+    return _getTotalExpenses() / _allExpensesCache.length;
+  }
+
   TextStyle _headerStyle() {
     return const TextStyle(
       fontWeight: FontWeight.w600,
@@ -1390,22 +1384,430 @@ class _ExpensesPageState extends State<ExpensesPage> {
   }
 }
 
-class Expense {
-  final int id;
-  final String date;
-  final String category;
-  final double amount;
-  final String description;
-  final String status;
-  final String reference;
+class EditExpenseDialog extends StatefulWidget {
+  final Expense expense;
+  final VoidCallback onExpenseUpdated;
 
-  Expense({
-    required this.id,
-    required this.date,
-    required this.category,
-    required this.amount,
-    required this.description,
-    required this.status,
-    required this.reference,
+  const EditExpenseDialog({
+    super.key,
+    required this.expense,
+    required this.onExpenseUpdated,
   });
+
+  @override
+  State<EditExpenseDialog> createState() => _EditExpenseDialogState();
+}
+
+class _EditExpenseDialogState extends State<EditExpenseDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _amountController = TextEditingController();
+
+  DateTime _selectedDate = DateTime.now();
+  int? _selectedCategoryId;
+  List<ExpenseCategory> _categories = [];
+  bool _isSubmitting = false;
+  bool _isLoadingCategories = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeFormData();
+    _fetchCategories();
+  }
+
+  void _initializeFormData() {
+    _nameController.text = widget.expense.name;
+    _descriptionController.text = widget.expense.description;
+    _amountController.text = widget.expense.amount.toString();
+    _selectedDate = DateTime.parse(widget.expense.date);
+    _selectedCategoryId = int.tryParse(widget.expense.expenseCategoryId);
+  }
+
+  Future<void> _fetchCategories() async {
+    try {
+      // For now, we'll use hardcoded categories since the API might not have a separate categories endpoint
+      setState(() {
+        _categories = [
+          ExpenseCategory(
+            id: 1,
+            category: 'Utilities',
+            description: 'Electricity, water, etc.',
+            status: 'Active',
+          ),
+          ExpenseCategory(
+            id: 2,
+            category: 'Office Supplies',
+            description: 'Paper, pens, etc.',
+            status: 'Active',
+          ),
+          ExpenseCategory(
+            id: 3,
+            category: 'Travel',
+            description: 'Transportation, accommodation',
+            status: 'Active',
+          ),
+          ExpenseCategory(
+            id: 4,
+            category: 'Marketing',
+            description: 'Advertising, promotions',
+            status: 'Active',
+          ),
+        ];
+        _isLoadingCategories = false;
+      });
+    } catch (e) {
+      setState(() {
+        _categories = [];
+        _isLoadingCategories = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load categories: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Color(0xFF0D1845),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF343A40),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedCategoryId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a category'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Prepare expense data for API
+      final expenseData = {
+        'name': _nameController.text.trim(),
+        'expense_category_id': _selectedCategoryId,
+        'description': _descriptionController.text.trim(),
+        'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'amount': double.tryParse(_amountController.text) ?? 0.0,
+      };
+
+      // Call API to update expense
+      await ExpenseService.updateExpense(widget.expense.id, expenseData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Expense updated successfully!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Close dialog and notify parent to refresh
+      Navigator.of(context).pop();
+      widget.onExpenseUpdated();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Failed to update expense: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D1845),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit, color: Colors.white, size: 28),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Edit Expense',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'ID: ${widget.expense.id}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Name Field
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: 'Expense Name *',
+                          hintText: 'e.g., Internet Bill, Office Supplies',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.label,
+                            color: Color(0xFF0D1845),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter expense name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Category and Date Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _isLoadingCategories
+                                ? Center(child: CircularProgressIndicator())
+                                : DropdownButtonFormField<int>(
+                                    value: _selectedCategoryId,
+                                    decoration: InputDecoration(
+                                      labelText: 'Category *',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      prefixIcon: Icon(
+                                        Icons.category,
+                                        color: Color(0xFF0D1845),
+                                      ),
+                                    ),
+                                    items: _categories.map((category) {
+                                      return DropdownMenuItem<int>(
+                                        value: category.id,
+                                        child: Text(
+                                          '${category.category}',
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedCategoryId = value;
+                                      });
+                                    },
+                                    validator: (value) {
+                                      if (value == null) {
+                                        return 'Please select a category';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => _selectDate(context),
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: 'Date *',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.calendar_today,
+                                    color: Color(0xFF0D1845),
+                                  ),
+                                ),
+                                child: Text(
+                                  DateFormat(
+                                    'dd MMM yyyy',
+                                  ).format(_selectedDate),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Amount Field
+                      TextFormField(
+                        controller: _amountController,
+                        decoration: InputDecoration(
+                          labelText: 'Amount (PKR) *',
+                          hintText: 'e.g., 2500.00',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.attach_money,
+                            color: Color(0xFF0D1845),
+                          ),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter amount';
+                          }
+                          double? amount = double.tryParse(value);
+                          if (amount == null || amount <= 0) {
+                            return 'Please enter a valid amount greater than 0';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Description Field
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Additional details about the expense',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.description,
+                            color: Color(0xFF0D1845),
+                          ),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Submit Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting ? null : _submitForm,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFFFFA726),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _isSubmitting
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.save, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Update Expense'),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

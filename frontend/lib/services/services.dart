@@ -1,9 +1,10 @@
 ﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/environment_config.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://zafarcomputers.com/api';
+  static String get baseUrl => EnvironmentConfig.apiBaseUrl;
   static const String loginEndpoint = '/login';
   static const String profileEndpoint = '/profile';
   static const String profilesEndpoint = '/profiles';
@@ -342,6 +343,51 @@ class ApiService {
       }
     } catch (e) {
       print('💥 Upload error: $e');
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Generic DELETE request with auth token
+  static Future<Map<String, dynamic>> delete(String endpoint) async {
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 DELETE Response Status: ${response.statusCode}');
+      print('📨 DELETE Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        final decoded = response.body.isNotEmpty
+            ? jsonDecode(response.body)
+            : {'status': true, 'message': 'Deleted successfully'};
+        print('📄 DELETE Decoded Response: $decoded');
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        } else {
+          print('⚠️ DELETE Response is not a Map, returning empty Map');
+          return {};
+        }
+      } else if (response.statusCode == 401) {
+        await logout();
+        throw Exception('Session expired. Please login again.');
+      } else {
+        throw Exception(
+          'Delete failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('💥 Delete error: $e');
       throw Exception('Network error: $e');
     }
   }
