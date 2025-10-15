@@ -1,0 +1,1941 @@
+import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:provider/provider.dart';
+import '../../services/inventory_service.dart';
+import '../../models/category.dart';
+import 'package:excel/excel.dart' as excel_pkg;
+import '../../providers/providers.dart';
+import 'category_details_page.dart';
+import 'edit_category_page.dart';
+import 'add_category_page.dart';
+
+class CategoryListPage extends StatefulWidget {
+  const CategoryListPage({super.key});
+
+  @override
+  State<CategoryListPage> createState() => _CategoryListPageState();
+}
+
+class _CategoryListPageState extends State<CategoryListPage> {
+  List<Category> categories = [];
+  bool isLoading = false; // Start with false to show UI immediately
+  String? errorMessage;
+  int currentPage = 1;
+  int totalCategories = 0;
+  int totalPages = 1;
+  final int itemsPerPage = 10;
+  Timer? _searchDebounceTimer; // Add debounce timer for search
+  bool _isFilterActive = false; // Track if any filter is currently active
+
+  // Search and filter controllers
+  final TextEditingController _searchController = TextEditingController();
+  String selectedStatus = 'All';
+
+  // Cache for all categories to avoid refetching
+  List<Category> _allCategoriesCache = [];
+  List<Category> _allFilteredCategories =
+      []; // Store all filtered categories for local pagination
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAllCategoriesOnInit(); // Fetch all categories once on page load
+    _setupSearchListener();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<Uint8List?> _loadCategoryImage(String imagePath) async {
+    try {
+      // Extract filename from any path format
+      String filename;
+      if (imagePath.contains('/')) {
+        // If it contains slashes, take the last part after the last /
+        filename = imagePath.split('/').last;
+      } else {
+        // Use as is if no slashes
+        filename = imagePath;
+      }
+
+      // Remove any query parameters
+      if (filename.contains('?')) {
+        filename = filename.split('?').first;
+      }
+
+      print('🖼️ Extracted filename: $filename from path: $imagePath');
+
+      // Check if file exists in local categories directory
+      final file = File('assets/images/categories/$filename');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      } else {
+        // Try to load from network if it's a valid URL
+        if (imagePath.startsWith('http')) {
+          // For now, return null to show default icon
+          // In future, could implement network loading with caching
+        }
+      }
+    } catch (e) {
+      // Error loading image
+    }
+    return null;
+  }
+
+  Future<void> _fetchCategories({int page = 1}) async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final response = await InventoryService.getCategories(
+        page: page,
+        limit: itemsPerPage,
+      );
+
+      setState(() {
+        categories = response.data;
+        currentPage = response.meta.currentPage;
+        totalCategories = response.meta.total;
+        totalPages = response.meta.lastPage;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
+
+  // Fetch all categories once when page loads
+  Future<void> _fetchAllCategoriesOnInit() async {
+    final inventoryProvider = Provider.of<InventoryProvider>(
+      context,
+      listen: false,
+    );
+
+    if (inventoryProvider.categories.isNotEmpty) {
+      print('� Using pre-fetched categories from provider');
+      setState(() {
+        _allCategoriesCache = inventoryProvider.categories;
+      });
+      _applyFiltersClientSide();
+    } else {
+      print('🚀 Pre-fetch not available, fetching categories');
+      try {
+        print('�🚀 Initial load: Fetching all categories');
+        setState(() {
+          errorMessage = null;
+        });
+
+        // Fetch all categories from all pages
+        List<Category> allCategories = [];
+        int currentFetchPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          try {
+            print('📡 Fetching page $currentFetchPage');
+            final response = await InventoryService.getCategories(
+              page: currentFetchPage,
+              limit: 50, // Use larger page size for efficiency
+            );
+
+            allCategories.addAll(response.data);
+            print(
+              '📦 Page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
+            );
+
+            // Check if there are more pages
+            if (response.meta.currentPage >= response.meta.lastPage) {
+              hasMorePages = false;
+            } else {
+              currentFetchPage++;
+            }
+          } catch (e) {
+            print('❌ Error fetching page $currentFetchPage: $e');
+            hasMorePages = false; // Stop fetching on error
+          }
+        }
+
+        _allCategoriesCache = allCategories;
+        print('💾 Cached ${_allCategoriesCache.length} total categories');
+
+        // Apply initial filters (which will be no filters, showing all categories)
+        _applyFiltersClientSide();
+      } catch (e) {
+        print('❌ Critical error in _fetchAllCategoriesOnInit: $e');
+        setState(() {
+          errorMessage = 'Failed to load categories. Please refresh the page.';
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Force refresh categories from API (bypasses provider cache)
+  Future<void> _refreshCategoriesAfterChange() async {
+    print('🔄 Force refreshing categories from API after change');
+    try {
+      setState(() {
+        errorMessage = null;
+      });
+
+      // Fetch all categories from all pages (force fresh data)
+      List<Category> allCategories = [];
+      int currentFetchPage = 1;
+      bool hasMorePages = true;
+
+      while (hasMorePages) {
+        try {
+          print('📡 Force fetching page $currentFetchPage');
+          final response = await InventoryService.getCategories(
+            page: currentFetchPage,
+            limit: 50, // Use larger page size for efficiency
+          );
+
+          allCategories.addAll(response.data);
+          print(
+            '📦 Force fetch page $currentFetchPage: ${response.data.length} categories (total: ${allCategories.length})',
+          );
+
+          // Check if there are more pages
+          if (response.meta.currentPage >= response.meta.lastPage) {
+            hasMorePages = false;
+          } else {
+            currentFetchPage++;
+          }
+        } catch (e) {
+          print('❌ Error force fetching page $currentFetchPage: $e');
+          hasMorePages = false; // Stop fetching on error
+        }
+      }
+
+      _allCategoriesCache = allCategories;
+      print('💾 Force cached ${_allCategoriesCache.length} total categories');
+
+      // Apply current filters to the fresh data
+      _applyFiltersClientSide();
+    } catch (e) {
+      print('❌ Critical error in _refreshCategoriesAfterChange: $e');
+      setState(() {
+        errorMessage = 'Failed to refresh categories. Please try again.';
+        isLoading = false;
+      });
+    }
+  }
+
+  void _setupSearchListener() {
+    _searchController.addListener(() {
+      // Cancel previous timer
+      _searchDebounceTimer?.cancel();
+
+      // Set new timer for debounced search (500ms delay)
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        print('🔍 Search triggered: "${_searchController.text}"');
+        setState(() {
+          currentPage = 1; // Reset to first page when search changes
+        });
+        // Apply filters when search changes
+        _applyFilters();
+      });
+    });
+  }
+
+  // Client-side only filter application
+  void _applyFilters() {
+    print('🎯 _applyFilters called - performing client-side filtering only');
+    _applyFiltersClientSide();
+  }
+
+  // Pure client-side filtering method
+  void _applyFiltersClientSide() {
+    try {
+      final searchText = _searchController.text.toLowerCase().trim();
+      final hasSearch = searchText.isNotEmpty;
+      final hasStatusFilter = selectedStatus != 'All';
+
+      print(
+        '🎯 Client-side filtering - search: "$searchText", status: "$selectedStatus"',
+      );
+      print('📊 hasSearch: $hasSearch, hasStatusFilter: $hasStatusFilter');
+
+      setState(() {
+        _isFilterActive = hasSearch || hasStatusFilter;
+      });
+
+      // Apply filters to cached categories (no API calls)
+      _filterCachedCategories(searchText);
+
+      print('🔄 _isFilterActive: $_isFilterActive');
+      print('📦 _allCategoriesCache.length: ${_allCategoriesCache.length}');
+      print(
+        '🎯 _allFilteredCategories.length: ${_allFilteredCategories.length}',
+      );
+      print('👀 categories.length: ${categories.length}');
+    } catch (e) {
+      print('❌ Error in _applyFiltersClientSide: $e');
+      setState(() {
+        errorMessage = 'Search error: Please try a different search term';
+        isLoading = false;
+        categories = [];
+      });
+    }
+  }
+
+  // Filter cached categories without any API calls
+  void _filterCachedCategories(String searchText) {
+    try {
+      // Apply filters to cached categories with enhanced error handling
+      _allFilteredCategories = _allCategoriesCache.where((category) {
+        try {
+          // Status filter
+          if (selectedStatus != 'All' && category.status != selectedStatus) {
+            return false;
+          }
+
+          // Search filter
+          if (searchText.isEmpty) {
+            return true;
+          }
+
+          // Search in multiple fields with better null safety and error handling
+          final categoryTitle = category.title.toLowerCase();
+          final categoryCode = category.categoryCode.toLowerCase();
+
+          return categoryTitle.contains(searchText) ||
+              categoryCode.contains(searchText);
+        } catch (e) {
+          // If there's any error during filtering, exclude this category
+          print('⚠️ Error filtering category ${category.id}: $e');
+          return false;
+        }
+      }).toList();
+
+      print(
+        '🔍 After filtering: ${_allFilteredCategories.length} categories match criteria',
+      );
+      print('📝 Search text: "$searchText", Status filter: "$selectedStatus"');
+
+      // Apply local pagination to filtered results
+      _paginateFilteredCategories();
+
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('❌ Critical error in _filterCachedCategories: $e');
+      setState(() {
+        errorMessage =
+            'Search failed. Please try again with a simpler search term.';
+        isLoading = false;
+        // Fallback: show empty results instead of crashing
+        categories = [];
+        _allFilteredCategories = [];
+      });
+    }
+  }
+
+  // Apply local pagination to filtered categories
+  void _paginateFilteredCategories() {
+    try {
+      // Handle empty results case
+      if (_allFilteredCategories.isEmpty) {
+        setState(() {
+          categories = [];
+          // Update pagination variables for pagination controls
+          totalCategories = 0;
+          totalPages = 1;
+        });
+        return;
+      }
+
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = startIndex + itemsPerPage;
+
+      // Ensure startIndex is not greater than the list length
+      if (startIndex >= _allFilteredCategories.length) {
+        // Reset to page 1 if current page is out of bounds
+        setState(() {
+          currentPage = 1;
+        });
+        _paginateFilteredCategories(); // Recursive call with corrected page
+        return;
+      }
+
+      setState(() {
+        categories = _allFilteredCategories.sublist(
+          startIndex,
+          endIndex > _allFilteredCategories.length
+              ? _allFilteredCategories.length
+              : endIndex,
+        );
+
+        // Update pagination variables for pagination controls
+        final calculatedTotalPages =
+            (_allFilteredCategories.length / itemsPerPage).ceil();
+        totalCategories = _allFilteredCategories.length;
+        totalPages = calculatedTotalPages;
+
+        print('📄 Pagination calculation:');
+        print(
+          '   📊 _allFilteredCategories.length: ${_allFilteredCategories.length}',
+        );
+        print('   📝 itemsPerPage: $itemsPerPage');
+        print('   🔢 totalPages: $totalPages');
+        print('   📍 currentPage: $currentPage');
+      });
+    } catch (e) {
+      print('❌ Error in _paginateFilteredCategories: $e');
+      setState(() {
+        categories = [];
+        currentPage = 1;
+        totalCategories = 0;
+        totalPages = 1;
+      });
+    }
+  }
+
+  // Handle page changes for both filtered and normal pagination
+  Future<void> _changePage(int newPage) async {
+    setState(() {
+      currentPage = newPage;
+    });
+
+    // Always use client-side pagination when we have cached categories
+    if (_allCategoriesCache.isNotEmpty) {
+      _paginateFilteredCategories();
+    } else {
+      // Fallback to server pagination only if no cached data
+      await _fetchCategories(page: newPage);
+    }
+  }
+
+  void exportToPDF() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all categories...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL categories from database for export
+      List<Category> allCategoriesForExport = [];
+
+      try {
+        // Fetch ALL categories with unlimited pagination
+        allCategoriesForExport = [];
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getCategories(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          final categories = pageResponse.data;
+          allCategoriesForExport.addAll(categories);
+
+          // Check if there are more pages
+          final totalItems = pageResponse.meta.total;
+          final fetchedSoFar = allCategoriesForExport.length;
+
+          if (fetchedSoFar >= totalItems) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+        }
+      } catch (e) {
+        print('Error fetching all categories: $e');
+        // Fallback to current data
+        allCategoriesForExport = categories.isNotEmpty ? categories : [];
+      }
+
+      if (allCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating PDF with ${allCategoriesForExport.length} categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create a new PDF document with landscape orientation for better table fit
+      final PdfDocument document = PdfDocument();
+
+      // Set page to landscape for better table visibility
+      document.pageSettings.orientation = PdfPageOrientation.landscape;
+      document.pageSettings.size = PdfPageSize.a4;
+
+      // Define fonts - adjusted for landscape
+      final PdfFont titleFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        18,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont headerFont = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        11,
+        style: PdfFontStyle.bold,
+      );
+      final PdfFont regularFont = PdfStandardFont(PdfFontFamily.helvetica, 10);
+      final PdfFont smallFont = PdfStandardFont(PdfFontFamily.helvetica, 9);
+
+      // Colors
+      final PdfColor headerColor = PdfColor(
+        13,
+        24,
+        69,
+      ); // Categories theme color
+      final PdfColor tableHeaderColor = PdfColor(248, 249, 250);
+
+      // Create table with proper settings for pagination
+      final PdfGrid grid = PdfGrid();
+      grid.columns.add(count: 4);
+
+      // Use full page width but account for table borders and padding
+      final double pageWidth =
+          document.pageSettings.size.width -
+          15; // Only 15px left margin, 0px right margin
+      final double tableWidth =
+          pageWidth *
+          0.85; // Use 85% to ensure right boundary is clearly visible
+
+      // Balanced column widths for categories
+      grid.columns[0].width = tableWidth * 0.30; // 30% - Category Name
+      grid.columns[1].width = tableWidth * 0.25; // 25% - Category Code
+      grid.columns[2].width = tableWidth * 0.20; // 20% - Status
+      grid.columns[3].width = tableWidth * 0.25; // 25% - Created Date
+
+      // Enable automatic page breaking and row splitting
+      grid.allowRowBreakingAcrossPages = true;
+
+      // Set grid style with better padding for readability
+      grid.style = PdfGridStyle(
+        cellPadding: PdfPaddings(left: 4, right: 4, top: 4, bottom: 4),
+        font: smallFont,
+      );
+
+      // Add header row
+      final PdfGridRow headerRow = grid.headers.add(1)[0];
+      headerRow.cells[0].value = 'Category Name';
+      headerRow.cells[1].value = 'Category Code';
+      headerRow.cells[2].value = 'Status';
+      headerRow.cells[3].value = 'Created Date';
+
+      // Style header row
+      for (int i = 0; i < headerRow.cells.count; i++) {
+        headerRow.cells[i].style = PdfGridCellStyle(
+          backgroundBrush: PdfSolidBrush(tableHeaderColor),
+          textBrush: PdfSolidBrush(PdfColor(73, 80, 87)),
+          font: headerFont,
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+      }
+
+      // Add all category data rows
+      for (var category in allCategoriesForExport) {
+        final PdfGridRow row = grid.rows.add();
+        row.cells[0].value = category.title;
+        row.cells[1].value = category.categoryCode;
+        row.cells[2].value = category.status;
+        row.cells[3].value = _formatDate(category.createdAt);
+
+        // Style data cells with better text wrapping
+        for (int i = 0; i < row.cells.count; i++) {
+          row.cells[i].style = PdfGridCellStyle(
+            font: smallFont,
+            textBrush: PdfSolidBrush(PdfColor(33, 37, 41)),
+            format: PdfStringFormat(
+              alignment: i == 2
+                  ? PdfTextAlignment.center
+                  : PdfTextAlignment.left,
+              lineAlignment: PdfVerticalAlignment.top,
+              wordWrap: PdfWordWrapType.word,
+            ),
+          );
+        }
+
+        // Color code status
+        if (category.status == 'active') {
+          row.cells[2].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(212, 237, 218),
+          );
+          row.cells[2].style.textBrush = PdfSolidBrush(PdfColor(21, 87, 36));
+        } else {
+          row.cells[2].style.backgroundBrush = PdfSolidBrush(
+            PdfColor(248, 215, 218),
+          );
+          row.cells[2].style.textBrush = PdfSolidBrush(PdfColor(114, 28, 36));
+        }
+      }
+
+      // Set up page template for headers and footers
+      final PdfPageTemplateElement headerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(0, 0, document.pageSettings.size.width, 50),
+      );
+
+      // Draw header on template - minimal left margin, full width
+      headerTemplate.graphics.drawString(
+        'Categories Database Export',
+        titleFont,
+        brush: PdfSolidBrush(headerColor),
+        bounds: Rect.fromLTWH(
+          15,
+          10,
+          document.pageSettings.size.width - 15,
+          25,
+        ),
+      );
+
+      headerTemplate.graphics.drawString(
+        'Total Categories: ${allCategoriesForExport.length} | Generated: ${DateTime.now().toString().substring(0, 19)} | Product Categories Report',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(
+          15,
+          32,
+          document.pageSettings.size.width - 15,
+          15,
+        ),
+      );
+
+      // Add line under header - full width
+      headerTemplate.graphics.drawLine(
+        PdfPen(PdfColor(200, 200, 200), width: 1),
+        Offset(15, 48),
+        Offset(document.pageSettings.size.width, 48),
+      );
+
+      // Create footer template
+      final PdfPageTemplateElement footerTemplate = PdfPageTemplateElement(
+        Rect.fromLTWH(
+          0,
+          document.pageSettings.size.height - 25,
+          document.pageSettings.size.width,
+          25,
+        ),
+      );
+
+      // Draw footer - full width
+      footerTemplate.graphics.drawString(
+        'Page \$PAGE of \$TOTAL | ${allCategoriesForExport.length} Total Categories | Generated from POS System',
+        regularFont,
+        brush: PdfSolidBrush(PdfColor(108, 117, 125)),
+        bounds: Rect.fromLTWH(15, 8, document.pageSettings.size.width - 15, 15),
+        format: PdfStringFormat(alignment: PdfTextAlignment.center),
+      );
+
+      // Apply templates to document
+      document.template.top = headerTemplate;
+      document.template.bottom = footerTemplate;
+
+      // Draw the grid with automatic pagination - use full width, minimal left margin
+      grid.draw(
+        page: document.pages.add(),
+        bounds: Rect.fromLTWH(
+          15,
+          55,
+          document.pageSettings.size.width - 15,
+          document.pageSettings.size.height - 85,
+        ),
+        format: PdfLayoutFormat(
+          layoutType: PdfLayoutType.paginate,
+          breakType: PdfLayoutBreakType.fitPage,
+        ),
+      );
+
+      // Get page count before disposal
+      final int pageCount = document.pages.count;
+      print(
+        'PDF generated with $pageCount page(s) for ${allCategoriesForExport.length} categories',
+      );
+
+      // Save PDF
+      final List<int> bytes = await document.save();
+      document.dispose();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Categories Database PDF',
+        fileName: 'categories_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Categories Exported!\n📊 ${allCategoriesForExport.length} categories across $pageCount pages\n📄 Landscape format for better visibility',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> exportToExcel() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text('Fetching all categories...'),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Always fetch ALL categories from database for export
+      List<Category> allCategoriesForExport = [];
+
+      try {
+        // Fetch ALL categories with unlimited pagination
+        allCategoriesForExport = [];
+        int currentPage = 1;
+        bool hasMorePages = true;
+
+        while (hasMorePages) {
+          final pageResponse = await InventoryService.getCategories(
+            page: currentPage,
+            limit: 100, // Fetch in chunks of 100
+          );
+
+          final categories = pageResponse.data;
+          allCategoriesForExport.addAll(categories);
+
+          // Check if there are more pages
+          final totalItems = pageResponse.meta.total;
+          final fetchedSoFar = allCategoriesForExport.length;
+
+          if (fetchedSoFar >= totalItems) {
+            hasMorePages = false;
+          } else {
+            currentPage++;
+          }
+        }
+      } catch (e) {
+        print('Error fetching all categories: $e');
+        // Fallback to current data
+        allCategoriesForExport = categories.isNotEmpty ? categories : [];
+      }
+
+      if (allCategoriesForExport.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No categories to export'),
+            backgroundColor: Color(0xFFDC3545),
+          ),
+        );
+        return;
+      }
+
+      // Update loading message
+      Navigator.of(context).pop();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D1845)),
+                ),
+                SizedBox(width: 16),
+                Text(
+                  'Generating Excel with ${allCategoriesForExport.length} categories...',
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Create Excel document
+      var excel = excel_pkg.Excel.createExcel();
+      var sheet = excel['Categories'];
+
+      // Add header row
+      sheet.appendRow([
+        excel_pkg.TextCellValue('Category Name'),
+        excel_pkg.TextCellValue('Category Code'),
+        excel_pkg.TextCellValue('Status'),
+        excel_pkg.TextCellValue('Created Date'),
+        excel_pkg.TextCellValue('Updated Date'),
+      ]);
+
+      // Style header row
+      var headerStyle = excel_pkg.CellStyle(bold: true, fontSize: 12);
+
+      for (int i = 0; i < 5; i++) {
+        var cell = sheet.cell(
+          excel_pkg.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+        );
+        cell.cellStyle = headerStyle;
+      }
+
+      // Add all category data rows
+      for (var category in allCategoriesForExport) {
+        // Format created date
+        String formattedCreatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(category.createdAt);
+          formattedCreatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        // Format updated date
+        String formattedUpdatedDate = 'N/A';
+        try {
+          final date = DateTime.parse(category.updatedAt);
+          formattedUpdatedDate = '${date.day}/${date.month}/${date.year}';
+        } catch (e) {
+          // Keep default value
+        }
+
+        sheet.appendRow([
+          excel_pkg.TextCellValue(category.title),
+          excel_pkg.TextCellValue(category.categoryCode),
+          excel_pkg.TextCellValue(category.status),
+          excel_pkg.TextCellValue(formattedCreatedDate),
+          excel_pkg.TextCellValue(formattedUpdatedDate),
+        ]);
+      }
+
+      // Auto-fit columns
+      for (int i = 0; i < 5; i++) {
+        sheet.setColumnAutoFit(i);
+      }
+
+      // Save Excel file
+      var fileBytes = excel.save();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Let user choose save location
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Categories Database Excel',
+        fileName: 'categories_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsBytes(fileBytes!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '✅ Categories Exported!\n📊 ${allCategoriesForExport.length} categories exported to Excel\n📄 File saved successfully',
+              ),
+              backgroundColor: Color(0xFF28A745),
+              duration: Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Open',
+                textColor: Colors.white,
+                onPressed: () async {
+                  try {
+                    await Process.run('explorer', ['/select,', outputFile]);
+                  } catch (e) {
+                    print('File saved at: $outputFile');
+                  }
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if it's open
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Excel export failed: ${e.toString()}'),
+            backgroundColor: Color(0xFFDC3545),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  void addNewCategory() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddCategoryPage()),
+    );
+
+    if (result == true) {
+      // Category was created, refresh the list
+      await _refreshCategoriesAfterChange();
+    }
+  }
+
+  void deleteCategory(Category category) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Color(0xFFDC3545)),
+              SizedBox(width: 8),
+              Text('Delete Category'),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete "${category.title}"?\n\nThis will also remove all associated products and sub-categories.',
+            style: TextStyle(color: Color(0xFF6C757D)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('Cancel', style: TextStyle(color: Color(0xFF6C757D))),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  setState(() => isLoading = true);
+                  Navigator.of(dialogContext).pop(); // Close dialog first
+
+                  await InventoryService.deleteCategory(category.id);
+
+                  // Remove the deleted category from local cache immediately
+                  setState(() {
+                    categories.removeWhere((item) => item.id == category.id);
+                    totalCategories = categories.length;
+                    totalPages = (totalCategories / itemsPerPage).ceil();
+
+                    // Adjust current page if necessary
+                    if (currentPage > totalPages && totalPages > 0) {
+                      currentPage = totalPages;
+                    } else if (totalPages == 0) {
+                      currentPage = 1;
+                    }
+                  });
+
+                  // Refresh from server in background (don't await)
+                  _refreshCategoriesAfterChange();
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.delete, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Category "${category.title}" deleted successfully',
+                          ),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFFDC3545),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  // Handle specific error cases
+                  String errorMessage = 'Failed to delete category';
+                  if (e.toString().contains('404')) {
+                    // Category doesn't exist on server, remove from local cache
+                    setState(() {
+                      categories.removeWhere((item) => item.id == category.id);
+                      totalCategories = categories.length;
+                      totalPages = (totalCategories / itemsPerPage).ceil();
+
+                      // Adjust current page if necessary
+                      if (currentPage > totalPages && totalPages > 0) {
+                        currentPage = totalPages;
+                      } else if (totalPages == 0) {
+                        currentPage = 1;
+                      }
+                    });
+                    errorMessage =
+                        'Category was already deleted or doesn\'t exist';
+                  } else {
+                    errorMessage = e.toString().replaceFirst('Exception: ', '');
+                  }
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(errorMessage),
+                        ],
+                      ),
+                      backgroundColor: Color(0xFFDC3545),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                } finally {
+                  if (mounted) setState(() => isLoading = false);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFDC3545),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays == 0) {
+        return 'Today';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays < 30) {
+        final weeks = (difference.inDays / 7).floor();
+        return '$weeks week${weeks > 1 ? 's' : ''} ago';
+      } else if (difference.inDays < 365) {
+        final months = (difference.inDays / 30).floor();
+        return '$months month${months > 1 ? 's' : ''} ago';
+      } else {
+        final years = (difference.inDays / 365).floor();
+        return '$years year${years > 1 ? 's' : ''} ago';
+      }
+    } catch (e) {
+      return dateString; // Fallback to original string if parsing fails
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Categories'),
+        backgroundColor: const Color(0xFF0D1845),
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, const Color(0xFFF8F9FA)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header with Summary Cards
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0D1845), Color(0xFF0A1238)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF0D1845).withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              margin: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.category,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Categories',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Organize and manage your product categories efficiently',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: addNewCategory,
+                        icon: const Icon(Icons.add, size: 14),
+                        label: const Text('Add Category'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D1845),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Summary Cards
+                  Row(
+                    children: [
+                      _buildSummaryCard(
+                        'Total Categories',
+                        categories.length.toString(),
+                        Icons.category,
+                        Colors.blue,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildSummaryCard(
+                        'Active Categories',
+                        categories
+                            .where((c) => c.status == 'active')
+                            .length
+                            .toString(),
+                        Icons.check_circle,
+                        Colors.green,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildSummaryCard(
+                        'Inactive Categories',
+                        categories
+                            .where((c) => c.status != 'active')
+                            .length
+                            .toString(),
+                        Icons.cancel,
+                        Colors.red,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Search and Table
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Search and Filters Bar
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search categories...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButton<String>(
+                                  value: selectedStatus,
+                                  underline: const SizedBox(),
+                                  items: ['All', 'active', 'inactive']
+                                      .map(
+                                        (status) => DropdownMenuItem<String>(
+                                          value: status,
+                                          child: Text(status),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedStatus = value;
+                                      });
+                                      _applyFilters();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton.icon(
+                                onPressed: exportToPDF,
+                                icon: const Icon(
+                                  Icons.picture_as_pdf,
+                                  size: 16,
+                                ),
+                                label: const Text('Export PDF'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: exportToExcel,
+                                icon: const Icon(Icons.table_chart, size: 16),
+                                label: const Text('Export Excel'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Table Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.grey[300]!),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Image Column - Fixed width to match body
+                          SizedBox(
+                            width: 60,
+                            child: Text('Image', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 100),
+                          // Category Name Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Category Name', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Category Code Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Category Code', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Created Date Column
+                          Expanded(
+                            flex: 2,
+                            child: Text('Created Date', style: _headerStyle()),
+                          ),
+                          const SizedBox(width: 16),
+                          // Status Column - Centered
+                          Expanded(
+                            flex: 1,
+                            child: Center(
+                              child: Text('Status', style: _headerStyle()),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Actions Column - Fixed width
+                          SizedBox(
+                            width: 120,
+                            child: Text('Actions', style: _headerStyle()),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Table Body
+                    Expanded(
+                      child: isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : errorMessage != null
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    errorMessage!,
+                                    style: const TextStyle(color: Colors.grey),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        _fetchCategories(page: currentPage),
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : categories.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.category_outlined,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No categories found',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: categories.length,
+                              itemBuilder: (context, index) {
+                                final category = categories[index];
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: index % 2 == 0
+                                        ? Colors.white
+                                        : Colors.grey[50],
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Image Column - Fixed width
+                                      SizedBox(
+                                        width: 60,
+                                        height: 40,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF0D1845,
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child:
+                                              category.imgPath != null &&
+                                                  category.imgPath!.isNotEmpty
+                                              ? (category.imgPath!.startsWith(
+                                                          'http',
+                                                        ) &&
+                                                        !category.imgPath!
+                                                            .contains(
+                                                              'zafarcomputers.com',
+                                                            ))
+                                                    ? ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                        child: Image.network(
+                                                          category.imgPath!,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder:
+                                                              (
+                                                                context,
+                                                                error,
+                                                                stackTrace,
+                                                              ) => Icon(
+                                                                _getCategoryIcon(
+                                                                  category
+                                                                      .title,
+                                                                ),
+                                                                color:
+                                                                    const Color(
+                                                                      0xFF0D1845,
+                                                                    ),
+                                                                size: 20,
+                                                              ),
+                                                        ),
+                                                      )
+                                                    : FutureBuilder<Uint8List?>(
+                                                        future:
+                                                            _loadCategoryImage(
+                                                              category.imgPath!,
+                                                            ),
+                                                        builder: (context, snapshot) {
+                                                          if (snapshot
+                                                                  .hasData &&
+                                                              snapshot.data !=
+                                                                  null) {
+                                                            return ClipRRect(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    4,
+                                                                  ),
+                                                              child:
+                                                                  Image.memory(
+                                                                    snapshot
+                                                                        .data!,
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                  ),
+                                                            );
+                                                          }
+                                                          return Icon(
+                                                            _getCategoryIcon(
+                                                              category.title,
+                                                            ),
+                                                            color: const Color(
+                                                              0xFF0D1845,
+                                                            ),
+                                                            size: 20,
+                                                          );
+                                                        },
+                                                      )
+                                              : Icon(
+                                                  _getCategoryIcon(
+                                                    category.title,
+                                                  ),
+                                                  color: const Color(
+                                                    0xFF0D1845,
+                                                  ),
+                                                  size: 20,
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 100),
+                                      // Category Name Column
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          category.title,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF0D1845),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Category Code Column
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[100],
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            category.categoryCode,
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              fontSize: 12,
+                                              color: Color(0xFF6C757D),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Created Date Column
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          _formatDate(category.createdAt),
+                                          style: _cellStyle(),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Status Column - Centered
+                                      Expanded(
+                                        flex: 1,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: category.status == 'active'
+                                                  ? Colors.green.withOpacity(
+                                                      0.1,
+                                                    )
+                                                  : Colors.red.withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              category.status,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color:
+                                                    category.status == 'active'
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Actions Column
+                                      SizedBox(
+                                        width: 120,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.start,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.visibility,
+                                                color: const Color(0xFF17A2B8),
+                                                size: 16,
+                                              ),
+                                              onPressed: () => Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      CategoryDetailsPage(
+                                                        categoryId: category.id,
+                                                      ),
+                                                ),
+                                              ),
+                                              tooltip: 'View Details',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.edit,
+                                                color: Colors.blue,
+                                                size: 16,
+                                              ),
+                                              onPressed: () async {
+                                                final result =
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            EditCategoryPage(
+                                                              category:
+                                                                  category,
+                                                            ),
+                                                      ),
+                                                    );
+                                                if (result == true) {
+                                                  // Category was updated, refresh the list
+                                                  await _refreshCategoriesAfterChange();
+                                                }
+                                              },
+                                              tooltip: 'Edit',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                                size: 16,
+                                              ),
+                                              onPressed: () =>
+                                                  deleteCategory(category),
+                                              tooltip: 'Delete',
+                                              padding: const EdgeInsets.all(4),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Pagination Controls
+            if (categories.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous button
+                    ElevatedButton.icon(
+                      onPressed: currentPage > 1
+                          ? () => _changePage(currentPage - 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left, size: 16),
+                      label: const Text('Previous'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage > 1
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage > 1
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage > 1 ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Page info
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Page $currentPage of $totalPages (${categories.length} total)',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6C757D),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    // Next button
+                    ElevatedButton.icon(
+                      onPressed: currentPage < totalPages
+                          ? () => _changePage(currentPage + 1)
+                          : null,
+                      icon: const Icon(Icons.chevron_right, size: 16),
+                      label: const Text('Next'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: currentPage < totalPages
+                            ? const Color(0xFF0D1845)
+                            : Colors.grey.shade300,
+                        foregroundColor: currentPage < totalPages
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                        elevation: currentPage < totalPages ? 2 : 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String categoryName) {
+    switch (categoryName.toLowerCase()) {
+      case 'computers':
+        return Icons.computer;
+      case 'electronics':
+        return Icons.electrical_services;
+      case 'shoe':
+        return Icons.shopping_bag;
+      case 'cosmetics':
+        return Icons.brush;
+      case 'groceries':
+        return Icons.shopping_cart;
+      case 'fashion':
+        return Icons.style;
+      case 'bridal':
+        return Icons.diamond;
+      case 'fancy':
+        return Icons.star;
+      case 'casual':
+        return Icons.accessibility;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  TextStyle _headerStyle() {
+    return const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF0D1845),
+    );
+  }
+
+  TextStyle _cellStyle() {
+    return const TextStyle(fontSize: 12, color: Color(0xFF6C757D));
+  }
+}
