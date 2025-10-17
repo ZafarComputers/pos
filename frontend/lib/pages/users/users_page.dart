@@ -27,6 +27,7 @@ class _UsersPageState extends State<UsersPage> {
   late TextEditingController _cellNo2Controller = TextEditingController();
   late TextEditingController _roleIdController = TextEditingController();
   late String _selectedStatus = 'Active';
+  late String _selectedRole = '3'; // Default to Manager
 
   // Pagination variables
   int currentPage = 1;
@@ -116,11 +117,18 @@ class _UsersPageState extends State<UsersPage> {
       _cellNo1Controller.clear();
       _passwordController.clear();
       _cellNo2Controller.clear();
+      _selectedRole = '3'; // Default to Manager
       _selectedStatus = 'Active';
     });
   }
 
   void _openEditUserDialog(User user) {
+    final roleId = user.roleId?.toString() ?? '1';
+    final validRoles = ['2', '3', '4', '5', '6'];
+    final selectedRole = validRoles.contains(roleId)
+        ? roleId
+        : '3'; // Default to Manager if invalid
+
     setState(() {
       _showEditUserDialog = true;
       _currentUser = user;
@@ -130,6 +138,7 @@ class _UsersPageState extends State<UsersPage> {
       _cellNo1Controller.text = user.cellNo1 ?? '';
       _cellNo2Controller.text = user.cellNo2 ?? '';
       _roleIdController.text = user.roleId?.toString() ?? '1';
+      _selectedRole = selectedRole;
       _selectedStatus = user.status == 'active' ? 'Active' : 'Inactive';
     });
   }
@@ -174,6 +183,7 @@ class _UsersPageState extends State<UsersPage> {
         'cell_no1': cellNo1,
         'password': password,
         'cell_no2': cellNo2.isNotEmpty ? cellNo2 : null,
+        'role_id': _selectedRole, // Send as string
         'status': status,
       });
 
@@ -205,7 +215,6 @@ class _UsersPageState extends State<UsersPage> {
     final email = _emailController.text.trim();
     final cellNo1 = _cellNo1Controller.text.trim();
     final cellNo2 = _cellNo2Controller.text.trim();
-    final roleId = int.tryParse(_roleIdController.text.trim()) ?? 1;
     final status = _selectedStatus;
 
     if (firstName.isEmpty || lastName.isEmpty || email.isEmpty) {
@@ -227,7 +236,7 @@ class _UsersPageState extends State<UsersPage> {
         'cell_no1': cellNo1.isNotEmpty ? cellNo1 : null,
         'cell_no2': cellNo2.isNotEmpty ? cellNo2 : null,
         'status': status,
-        'role_id': roleId,
+        'role_id': _selectedRole, // Send as string
       });
 
       setState(() {
@@ -1108,6 +1117,56 @@ class _UsersPageState extends State<UsersPage> {
 
                       const SizedBox(height: 24),
 
+                      // Role ID
+                      const Text(
+                        'Role *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D1845),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
+                        decoration: InputDecoration(
+                          labelText: 'Role',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          prefixIcon: const Icon(Icons.badge),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: '2',
+                            child: Text('Admin'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '3',
+                            child: Text('Manager'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '4',
+                            child: Text('Cashier'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '5',
+                            child: Text('Inventory Officer'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '6',
+                            child: Text('Salesman'),
+                          ),
+                        ],
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedRole = newValue!;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
                       // Cell No2
                       const Text(
                         'Cell No2',
@@ -1400,7 +1459,7 @@ class _UsersPageState extends State<UsersPage> {
 
                       // Role ID
                       const Text(
-                        'Role ID',
+                        'Role',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1408,17 +1467,42 @@ class _UsersPageState extends State<UsersPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _roleIdController,
-                        keyboardType: TextInputType.number,
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
                         decoration: InputDecoration(
-                          labelText: 'Role ID',
-                          hintText: 'Enter role ID',
+                          labelText: 'Role',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                           prefixIcon: const Icon(Icons.badge),
                         ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: '2',
+                            child: Text('Admin'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '3',
+                            child: Text('Manager'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '4',
+                            child: Text('Cashier'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '5',
+                            child: Text('Inventory Officer'),
+                          ),
+                          const DropdownMenuItem<String>(
+                            value: '6',
+                            child: Text('Salesman'),
+                          ),
+                        ],
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _selectedRole = newValue!;
+                          });
+                        },
                       ),
 
                       const SizedBox(height: 24),

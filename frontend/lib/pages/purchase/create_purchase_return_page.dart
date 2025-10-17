@@ -184,6 +184,8 @@ class _CreatePurchaseReturnPageState extends State<CreatePurchaseReturnPage> {
         'payment_status': _selectedStatus == 'Completed' ? 'paid' : 'unpaid',
         'reason': _notesController.text,
         'return_amount': _calculateGrandTotal(),
+        'transaction_type_id': 3, // Default transaction type (Purchase Return)
+        'payment_mode_id': 1, // Default payment mode (Cash)
         'details': purchaseReturnItems.map((item) {
           return {
             'product_id': item.productId.toString(),

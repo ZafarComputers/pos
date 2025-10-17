@@ -80,10 +80,15 @@ class _ProductListPageState extends State<ProductListPage> {
       print('🖼️ Extracted filename: $filename from path: $imagePath');
 
       // Check if file exists in local products directory
-      final file = File('assets/images/products/$filename');
+      final localPath =
+          '${Directory.current.path}/assets/images/products/$filename';
+      final file = File(localPath);
+      print('🔍 Checking file at: $localPath');
       if (await file.exists()) {
+        print('✅ File found, loading image');
         return await file.readAsBytes();
       } else {
+        print('❌ File not found at: $localPath');
         // Try to load from network if it's a valid URL
         if (imagePath.startsWith('http')) {
           // For now, return null to show default icon
@@ -91,7 +96,7 @@ class _ProductListPageState extends State<ProductListPage> {
         }
       }
     } catch (e) {
-      // Error loading image
+      print('❌ Error loading image: $e');
     }
     return null;
   }
@@ -1805,11 +1810,16 @@ class _ProductListPageState extends State<ProductListPage> {
                                             ),
                                           ),
                                           child:
-                                              (product.imagePath?.isNotEmpty ??
-                                                  false)
+                                              (product.imagePaths?.isNotEmpty ??
+                                                      false) ||
+                                                  (product
+                                                          .imagePath
+                                                          ?.isNotEmpty ??
+                                                      false)
                                               ? FutureBuilder<Uint8List?>(
                                                   future: _loadProductImage(
-                                                    product.imagePath!,
+                                                    product.imagePaths?.first ??
+                                                        product.imagePath!,
                                                   ),
                                                   builder: (context, snapshot) {
                                                     if (snapshot.hasData &&

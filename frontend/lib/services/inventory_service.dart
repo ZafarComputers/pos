@@ -443,8 +443,16 @@ class InventoryService {
     Map<String, dynamic> productData,
   ) async {
     print('📦 INVENTORY: Creating product');
+    print('📤 Product data keys: ${productData.keys.toList()}');
     print('📤 Product data: $productData');
-    return await _authenticatedRequest('POST', '/products', body: productData);
+    print('🚀 About to call _authenticatedRequest...');
+    final result = await _authenticatedRequest(
+      'POST',
+      '/products',
+      body: productData,
+    );
+    print('✅ INVENTORY: createProduct completed successfully');
+    return result;
   }
 
   static Future<Map<String, dynamic>> updateProduct(

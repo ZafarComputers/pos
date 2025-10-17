@@ -61,6 +61,7 @@ class _AddProductPageState extends State<AddProductPage> {
   @override
   void initState() {
     super.initState();
+    print('🏗️ AddProductPage initialized');
     _fetchCategories();
     _fetchVendors();
     _fetchVariants();
@@ -118,7 +119,9 @@ class _AddProductPageState extends State<AddProductPage> {
     Category? selectedCategory;
     if (_selectedCategoryId != null) {
       try {
-        selectedCategory = categories.firstWhere((c) => c.id == _selectedCategoryId);
+        selectedCategory = categories.firstWhere(
+          (c) => c.id == _selectedCategoryId,
+        );
       } catch (e) {
         // Category not found
       }
@@ -128,7 +131,6 @@ class _AddProductPageState extends State<AddProductPage> {
     sizeModel.Size? selectedSize;
     colorModel.Color? selectedColor;
     materialModel.Material? selectedMaterial;
-    seasonModel.Season? selectedSeason;
 
     if (_selectedSizeId != null) {
       try {
@@ -142,25 +144,24 @@ class _AddProductPageState extends State<AddProductPage> {
     }
     if (_selectedMaterialId != null) {
       try {
-        selectedMaterial = materials.firstWhere((m) => m.id == _selectedMaterialId);
-      } catch (e) {}
-    }
-    if (_selectedSeasonId != null) {
-      try {
-        selectedSeason = seasons.firstWhere((s) => s.id == _selectedSeasonId);
+        selectedMaterial = materials.firstWhere(
+          (m) => m.id == _selectedMaterialId,
+        );
       } catch (e) {}
     }
 
     // Create comprehensive QR code data
     final qrData = {
-      'vendor_info': selectedVendor != null ? {
-        'id': selectedVendor.id,
-        'name': selectedVendor.fullName,
-        'code': selectedVendor.vendorCode,
-        'cnic': selectedVendor.cnic,
-        'address': selectedVendor.address,
-        'city': selectedVendor.city.title,
-      } : null,
+      'vendor_info': selectedVendor != null
+          ? {
+              'id': selectedVendor.id,
+              'name': selectedVendor.fullName,
+              'code': selectedVendor.vendorCode,
+              'cnic': selectedVendor.cnic,
+              'address': selectedVendor.address,
+              'city': selectedVendor.city.title,
+            }
+          : null,
       'vendor_barcode': selectedVendor?.vendorCode ?? '',
       'our_barcode': _barcodeController.text,
       'product_images': _imagePaths,
@@ -188,12 +189,15 @@ class _AddProductPageState extends State<AddProductPage> {
 
   Future<void> _saveQrCodeAsImage() async {
     try {
-      final directory = Directory('${Directory.current.path}/assets/images/products');
+      final directory = Directory(
+        '${Directory.current.path}/assets/images/products',
+      );
       if (!await directory.exists()) {
         await directory.create(recursive: true);
       }
 
-      final fileName = 'qr_${_designCodeController.text}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final fileName =
+          'qr_${_designCodeController.text}_${DateTime.now().millisecondsSinceEpoch}.png';
       final filePath = '${directory.path}/$fileName';
 
       // Create QR code image data
@@ -212,7 +216,8 @@ class _AddProductPageState extends State<AddProductPage> {
         await file.writeAsBytes(buffer);
 
         // Store QR code image path
-        _qrCodeImagePath = 'https://zafarcomputers.com/assets/images/products/$fileName';
+        _qrCodeImagePath =
+            'https://zafarcomputers.com/assets/images/products/$fileName';
         print('✅ QR Code saved: $_qrCodeImagePath');
       }
     } catch (e) {
@@ -341,7 +346,8 @@ class _AddProductPageState extends State<AddProductPage> {
       final fileName = 'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final savedImage = await imageFile.copy('${directory.path}/$fileName');
 
-      final imagePath = 'https://zafarcomputers.com/assets/images/products/$fileName';
+      final imagePath =
+          'https://zafarcomputers.com/assets/images/products/$fileName';
 
       setState(() {
         _selectedImages.add(savedImage);
@@ -370,18 +376,40 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
+    print('🔄 _submitForm called - starting product creation');
+    print('📝 Form key current state: ${_formKey.currentState}');
+    print('📝 Form validation result: ${_formKey.currentState?.validate()}');
 
+    if (!_formKey.currentState!.validate()) {
+      print('❌ Form validation failed');
+      return;
+    }
+
+    print('✅ Form validation passed');
+    print('📊 Form data summary:');
+    print('  - Title: "${_titleController.text}"');
+    print('  - Design Code: "${_designCodeController.text}"');
+    print('  - Category ID: $_selectedCategoryId');
+    print('  - Sub Category ID: $_selectedSubCategoryId');
+    print('  - Vendor ID: $_selectedVendorId');
+    print('  - Sale Price: "${_salePriceController.text}"');
+    print('  - Buying Price: "${_buyingPriceController.text}"');
+    print('  - Opening Stock: "${_openingStockQuantityController.text}"');
+    print('  - Barcode: "${_barcodeController.text}"');
+    print('  - Status: $_selectedStatus');
     setState(() => isSubmitting = true);
 
     try {
+      print('📦 Preparing product data...');
       final productData = {
         'title': _titleController.text,
         'design_code': _designCodeController.text,
         'image_paths': _imagePaths, // Changed to array
         'sub_category_id': _selectedSubCategoryId,
         'sale_price': double.parse(_salePriceController.text),
-        'buying_price': double.tryParse(_buyingPriceController.text) ?? 0, // Added buying price
+        'buying_price':
+            double.tryParse(_buyingPriceController.text) ??
+            0, // Added buying price
         'opening_stock_quantity': int.parse(
           _openingStockQuantityController.text,
         ),
@@ -401,7 +429,12 @@ class _AddProductPageState extends State<AddProductPage> {
         'season_id': _selectedSeasonId,
       };
 
+      print('📤 Product data prepared: $productData');
+      print('🚀 Calling InventoryService.createProduct...');
+
       await InventoryService.createProduct(productData);
+
+      print('✅ Product created successfully, calling callback...');
 
       // Call the callback to notify parent that product was added
       widget.onProductAdded?.call();
@@ -851,7 +884,10 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(height: 24),
 
                       // Variants Section
-                      _buildSectionHeader('Variants & Attributes', Icons.palette),
+                      _buildSectionHeader(
+                        'Variants & Attributes',
+                        Icons.palette,
+                      ),
                       const SizedBox(height: 24),
 
                       // Size and Color row
@@ -995,7 +1031,10 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(height: 24),
 
                       // Image Section
-                      _buildSectionHeader('Product Images (Max 3)', Icons.image),
+                      _buildSectionHeader(
+                        'Product Images (Max 3)',
+                        Icons.image,
+                      ),
                       const SizedBox(height: 16),
 
                       // Display selected images
@@ -1080,7 +1119,9 @@ class _AddProductPageState extends State<AddProductPage> {
                       const SizedBox(height: 16),
 
                       ElevatedButton.icon(
-                        onPressed: _selectedImages.length < 3 ? _pickImage : null,
+                        onPressed: _selectedImages.length < 3
+                            ? _pickImage
+                            : null,
                         icon: Icon(Icons.photo_library),
                         label: Text(
                           _selectedImages.isEmpty
@@ -1129,7 +1170,12 @@ class _AddProductPageState extends State<AddProductPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: isSubmitting ? null : _submitForm,
+                          onPressed: isSubmitting
+                              ? null
+                              : () {
+                                  print('🔘 Submit button pressed');
+                                  _submitForm();
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Color(0xFF28A745),
                             foregroundColor: Colors.white,

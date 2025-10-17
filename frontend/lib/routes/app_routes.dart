@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
 import '../pages/dashboard_page.dart';
 import '../pages/sales/pos_page.dart';
+import '../pages/Finance & accounts/chart_of_accounts_page.dart';
+import '../pages/cashflow_page.dart';
 import '../services/sales_service.dart';
 
 class AppRoutes {
   static const String login = '/login';
   static const String dashboard = '/dashboard';
   static const String pos = '/pos';
+  static const String chartOfAccounts = '/chart-of-accounts';
+  static const String cashflow = '/cashflow';
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
@@ -17,6 +21,8 @@ class AppRoutes {
         final args = ModalRoute.of(context)?.settings.arguments as Invoice?;
         return PosPage(invoiceToEdit: args);
       },
+      chartOfAccounts: (context) => const ChartOfAccountsPage(),
+      cashflow: (context) => const CashflowPage(),
     };
   }
 }

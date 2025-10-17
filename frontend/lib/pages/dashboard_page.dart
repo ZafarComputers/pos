@@ -42,6 +42,11 @@ import 'users/users_page.dart';
 import 'users/roles_permissions_page.dart';
 import 'finance & accounts/expenses_page.dart';
 import 'finance & accounts/expense_category_page.dart';
+import 'finance & accounts/income_category_page.dart';
+import 'finance & accounts/income_page.dart';
+import 'finance & accounts/bank_account_page.dart';
+import 'finance & accounts/chart_of_accounts_page.dart';
+import 'cashflow_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -68,9 +73,9 @@ class _DashboardPageState extends State<DashboardPage>
   List<RecentSale> _recentSales = [];
   SalesStatics? _salesStatics;
   List<RecentTransaction> _recentTransactions = [];
-  List<TopCustomer> _topCustomers = [];
   List<TopCategory> _topCategories = [];
   OrderStatistics? _orderStatistics;
+  Map<String, double>? _dailySalesAndReturns;
 
   bool _isLoading = true;
 
@@ -120,9 +125,9 @@ class _DashboardPageState extends State<DashboardPage>
         DashboardService.getRecentSales(),
         DashboardService.getSalesStatics(),
         DashboardService.getRecentTransactions(),
-        DashboardService.getTopCustomers(),
         DashboardService.getTopCategories(),
         DashboardService.getOrderStatistics(),
+        DashboardService.getDailySalesAndReturns(),
       ]);
 
       setState(() {
@@ -133,9 +138,9 @@ class _DashboardPageState extends State<DashboardPage>
         _recentSales = results[4] as List<RecentSale>;
         _salesStatics = results[5] as SalesStatics;
         _recentTransactions = results[6] as List<RecentTransaction>;
-        _topCustomers = results[7] as List<TopCustomer>;
-        _topCategories = results[8] as List<TopCategory>;
-        _orderStatistics = results[9] as OrderStatistics;
+        _topCategories = results[7] as List<TopCategory>;
+        _orderStatistics = results[8] as OrderStatistics;
+        _dailySalesAndReturns = results[9] as Map<String, double>;
         _isLoading = false;
       });
     } catch (e) {
@@ -268,6 +273,16 @@ class _DashboardPageState extends State<DashboardPage>
         return const ExpensesPage();
       case 'Expense Category':
         return const ExpenseCategoryPage();
+      case 'Income Category':
+        return const IncomeCategoryPage();
+      case 'Income':
+        return const IncomePage();
+      case 'Bank Accounts':
+        return const BankAccountPage();
+      case 'Chart of Accounts':
+        return const ChartOfAccountsPage();
+      case 'Cashflow':
+        return const CashflowPage();
       case 'Users':
         return const UsersPage();
       case 'Roles & Permissions':
@@ -361,31 +376,24 @@ class _DashboardPageState extends State<DashboardPage>
           Row(
             children: [
               _buildMetricCard(
-                'Total Sales Return',
-                'Rs ${_metrics?.totalSalesReturn.toStringAsFixed(0) ?? '0'}',
-                Icons.undo,
-                Colors.green,
-                '+22%',
-              ),
-              _buildMetricCard(
                 'Total Purchase',
                 'Rs ${_metrics?.totalPurchase.toStringAsFixed(0) ?? '0'}',
                 Icons.shopping_cart,
                 Colors.blue,
-                '-22%',
+                '+25%',
               ),
               _buildMetricCard(
-                'Total Purchase Return',
+                'Purchase Return',
                 'Rs ${_metrics?.totalPurchaseReturn.toStringAsFixed(0) ?? '0'}',
                 Icons.assignment_return,
-                Colors.green,
-                '+22%',
+                Colors.orange,
+                '+15%',
               ),
               _buildMetricCard(
-                'Profit',
-                'Rs ${_metrics?.profit.toStringAsFixed(0) ?? '0'}',
-                Icons.trending_up,
-                Colors.purple,
+                'Total Sales',
+                'Rs ${_metrics?.totalSales.toStringAsFixed(0) ?? '0'}',
+                Icons.point_of_sale,
+                Colors.green,
                 '+35%',
               ),
             ],
@@ -394,25 +402,37 @@ class _DashboardPageState extends State<DashboardPage>
           Row(
             children: [
               _buildMetricCard(
-                'Invoice Due',
-                'Rs ${_metrics?.invoiceDue.toStringAsFixed(0) ?? '0'}',
-                Icons.receipt,
-                Colors.orange,
-                '+35%',
+                'Sales Return',
+                'Rs ${_metrics?.totalSalesReturn.toStringAsFixed(0) ?? '0'}',
+                Icons.undo,
+                Colors.red,
+                '-10%',
               ),
               _buildMetricCard(
-                'Total Expenses',
-                'Rs ${_metrics?.totalExpenses.toStringAsFixed(0) ?? '0'}',
+                'Total Expense',
+                'Rs ${_metrics?.totalExpense.toStringAsFixed(0) ?? '0'}',
                 Icons.money_off,
-                Colors.red,
-                '+41%',
+                Colors.purple,
+                '+20%',
               ),
               _buildMetricCard(
-                'Total Payment Returns',
-                'Rs ${_metrics?.totalPaymentReturns.toStringAsFixed(0) ?? '0'}',
-                Icons.refresh,
-                Colors.red,
-                '-20%',
+                'Total Income',
+                'Rs ${_metrics?.totalIncome.toStringAsFixed(0) ?? '0'}',
+                Icons.trending_up,
+                Colors.teal,
+                '+30%',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _buildMetricCard(
+                'Profit',
+                'Rs ${_metrics?.profit.toStringAsFixed(0) ?? '0'}',
+                Icons.show_chart,
+                Colors.indigo,
+                '+45%',
               ),
             ],
           ),
@@ -432,9 +452,9 @@ class _DashboardPageState extends State<DashboardPage>
                 Icons.people,
               ),
               _buildInfoCard(
-                'Orders',
-                _overallInfo?.orders.toString() ?? '0',
-                Icons.shopping_bag,
+                'Products',
+                _orderStatistics?.totalProducts.toString() ?? '0',
+                Icons.inventory,
               ),
             ],
           ),
@@ -527,6 +547,24 @@ class _DashboardPageState extends State<DashboardPage>
                             product.name,
                             product.id,
                             product.stock,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => LowStockProductsPage(),
+                              ),
+                            ),
+                            icon: const Icon(Icons.visibility, size: 16),
+                            label: const Text('View All'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF0D1845),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
                           ),
                         ),
                       ],
@@ -731,11 +769,57 @@ class _DashboardPageState extends State<DashboardPage>
           ),
           const SizedBox(height: 32),
 
-          // Top Customers and Top Categories in a row
+          // Top Categories and Sale Overview in a row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Customers
+              // Top Categories
+              Expanded(
+                child: Card(
+                  elevation: 8,
+                  shadowColor: Colors.black26,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.white, Color(0xFFF1F5F9)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Top Categories',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF343A40),
+                              ),
+                            ),
+                            _buildDropdownButton('Weekly'),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ..._topCategories.map(
+                          (category) => _buildTopCategoryItem(
+                            category.name,
+                            category.sales,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              // Sale Overview
               Expanded(
                 child: Card(
                   elevation: 8,
@@ -755,129 +839,38 @@ class _DashboardPageState extends State<DashboardPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Top Customers',
+                          'Sale Overview',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF343A40),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        ..._topCustomers.map(
-                          (customer) => _buildTopCustomerItem(
-                            customer.name,
-                            customer.location,
-                            customer.orders,
-                            customer.amount,
-                          ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSaleOverviewItem(
+                                'Daily Sales',
+                                'Rs ${_dailySalesAndReturns?['sales']?.toStringAsFixed(0) ?? '0'}',
+                                '+25%',
+                                Colors.green,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildSaleOverviewItem(
+                                'Daily Returns',
+                                'Rs ${_dailySalesAndReturns?['returns']?.toStringAsFixed(0) ?? '0'}',
+                                '+15%',
+                                Colors.red,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              // Top Categories and Order Statistics
-              Expanded(
-                child: Column(
-                  children: [
-                    // Top Categories
-                    Card(
-                      elevation: 8,
-                      shadowColor: Colors.black26,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.white, Color(0xFFF1F5F9)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Top Categories',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF343A40),
-                                  ),
-                                ),
-                                _buildDropdownButton('Weekly'),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            ..._topCategories.map(
-                              (category) => _buildTopCategoryItem(
-                                category.name,
-                                category.sales,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Order Statistics
-                    Card(
-                      elevation: 8,
-                      shadowColor: Colors.black26,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.white, Color(0xFFF1F5F9)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Order Statistics',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF343A40),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildOrderStatItem(
-                                    'Total Number Of Categories',
-                                    _orderStatistics?.totalCategories
-                                            .toString() ??
-                                        '0',
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildOrderStatItem(
-                                    'Total Number Of Products',
-                                    _orderStatistics?.totalProducts
-                                            .toString() ??
-                                        '0',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -914,6 +907,30 @@ class _DashboardPageState extends State<DashboardPage>
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Groote',
               ),
+            ),
+            const SizedBox(width: 12),
+            Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                final roleName = _getRoleName(authProvider.user?.roleId);
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D1845),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    roleName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 20),
             Container(
@@ -1146,233 +1163,16 @@ class _DashboardPageState extends State<DashboardPage>
                     end: Alignment.bottomCenter,
                   ),
                 ),
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  children: [
-                    // Header - Always visible
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: AnimatedCrossFade(
-                        duration: const Duration(milliseconds: 300),
-                        crossFadeState: _isSidebarOpen
-                            ? CrossFadeState.showSecond
-                            : CrossFadeState.showFirst,
-                        firstChild: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.dashboard,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                        secondChild: Row(
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.dashboard,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                'Admin Dashboard',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Section Divider
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Inventory Section
-                    _buildMainSectionTile(Icons.inventory_2, 'Inventory', [
-                      _buildPrimarySubTile('Products', Icons.inventory),
-                      _buildPrimarySubTile('Create Product', Icons.add_circle),
-                      _buildPrimarySubTile(
-                        'Low Stock Products',
-                        Icons.warning_amber,
-                      ),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildPrimarySubTile('Category', Icons.category),
-                      _buildPrimarySubTile(
-                        'Sub Category',
-                        Icons.subdirectory_arrow_right,
-                      ),
-                      _buildPrimarySubTile('Vendor', Icons.business_center),
-                      _buildPrimarySubTile(
-                        'Print Barcode',
-                        Icons.qr_code_scanner,
-                      ),
-                      _buildSectionDivider(isSubDivider: true),
-                      // Variants Subsection
-                      _buildSubHeaderTile('Variants', Icons.palette),
-                      _buildSecondarySubTile('Color', Icons.color_lens),
-                      _buildSecondarySubTile('Sizes', Icons.straighten),
-                      _buildSecondarySubTile('Seasons', Icons.wb_sunny),
-                      _buildSecondarySubTile('Material', Icons.texture),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Sales Section
-                    _buildMainSectionTile(Icons.shopping_cart, 'Sales', [
-                      _buildPrimarySubTile('Invoices', Icons.receipt_long),
-                      _buildPrimarySubTile('Sales Return', Icons.undo),
-                      _buildPrimarySubTile('POS', Icons.smartphone),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Purchase Section
-                    _buildMainSectionTile(Icons.shopping_bag, 'Purchase', [
-                      _buildPrimarySubTile('Purchase Listing', Icons.list_alt),
-                      _buildPrimarySubTile(
-                        'Purchase Return',
-                        Icons.assignment_return,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Finance Section
-                    _buildMainSectionTile(
-                      Icons.account_balance_wallet,
-                      'Finance & Accounts',
-                      [
-                        _buildParentSubTile('Expenses', Icons.money_off, [
-                          _buildNestedSubTile('Expenses', Icons.receipt_long),
-                          _buildNestedSubTile(
-                            'Expense Category',
-                            Icons.category,
-                          ),
-                        ]),
-                        _buildPrimarySubTile('Income', Icons.trending_up),
-                        _buildPrimarySubTile(
-                          'Bank Accounts',
-                          Icons.account_balance,
-                        ),
-                        _buildPrimarySubTile('Trial Balance', Icons.balance),
-                        _buildPrimarySubTile(
-                          'Account Statement',
-                          Icons.description,
-                        ),
-                        _buildPrimarySubTile(
-                          'Cashflow',
-                          Icons.account_balance_wallet,
-                        ),
-                      ],
-                    ),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // People Section
-                    _buildMainSectionTile(Icons.people_alt, 'Peoples', [
-                      _buildPrimarySubTile('Credit Customers', Icons.people),
-                      _buildPrimarySubTile('Suppliers', Icons.business),
-                      _buildPrimarySubTile('Employees (HRM)', Icons.badge),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Reports Section
-                    _buildMainSectionTile(Icons.analytics, 'Reports', [
-                      _buildBulletPointTile('Sales Report'),
-                      _buildBulletPointTile('Best Seller'),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildSecondarySubTile(
-                        'Purchase Report',
-                        Icons.bar_chart,
-                      ),
-                      _buildSecondarySubTile(
-                        'Inventory Report',
-                        Icons.inventory_2,
-                      ),
-                      _buildSecondarySubTile('Invoice Report', Icons.receipt),
-                      _buildSecondarySubTile('Supplier Report', Icons.business),
-                      _buildSecondarySubTile('Vendor Report', Icons.people),
-                      _buildSecondarySubTile('Product Report', Icons.inventory),
-                      _buildSecondarySubTile('Expense Report', Icons.money_off),
-                      _buildSecondarySubTile(
-                        'Income Report',
-                        Icons.trending_up,
-                      ),
-                      _buildSecondarySubTile(
-                        'Tax Report',
-                        Icons.account_balance,
-                      ),
-                      _buildSecondarySubTile('Profit & Loss', Icons.show_chart),
-                      _buildSecondarySubTile(
-                        'Annual Report',
-                        Icons.calendar_today,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Users Section
-                    _buildMainSectionTile(Icons.admin_panel_settings, 'Users', [
-                      _buildPrimarySubTile('Users', Icons.group),
-                      _buildPrimarySubTile(
-                        'Roles & Permissions',
-                        Icons.security,
-                      ),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Settings Section
-                    _buildMainSectionTile(Icons.settings, 'Settings', [
-                      _buildPrimarySubTile('General Settings', Icons.settings),
-                      _buildPrimarySubTile('System Settings', Icons.computer),
-                      _buildPrimarySubTile(
-                        'Financial Settings',
-                        Icons.account_balance_wallet,
-                      ),
-                      _buildPrimarySubTile('Other Settings', Icons.more_horiz),
-                      _buildSectionDivider(isSubDivider: true),
-                      _buildLogoutTile('Logout', Icons.logout),
-                    ]),
-
-                    if (_isSidebarOpen) _buildSectionDivider(),
-
-                    // Quick Actions
-                    _buildQuickActionTile(Icons.point_of_sale, 'POS', [
-                      _buildPrimarySubTile('Cash', Icons.payments),
-                      _buildPrimarySubTile('Card', Icons.credit_card),
-                      _buildPrimarySubTile('Bank', Icons.account_balance),
-                    ]),
-                  ],
+                child: Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    final allowedSections = _getAllowedSections(
+                      authProvider.user?.roleId,
+                    );
+                    return ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      children: _buildSidebarChildren(allowedSections),
+                    );
+                  },
                 ),
               ),
               // Main Content
@@ -2260,6 +2060,57 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
+  Widget _buildSaleOverviewItem(
+    String label,
+    String value,
+    String change,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6C757D)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF343A40),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                change.startsWith('+')
+                    ? Icons.trending_up
+                    : Icons.trending_down,
+                color: color,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                change,
+                style: TextStyle(color: color, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFilterChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2287,71 +2138,6 @@ class _DashboardPageState extends State<DashboardPage>
           color: _getStatusColor(status),
           fontWeight: FontWeight.w500,
           fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopCustomerItem(
-    String name,
-    String location,
-    int orders,
-    double amount,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-      ),
-      child: ListTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.person, color: Colors.grey),
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF000000),
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on,
-                  size: 16,
-                  color: Color(0xFF6C757D),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  location,
-                  style: const TextStyle(color: Color(0xFF6C757D)),
-                ),
-              ],
-            ),
-            Text(
-              '$orders Orders',
-              style: const TextStyle(color: Color(0xFF6C757D)),
-            ),
-          ],
-        ),
-        trailing: Text(
-          'Rs ${amount.toStringAsFixed(0)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF343A40),
-          ),
         ),
       ),
     );
@@ -2396,33 +2182,259 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildOrderStatItem(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 14, color: Color(0xFF6C757D)),
+  List<Widget> _buildSidebarChildren(List<String> allowedSections) {
+    final List<Widget> children = [];
+
+    // Header - Always visible
+    children.add(
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        margin: const EdgeInsets.only(bottom: 8),
+        child: AnimatedCrossFade(
+          duration: const Duration(milliseconds: 300),
+          crossFadeState: _isSidebarOpen
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.dashboard, color: Colors.white, size: 16),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF343A40),
-            ),
+          secondChild: Row(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.dashboard, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Admin Dashboard',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
+
+    // Section Divider
+    if (_isSidebarOpen) children.add(_buildSectionDivider());
+
+    // Inventory Section
+    if (allowedSections.contains('Inventory')) {
+      children.add(
+        _buildMainSectionTile(Icons.inventory_2, 'Inventory', [
+          _buildPrimarySubTile('Products', Icons.inventory),
+          _buildPrimarySubTile('Create Product', Icons.add_circle),
+          _buildPrimarySubTile('Low Stock Products', Icons.warning_amber),
+          _buildSectionDivider(isSubDivider: true),
+          _buildPrimarySubTile('Category', Icons.category),
+          _buildPrimarySubTile('Sub Category', Icons.subdirectory_arrow_right),
+          _buildPrimarySubTile('Vendor', Icons.business_center),
+          _buildPrimarySubTile('Print Barcode', Icons.qr_code_scanner),
+          _buildSectionDivider(isSubDivider: true),
+          // Variants Subsection
+          _buildSubHeaderTile('Variants', Icons.palette),
+          _buildSecondarySubTile('Color', Icons.color_lens),
+          _buildSecondarySubTile('Sizes', Icons.straighten),
+          _buildSecondarySubTile('Seasons', Icons.wb_sunny),
+          _buildSecondarySubTile('Material', Icons.texture),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Sales Section
+    if (allowedSections.contains('Sales')) {
+      children.add(
+        _buildMainSectionTile(Icons.shopping_cart, 'Sales', [
+          _buildPrimarySubTile('Invoices', Icons.receipt_long),
+          _buildPrimarySubTile('Sales Return', Icons.undo),
+          _buildPrimarySubTile('POS', Icons.smartphone),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Purchase Section
+    if (allowedSections.contains('Purchase')) {
+      children.add(
+        _buildMainSectionTile(Icons.shopping_bag, 'Purchase', [
+          _buildPrimarySubTile('Purchase Listing', Icons.list_alt),
+          _buildPrimarySubTile('Purchase Return', Icons.assignment_return),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Finance Section
+    if (allowedSections.contains('Finance & Accounts')) {
+      children.add(
+        _buildMainSectionTile(
+          Icons.account_balance_wallet,
+          'Finance & Accounts',
+          [
+            _buildParentSubTile('Expenses', Icons.money_off, [
+              _buildNestedSubTile('Expenses', Icons.receipt_long),
+              _buildNestedSubTile('Expense Category', Icons.category),
+            ]),
+            _buildParentSubTile('Income', Icons.trending_up, [
+              _buildNestedSubTile('Income', Icons.attach_money),
+              _buildNestedSubTile('Income Category', Icons.category),
+            ]),
+            _buildPrimarySubTile('Bank Accounts', Icons.account_balance),
+            _buildPrimarySubTile('Chart of Accounts', Icons.account_tree),
+            _buildPrimarySubTile('Trial Balance', Icons.balance),
+            _buildPrimarySubTile('Account Statement', Icons.description),
+            _buildPrimarySubTile('Cashflow', Icons.account_balance_wallet),
+          ],
+        ),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // People Section
+    if (allowedSections.contains('Peoples')) {
+      children.add(
+        _buildMainSectionTile(Icons.people_alt, 'Peoples', [
+          _buildPrimarySubTile('Credit Customers', Icons.people),
+          _buildPrimarySubTile('Suppliers', Icons.business),
+          _buildPrimarySubTile('Employees (HRM)', Icons.badge),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Reports Section
+    if (allowedSections.contains('Reports')) {
+      children.add(
+        _buildMainSectionTile(Icons.analytics, 'Reports', [
+          _buildBulletPointTile('Sales Report'),
+          _buildBulletPointTile('Best Seller'),
+          _buildSectionDivider(isSubDivider: true),
+          _buildSecondarySubTile('Purchase Report', Icons.bar_chart),
+          _buildSecondarySubTile('Inventory Report', Icons.inventory_2),
+          _buildSecondarySubTile('Invoice Report', Icons.receipt),
+          _buildSecondarySubTile('Supplier Report', Icons.business),
+          _buildSecondarySubTile('Vendor Report', Icons.people),
+          _buildSecondarySubTile('Product Report', Icons.inventory),
+          _buildSecondarySubTile('Expense Report', Icons.money_off),
+          _buildSecondarySubTile('Income Report', Icons.trending_up),
+          _buildSecondarySubTile('Tax Report', Icons.account_balance),
+          _buildSecondarySubTile('Profit & Loss', Icons.show_chart),
+          _buildSecondarySubTile('Annual Report', Icons.calendar_today),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Users Section
+    if (allowedSections.contains('Users')) {
+      children.add(
+        _buildMainSectionTile(Icons.admin_panel_settings, 'Users', [
+          _buildPrimarySubTile('Users', Icons.group),
+          _buildPrimarySubTile('Roles & Permissions', Icons.security),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Settings Section
+    if (allowedSections.contains('Settings')) {
+      children.add(
+        _buildMainSectionTile(Icons.settings, 'Settings', [
+          _buildPrimarySubTile('General Settings', Icons.settings),
+          _buildPrimarySubTile('System Settings', Icons.computer),
+          _buildPrimarySubTile(
+            'Financial Settings',
+            Icons.account_balance_wallet,
+          ),
+          _buildPrimarySubTile('Other Settings', Icons.more_horiz),
+          _buildSectionDivider(isSubDivider: true),
+          _buildLogoutTile('Logout', Icons.logout),
+        ]),
+      );
+      if (_isSidebarOpen) children.add(_buildSectionDivider());
+    }
+
+    // Quick Actions - POS
+    if (allowedSections.contains('POS')) {
+      children.add(
+        _buildQuickActionTile(Icons.point_of_sale, 'POS', [
+          _buildPrimarySubTile('Cash', Icons.payments),
+          _buildPrimarySubTile('Card', Icons.credit_card),
+          _buildPrimarySubTile('Bank', Icons.account_balance),
+        ]),
+      );
+    }
+
+    return children;
+  }
+
+  String _getRoleName(String? roleId) {
+    switch (roleId) {
+      case '2':
+        return 'Admin';
+      case '3':
+        return 'Manager';
+      case '4':
+        return 'Cashier';
+      case '5':
+        return 'Inventory Officer';
+      case '6':
+        return 'Salesman';
+      default:
+        return 'User';
+    }
+  }
+
+  List<String> _getAllowedSections(String? roleId) {
+    switch (roleId) {
+      case '2': // Admin - all access
+        return [
+          'Inventory',
+          'Sales',
+          'Purchase',
+          'Finance & Accounts',
+          'Peoples',
+          'Reports',
+          'Users',
+          'Settings',
+          'POS',
+        ];
+      case '3': // Manager - Reports + Inventory
+        return ['Inventory', 'Reports'];
+      case '4': // Cashier - Finance
+        return ['Finance & Accounts'];
+      case '5': // Inventory Officer - Inventory only
+        return ['Inventory'];
+      case '6': // Salesman - Sales section
+        return ['Sales'];
+      default:
+        return [];
+    }
   }
 
   Color _getStatusColor(String status) {
