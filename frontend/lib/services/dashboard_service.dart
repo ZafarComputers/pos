@@ -3,25 +3,26 @@ import 'sales_service.dart';
 import 'purchases_service.dart';
 import 'inventory_service.dart';
 import 'reporting_service.dart';
+import 'package:intl/intl.dart';
 
 // Dashboard Data Models
 class DashboardMetrics {
   final double totalSalesReturn;
   final double totalPurchase;
   final double totalPurchaseReturn;
+  final double totalSales;
   final double profit;
-  final double invoiceDue;
-  final double totalExpenses;
-  final double totalPaymentReturns;
+  final double totalExpense;
+  final double totalIncome;
 
   DashboardMetrics({
     required this.totalSalesReturn,
     required this.totalPurchase,
     required this.totalPurchaseReturn,
+    required this.totalSales,
     required this.profit,
-    required this.invoiceDue,
-    required this.totalExpenses,
-    required this.totalPaymentReturns,
+    required this.totalExpense,
+    required this.totalIncome,
   });
 
   factory DashboardMetrics.fromJson(Map<String, dynamic> json) {
@@ -33,14 +34,13 @@ class DashboardMetrics {
       totalPurchaseReturn:
           double.tryParse(json['total_purchase_return']?.toString() ?? '0') ??
           0.0,
+      totalSales:
+          double.tryParse(json['total_sales']?.toString() ?? '0') ?? 0.0,
       profit: double.tryParse(json['profit']?.toString() ?? '0') ?? 0.0,
-      invoiceDue:
-          double.tryParse(json['invoice_due']?.toString() ?? '0') ?? 0.0,
-      totalExpenses:
-          double.tryParse(json['total_expenses']?.toString() ?? '0') ?? 0.0,
-      totalPaymentReturns:
-          double.tryParse(json['total_payment_returns']?.toString() ?? '0') ??
-          0.0,
+      totalExpense:
+          double.tryParse(json['total_expense']?.toString() ?? '0') ?? 0.0,
+      totalIncome:
+          double.tryParse(json['total_income']?.toString() ?? '0') ?? 0.0,
     );
   }
 }
@@ -166,7 +166,6 @@ class DashboardService {
     double totalPurchase = 0.0;
     double totalPurchaseReturn = 0.0;
     double totalSales = 0.0;
-    double invoiceDue = 0.0;
 
     // Get sales returns
     try {
@@ -211,30 +210,26 @@ class DashboardService {
         0.0,
         (sum, item) => sum + item.invAmount,
       );
-      invoiceDue = invoices.data
-          .where((invoice) => invoice.dueAmount > 0)
-          .fold<double>(0.0, (sum, item) => sum + item.dueAmount);
     } catch (e) {
       print('Failed to load invoices: $e');
       totalSales = 0.0;
-      invoiceDue = 0.0;
     }
 
     // Calculate profit (simplified: total sales - total purchases)
     final profit = totalSales - totalPurchase;
 
-    // For expenses and payment returns, we'll use placeholder values since we don't have expense APIs
-    const totalExpenses = 0.0;
-    const totalPaymentReturns = 0.0;
+    // For expenses and income, we'll use placeholder values since we don't have APIs yet
+    const totalExpense = 0.0;
+    const totalIncome = 0.0;
 
     return DashboardMetrics(
       totalSalesReturn: totalSalesReturn,
       totalPurchase: totalPurchase,
       totalPurchaseReturn: totalPurchaseReturn,
+      totalSales: totalSales,
       profit: profit,
-      invoiceDue: invoiceDue,
-      totalExpenses: totalExpenses,
-      totalPaymentReturns: totalPaymentReturns,
+      totalExpense: totalExpense,
+      totalIncome: totalIncome,
     );
   }
 
@@ -614,6 +609,51 @@ class DashboardService {
     } catch (e) {
       // Fallback: Return sample data
       return OrderStatistics(totalCategories: 698, totalProducts: 7899);
+    }
+  }
+
+  // Get daily sales and returns
+  static Future<Map<String, double>> getDailySalesAndReturns() async {
+    try {
+      final today = DateTime.now();
+      final todayString = DateFormat('yyyy-MM-dd').format(today);
+
+      // Get today's invoices
+      final invoicesResponse = await ApiService.get(
+        '/invoices?date=$todayString',
+      );
+      double dailySales = 0.0;
+      if (invoicesResponse.containsKey('data')) {
+        final invoices = invoicesResponse['data'] as List;
+        dailySales = invoices.fold<double>(
+          0.0,
+          (sum, invoice) =>
+              sum +
+              (double.tryParse(invoice['inv_amount']?.toString() ?? '0') ??
+                  0.0),
+        );
+      }
+
+      // Get today's sales returns
+      final returnsResponse = await ApiService.get(
+        '/sales-returns?date=$todayString',
+      );
+      double dailyReturns = 0.0;
+      if (returnsResponse.containsKey('data')) {
+        final returns = returnsResponse['data'] as List;
+        dailyReturns = returns.fold<double>(
+          0.0,
+          (sum, ret) =>
+              sum +
+              (double.tryParse(ret['return_inv_amount']?.toString() ?? '0') ??
+                  0.0),
+        );
+      }
+
+      return {'sales': dailySales, 'returns': dailyReturns};
+    } catch (e) {
+      print('Failed to load daily sales and returns: $e');
+      return {'sales': 0.0, 'returns': 0.0};
     }
   }
 }

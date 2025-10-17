@@ -197,6 +197,7 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
         'customer_id': _invoiceCustomerId,
         'invRet_date': DateFormat('yyyy-MM-dd').format(_selectedReturnDate),
         'return_inv_amout': totalAmount.toStringAsFixed(2),
+        'transaction_type_id': 3,
         'details': details,
       };
 
@@ -1353,6 +1354,7 @@ class _SalesReturnPageState extends State<SalesReturnPage> {
         'invRet_date': DateFormat('yyyy-MM-dd').format(_editReturnDate),
         'return_inv_amout': newTotalAmount.toStringAsFixed(2),
         'pos_id': _currentReturn!.posId,
+        'transaction_type_id': 3,
         'details': updatedDetails,
         'reason': _editReason.trim(),
       };

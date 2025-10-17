@@ -407,6 +407,77 @@ class SalesReturnResponse {
 class SalesService {
   static const String invoicesEndpoint = '/pos';
   static const String salesReturnsEndpoint = '/posReturn';
+  static const String posEndpoint = '/pos';
+
+  // Create POS invoice
+  static Future<Map<String, dynamic>> createPosInvoice({
+    required String invDate,
+    required int customerId,
+    required double tax,
+    required double discPer,
+    required double discAmount,
+    required double invAmount,
+    required double paid,
+    required int paymentModeId, // 1=cash, 2=bank, 3=credit customer
+    required int transactionTypeId, // 1=cash, 2=credit, 3=bank
+    required List<Map<String, dynamic>> details,
+  }) async {
+    final token = await ApiService.getToken();
+    if (token == null) {
+      throw Exception('No authentication token found');
+    }
+
+    final requestBody = {
+      'inv_date': invDate,
+      'customer_id': customerId,
+      'tax': tax,
+      'discPer': discPer,
+      'discAmount': discAmount,
+      'inv_amount': invAmount,
+      'paid': paid,
+      'payment_mode_id': paymentModeId,
+      'transaction_type_id': transactionTypeId,
+      'details': details,
+    };
+
+    print('📤 POS API REQUEST:');
+    print('URL: ${ApiService.baseUrl}$posEndpoint');
+    print('Method: POST');
+    print('Headers: Authorization: Bearer [TOKEN]');
+    print('Body: ${jsonEncode(requestBody)}');
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}$posEndpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      print('📥 POS API RESPONSE:');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        print('✅ POS API SUCCESS: Invoice created successfully');
+        return decoded;
+      } else if (response.statusCode == 401) {
+        await ApiService.logout();
+        throw Exception('Session expired. Please login again.');
+      } else {
+        throw Exception(
+          'POS invoice creation failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ POS API NETWORK ERROR: $e');
+      throw Exception('Network error: $e');
+    }
+  }
 
   // Get all sales returns
   static Future<SalesReturnResponse> getSalesReturns() async {

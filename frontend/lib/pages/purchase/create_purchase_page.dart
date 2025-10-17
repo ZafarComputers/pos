@@ -200,6 +200,8 @@ class _CreatePurchasePageState extends State<CreatePurchasePage> {
             ? _calculateGrandTotal()
             : 0.0,
         'payment_status': _selectedStatus == 'Received' ? 'paid' : 'unpaid',
+        'payment_mode_id': 1, // Default payment mode (Cash)
+        'transaction_type_id': 3, // Default transaction type (Purchase)
         'details': purchaseItems.map((item) {
           return {
             'product_id': item.productId.toString(),

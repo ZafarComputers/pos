@@ -13,6 +13,8 @@ import '../../models/product.dart';
 import '../../models/sub_category.dart';
 import '../../services/inventory_service.dart';
 import '../../services/sales_service.dart';
+import 'barcode_scanner_page.dart';
+import 'hardware_barcode_scanner_page.dart';
 
 class PosPage extends StatefulWidget {
   final Invoice? invoiceToEdit;
@@ -172,7 +174,9 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
       }
 
       // Check if file exists in local products directory
-      final file = File('assets/images/products/$filename');
+      final localPath =
+          '${Directory.current.path}/assets/images/products/$filename';
+      final file = File(localPath);
       if (await file.exists()) {
         return await file.readAsBytes();
       } else {
@@ -377,13 +381,84 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
     });
   }
 
+  Future<void> _scanBarcode() async {
+    final scanType = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Scanner Type'),
+        content: const Text('Select how you want to scan the barcode:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('camera'),
+            child: const Text('Camera Scan'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('hardware'),
+            child: const Text('Hardware Scanner'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (scanType == null) return;
+
+    Product? scannedProduct;
+
+    if (scanType == 'camera') {
+      // Camera-based scanning
+      scannedProduct = await Navigator.push<Product>(
+        context,
+        MaterialPageRoute(builder: (context) => const BarcodeScannerPage()),
+      );
+    } else if (scanType == 'hardware') {
+      // Hardware scanner
+      scannedProduct = await Navigator.push<Product>(
+        context,
+        MaterialPageRoute(builder: (context) => const HardwareBarcodeScanner()),
+      );
+    }
+
+    if (scannedProduct != null) {
+      addToOrder({
+        'id': scannedProduct.id,
+        'name': scannedProduct.title,
+        'price': scannedProduct.salePrice,
+        'image': scannedProduct.imagePath ?? '',
+      });
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added "${scannedProduct.title}" to cart'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void onPaymentComplete(String method, double amount) {
-    // TODO: Handle payment completion
     // Clear order after successful payment
     setState(() {
       orderItems.clear();
       selectedCustomer = null;
+      currentTotal = 0.0;
     });
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Payment of Rs${amount.toStringAsFixed(2)} via $method completed successfully!',
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   double getSubtotal() {
@@ -585,6 +660,20 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton.icon(
+                                    onPressed: _scanBarcode,
+                                    icon: const Icon(Icons.qr_code_scanner),
+                                    label: const Text('Scan'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0D1845),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -716,6 +805,8 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                               PosPaymentMethods(
                                 totalAmount: currentTotal,
                                 onPaymentComplete: onPaymentComplete,
+                                orderItems: orderItems,
+                                selectedCustomer: selectedCustomer,
                               ),
                             ],
                           ),
@@ -968,7 +1059,6 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
     // Pre-compute values to avoid repeated calculations
     final price = double.tryParse(product.salePrice) ?? 0.0;
     final stock = int.tryParse(product.openingStockQuantity) ?? 0;
-    final hasImage = product.imagePath != null && product.imagePath!.isNotEmpty;
 
     return RepaintBoundary(
       // Add RepaintBoundary to prevent unnecessary repaints
@@ -998,10 +1088,16 @@ class _PosPageState extends State<PosPage> with AutomaticKeepAliveClientMixin {
                       color: const Color(0xFF0D1845).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: hasImage
+                    child:
+                        (product.imagePaths?.isNotEmpty ?? false) ||
+                            (product.imagePath?.isNotEmpty ?? false)
                         ? FutureBuilder<Uint8List?>(
-                            key: ValueKey('${product.id}_${product.imagePath}'),
-                            future: _loadProductImage(product.imagePath!),
+                            key: ValueKey(
+                              '${product.id}_${product.imagePaths?.first ?? product.imagePath}',
+                            ),
+                            future: _loadProductImage(
+                              product.imagePaths?.first ?? product.imagePath!,
+                            ),
                             builder: (context, snapshot) {
                               if (snapshot.hasData && snapshot.data != null) {
                                 return ClipRRect(

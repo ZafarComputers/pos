@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'dart:typed_data';
+import '../services/sales_service.dart';
 
 class PosPaymentMethods extends StatefulWidget {
   final double totalAmount;
   final Function(String, double) onPaymentComplete;
+  final List<Map<String, dynamic>> orderItems;
+  final Map<String, dynamic>? selectedCustomer;
 
   const PosPaymentMethods({
     super.key,
     required this.totalAmount,
     required this.onPaymentComplete,
+    required this.orderItems,
+    this.selectedCustomer,
   });
 
   @override
@@ -16,7 +24,97 @@ class PosPaymentMethods extends StatefulWidget {
 }
 
 class _PosPaymentMethodsState extends State<PosPaymentMethods> {
-  @override
+  Future<void> _processPosPayment({
+    required int paymentModeId,
+    required int transactionTypeId,
+    required double paidAmount,
+  }) async {
+    print('🔄 POS PAYMENT: Starting payment processing...');
+    print(
+      '📊 Payment Details: Mode=$paymentModeId, Type=$transactionTypeId, Amount=$paidAmount',
+    );
+
+    try {
+      // Prepare order details
+      final details = widget.orderItems.map((item) {
+        return {
+          'product_id': item['id'],
+          'qty': item['quantity'] ?? 1,
+          'sale_price': item['price'] ?? 0.0,
+        };
+      }).toList();
+
+      // Get customer ID (default to 2 for walk-in customers if no customer selected)
+      final customerId = widget.selectedCustomer != null
+          ? 2
+          : 2; // TODO: Get actual customer ID
+
+      // Current date in YYYY-MM-DD format
+      final invDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      print('📦 Order Details: ${details.length} items');
+      print('👤 Customer ID: $customerId');
+      print('📅 Invoice Date: $invDate');
+
+      // Call POS API
+      print('🌐 Calling POS API...');
+      await SalesService.createPosInvoice(
+        invDate: invDate,
+        customerId: customerId,
+        tax: 0.0,
+        discPer: 0.0,
+        discAmount: 0.0,
+        invAmount: widget.totalAmount,
+        paid: paidAmount,
+        paymentModeId: paymentModeId,
+        transactionTypeId: transactionTypeId,
+        details: details,
+      );
+
+      print('✅ POS API call successful!');
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment processed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // Call the original onPaymentComplete callback
+      widget.onPaymentComplete(
+        _getPaymentMethodName(paymentModeId),
+        paidAmount,
+      );
+    } catch (e) {
+      print('❌ POS PAYMENT ERROR: $e');
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getPaymentMethodName(int paymentModeId) {
+    switch (paymentModeId) {
+      case 1:
+        return 'Cash';
+      case 2:
+        return 'Bank';
+      case 3:
+        return 'Credit';
+      default:
+        return 'Unknown';
+    }
+  }
+
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -128,9 +226,6 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
     Map<String, dynamic>? selectedCustomer;
     double paidAmount = 0.0;
     String paymentMethod = 'Cash';
-    String bankAccountNumber = '';
-    String accountHolderName = '';
-    String bankName = '';
 
     showDialog(
       context: context,
@@ -563,18 +658,14 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                items: ['Cash', 'Bank Transfer'].map((method) {
+                                items: ['Cash'].map((method) {
                                   return DropdownMenuItem<String>(
                                     value: method,
                                     child: Row(
                                       children: [
                                         Icon(
-                                          method == 'Cash'
-                                              ? Icons.money
-                                              : Icons.account_balance,
-                                          color: method == 'Cash'
-                                              ? Color(0xFF28A745)
-                                              : Color(0xFF1976D2),
+                                          Icons.money,
+                                          color: Color(0xFF28A745),
                                           size: 20,
                                         ),
                                         const SizedBox(width: 8),
@@ -589,46 +680,6 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                   });
                                 },
                               ),
-
-                              // Bank Transfer Fields
-                              if (paymentMethod == 'Bank Transfer') ...[
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Bank Account Number',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onChanged: (value) {
-                                    bankAccountNumber = value;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Account Holder Name',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onChanged: (value) {
-                                    accountHolderName = value;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Bank Name',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onChanged: (value) {
-                                    bankName = value;
-                                  },
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -660,10 +711,12 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                     selectedCustomerId != null &&
                                         paidAmount > 0 &&
                                         paidAmount <= widget.totalAmount
-                                    ? () {
-                                        widget.onPaymentComplete(
-                                          'Credit',
-                                          paidAmount,
+                                    ? () async {
+                                        await _processPosPayment(
+                                          paymentModeId: 3, // Credit customer
+                                          transactionTypeId:
+                                              2, // Credit transaction
+                                          paidAmount: paidAmount,
                                         );
                                         Navigator.of(context).pop();
                                         _showPrintDialog();
@@ -770,8 +823,12 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
             ),
             ElevatedButton(
               onPressed: receivedAmount >= widget.totalAmount
-                  ? () {
-                      widget.onPaymentComplete('Cash', receivedAmount);
+                  ? () async {
+                      await _processPosPayment(
+                        paymentModeId: 1, // Cash
+                        transactionTypeId: 1, // Cash transaction
+                        paidAmount: receivedAmount,
+                      );
                       Navigator.of(context).pop();
                       _showPrintDialog();
                     }
@@ -785,35 +842,26 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
   }
 
   void _showBankPaymentDialog() {
-    // Mock bank accounts data - in real app this would come from API (admin's saved bank accounts)
-    final List<Map<String, dynamic>> bankAccounts = [
-      {
-        'id': '1',
-        'name': 'JazzCash',
-        'accountNumber': '03001234567',
-        'accountHolder': 'Business Account',
-      },
-      {
-        'id': '2',
-        'name': 'EasyPaisa',
-        'accountNumber': '03109876543',
-        'accountHolder': 'Business Account',
-      },
-      {
-        'id': '3',
-        'name': 'Bank Account',
-        'accountNumber': 'PK1234567890123456',
-        'accountHolder': 'Business Name',
-      },
+    double receivedAmount = 0.0;
+    String selectedReceiverAccount = 'JazzCash'; // Default receiver account
+    String selectedSenderBank = 'JazzCash'; // Default sender bank
+    final TextEditingController amountController = TextEditingController();
+    final TextEditingController senderBankNameController =
+        TextEditingController();
+    final TextEditingController accountHolderNameController =
+        TextEditingController();
+    final TextEditingController accountNumberController =
+        TextEditingController();
+
+    // Mock receiver accounts - in real app this would come from API (Bank pages)
+    final List<String> receiverAccounts = [
+      'JazzCash',
+      'EasyPaisa',
+      'Bank Account',
     ];
 
-    String? selectedReceiverAccountId;
-    Map<String, dynamic>? selectedReceiverAccount;
-    double paidAmount = widget.totalAmount;
-    String senderBank = '';
-    String senderBankName = '';
-    String senderAccountHolderName = '';
-    String senderAccountNumber = '';
+    // Sender bank options
+    final List<String> senderBanks = ['JazzCash', 'EasyPaisa', 'Bank'];
 
     showDialog(
       context: context,
@@ -822,9 +870,9 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           child: Container(
-            width: 900,
+            width: 600,
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.9,
+              maxWidth: MediaQuery.of(context).size.width * 0.95,
               maxHeight: MediaQuery.of(context).size.height * 0.9,
             ),
             decoration: BoxDecoration(
@@ -876,7 +924,7 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Bank Payment',
+                              'Bank Transfer Payment',
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
@@ -886,7 +934,7 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Process bank transfer payment',
+                              'Process bank transfer payment details',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white70,
@@ -912,196 +960,131 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                 ),
 
                 // Content
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.6,
+                Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.7,
+                  ),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Receiver's Account Selection
+                        // Total Amount Display
                         Container(
-                          margin: const EdgeInsets.only(bottom: 24),
-                          child: DropdownButtonFormField<String>(
-                            value: selectedReceiverAccountId,
-                            decoration: InputDecoration(
-                              labelText: 'Receiver\'s Account',
-                              hintText: 'Select admin\'s bank account',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                            ),
-                            items: bankAccounts.map((account) {
-                              return DropdownMenuItem<String>(
-                                value: account['id'],
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.account_balance,
-                                      color: Color(0xFF0D1845),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            account['name'],
-                                            style: const TextStyle(
-                                              color: Color(0xFF343A40),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Text(
-                                            '****${account['accountNumber'].substring(account['accountNumber'].length - 4)}',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFDEE2E6)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Total Amount:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF343A40),
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                selectedReceiverAccountId = value;
-                                selectedReceiverAccount = bankAccounts
-                                    .firstWhere(
-                                      (account) => account['id'] == value,
-                                    );
-                              });
-                            },
+                              ),
+                              Text(
+                                'Rs${widget.totalAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF28A745),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
 
-                        // Selected Account Details
-                        if (selectedReceiverAccount != null) ...[
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 24),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFF8F9FA),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Color(0xFFDEE2E6)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.account_balance_wallet,
-                                      color: Color(0xFF0D1845),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Receiver Account Details',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF343A40),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Account Type',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Text(
-                                            selectedReceiverAccount!['name'],
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF343A40),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Account Holder',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          Text(
-                                            selectedReceiverAccount!['accountHolder'],
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF343A40),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Account Number',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Text(
-                                      selectedReceiverAccount!['accountNumber'],
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF343A40),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 24),
+
+                        // Receiver's Account Section
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FA),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFDEE2E6)),
                           ),
-                        ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.account_balance_wallet,
+                                    color: const Color(0xFF0D1845),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Receiver\'s Account',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF343A40),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Receiver Account Dropdown
+                              DropdownButtonFormField<String>(
+                                value: selectedReceiverAccount,
+                                decoration: InputDecoration(
+                                  labelText: 'Select Receiver Account',
+                                  hintText:
+                                      'Choose the account receiving payment',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                                items: receiverAccounts.map((account) {
+                                  return DropdownMenuItem<String>(
+                                    value: account,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _getAccountIcon(account),
+                                          color: const Color(0xFF0D1845),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(account),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedReceiverAccount = value!;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
 
                         // Sender's Bank Details Section
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Color(0xFFF8F9FA),
+                            color: const Color(0xFFF8F9FA),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Color(0xFFDEE2E6)),
+                            border: Border.all(color: const Color(0xFFDEE2E6)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1110,7 +1093,7 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                 children: [
                                   Icon(
                                     Icons.send,
-                                    color: Color(0xFF0D1845),
+                                    color: const Color(0xFF0D1845),
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
@@ -1119,51 +1102,20 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
-                                      color: Color(0xFF343A40),
+                                      color: const Color(0xFF343A40),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
 
-                              // Total Bill Amount
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Color(0xFFDEE2E6)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Total Bill Amount:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF343A40),
-                                      ),
-                                    ),
-                                    Text(
-                                      'Rs${widget.totalAmount.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF28A745),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
                               // Sender's Bank Dropdown
                               DropdownButtonFormField<String>(
-                                value: senderBank.isEmpty ? null : senderBank,
+                                value: selectedSenderBank,
                                 decoration: InputDecoration(
                                   labelText: 'Sender\'s Bank',
-                                  hintText: 'Select sender\'s bank type',
+                                  hintText:
+                                      'Select the bank sending the payment',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -1171,21 +1123,17 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                     horizontal: 16,
                                     vertical: 16,
                                   ),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
-                                items: ['JazzCash', 'EasyPaisa', 'Bank'].map((
-                                  bank,
-                                ) {
+                                items: senderBanks.map((bank) {
                                   return DropdownMenuItem<String>(
                                     value: bank,
                                     child: Row(
                                       children: [
                                         Icon(
-                                          bank == 'Bank'
-                                              ? Icons.account_balance
-                                              : Icons.phone_android,
-                                          color: bank == 'Bank'
-                                              ? Color(0xFF1976D2)
-                                              : Color(0xFF4CAF50),
+                                          _getBankIcon(bank),
+                                          color: const Color(0xFF0D1845),
                                           size: 20,
                                         ),
                                         const SizedBox(width: 8),
@@ -1196,62 +1144,127 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                 }).toList(),
                                 onChanged: (value) {
                                   setState(() {
-                                    senderBank = value!;
-                                    // Reset bank name if not Bank
+                                    selectedSenderBank = value!;
+                                    // Clear bank name if not "Bank"
                                     if (value != 'Bank') {
-                                      senderBankName = '';
+                                      senderBankNameController.clear();
                                     }
                                   });
                                 },
                               ),
-                              const SizedBox(height: 12),
 
-                              // Bank Name (only show if Bank is selected)
-                              if (senderBank == 'Bank') ...[
-                                TextFormField(
-                                  initialValue: senderBankName,
+                              const SizedBox(height: 16),
+
+                              // Sender's Bank Name (only show if "Bank" is selected)
+                              if (selectedSenderBank == 'Bank')
+                                TextField(
+                                  controller: senderBankNameController,
                                   decoration: InputDecoration(
-                                    labelText: 'Bank Name',
-                                    hintText: 'e.g., HBL, UBL, MCB',
+                                    labelText: 'Sender\'s Bank Name',
+                                    hintText: 'Enter the full bank name',
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
+                                    prefixIcon: const Icon(Icons.business),
+                                    filled: true,
+                                    fillColor: Colors.white,
                                   ),
-                                  onChanged: (value) {
-                                    senderBankName = value;
-                                  },
                                 ),
-                                const SizedBox(height: 12),
-                              ],
 
-                              // Account Holder Name
-                              TextFormField(
+                              if (selectedSenderBank == 'Bank')
+                                const SizedBox(height: 16),
+
+                              // Account Holder's Name
+                              TextField(
+                                controller: accountHolderNameController,
                                 decoration: InputDecoration(
                                   labelText: 'Account Holder\'s Name',
-                                  hintText: 'Enter sender\'s full name',
+                                  hintText: 'Enter the account holder name',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                  prefixIcon: const Icon(Icons.person),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
-                                onChanged: (value) {
-                                  senderAccountHolderName = value;
-                                },
                               ),
-                              const SizedBox(height: 12),
+
+                              const SizedBox(height: 16),
 
                               // Account Number
-                              TextFormField(
+                              TextField(
+                                controller: accountNumberController,
                                 decoration: InputDecoration(
                                   labelText: 'Account Number',
-                                  hintText: 'Enter sender\'s account number',
+                                  hintText: 'Enter the account number',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
+                                  prefixIcon: const Icon(Icons.account_box),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Paid Amount
+                              TextField(
+                                controller: amountController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Paid Amount',
+                                  hintText: 'Enter payment amount',
+                                  prefixText: 'Rs',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  prefixIcon: const Icon(Icons.payment),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                                 onChanged: (value) {
-                                  senderAccountNumber = value;
+                                  setState(() {
+                                    receivedAmount =
+                                        double.tryParse(value) ?? 0.0;
+                                  });
                                 },
                               ),
+
+                              const SizedBox(height: 16),
+
+                              // Balance Display
+                              if (receivedAmount >= widget.totalAmount)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.green.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Balance Amount:',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Rs${(receivedAmount - widget.totalAmount).toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -1280,16 +1293,23 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                             Expanded(
                               child: ElevatedButton(
                                 onPressed:
-                                    selectedReceiverAccountId != null &&
-                                        senderBank.isNotEmpty &&
-                                        senderAccountHolderName.isNotEmpty &&
-                                        senderAccountNumber.isNotEmpty &&
-                                        (senderBank != 'Bank' ||
-                                            senderBankName.isNotEmpty)
-                                    ? () {
-                                        widget.onPaymentComplete(
-                                          'Bank',
-                                          paidAmount,
+                                    receivedAmount >= widget.totalAmount &&
+                                        accountHolderNameController.text
+                                            .trim()
+                                            .isNotEmpty &&
+                                        accountNumberController.text
+                                            .trim()
+                                            .isNotEmpty &&
+                                        (selectedSenderBank != 'Bank' ||
+                                            senderBankNameController.text
+                                                .trim()
+                                                .isNotEmpty)
+                                    ? () async {
+                                        await _processPosPayment(
+                                          paymentModeId: 2, // Bank
+                                          transactionTypeId:
+                                              3, // Bank transaction
+                                          paidAmount: receivedAmount,
                                         );
                                         Navigator.of(context).pop();
                                         _showPrintDialog();
@@ -1305,7 +1325,7 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                child: const Text('Process Bank Payment'),
+                                child: const Text('Complete Bank Payment'),
                               ),
                             ),
                           ],
@@ -1320,6 +1340,200 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
         ),
       ),
     );
+  }
+
+  IconData _getAccountIcon(String account) {
+    switch (account) {
+      case 'JazzCash':
+        return Icons.phone_android;
+      case 'EasyPaisa':
+        return Icons.mobile_friendly;
+      case 'Bank Account':
+        return Icons.account_balance;
+      default:
+        return Icons.account_balance_wallet;
+    }
+  }
+
+  IconData _getBankIcon(String bank) {
+    switch (bank) {
+      case 'JazzCash':
+        return Icons.phone_android;
+      case 'EasyPaisa':
+        return Icons.mobile_friendly;
+      case 'Bank':
+        return Icons.business;
+      default:
+        return Icons.account_balance;
+    }
+  }
+
+  Future<void> _generateInvoicePdf() async {
+    // Create a new PDF document
+    final PdfDocument document = PdfDocument();
+
+    // Add a page to the document
+    final PdfPage page = document.pages.add();
+
+    // Create PDF graphics for the page
+    final PdfGraphics graphics = page.graphics;
+
+    // Set page size and margins
+    final Size pageSize = page.getClientSize();
+    const double margin = 50;
+    final Rect bounds = Rect.fromLTWH(
+      margin,
+      margin,
+      pageSize.width - 2 * margin,
+      pageSize.height - 2 * margin,
+    );
+
+    // Define fonts
+    final PdfFont titleFont = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      24,
+      style: PdfFontStyle.bold,
+    );
+    final PdfFont headerFont = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      16,
+      style: PdfFontStyle.bold,
+    );
+    final PdfFont normalFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
+    final PdfFont boldFont = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      12,
+      style: PdfFontStyle.bold,
+    );
+
+    // Header - Company Name
+    graphics.drawString(
+      'POS INVOICE',
+      titleFont,
+      bounds: Rect.fromLTWH(bounds.left, bounds.top, bounds.width, 30),
+    );
+
+    // Invoice details
+    double yPosition = bounds.top + 50;
+    graphics.drawString(
+      'Invoice Date: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
+      normalFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+    yPosition += 25;
+    graphics.drawString(
+      'Invoice Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}',
+      normalFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+    yPosition += 25;
+    graphics.drawString(
+      'Customer: ${widget.selectedCustomer?['name'] ?? 'Walk-in Customer'}',
+      normalFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+
+    // Items header
+    yPosition += 50;
+    graphics.drawString(
+      'Items',
+      headerFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+    yPosition += 30;
+
+    // Draw table header
+    graphics.drawString(
+      'Product',
+      boldFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, 200, 20),
+    );
+    graphics.drawString(
+      'Qty',
+      boldFont,
+      bounds: Rect.fromLTWH(bounds.left + 210, yPosition, 50, 20),
+    );
+    graphics.drawString(
+      'Price',
+      boldFont,
+      bounds: Rect.fromLTWH(bounds.left + 270, yPosition, 80, 20),
+    );
+    graphics.drawString(
+      'Total',
+      boldFont,
+      bounds: Rect.fromLTWH(bounds.left + 360, yPosition, 80, 20),
+    );
+
+    // Draw header line
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0)),
+      Offset(bounds.left, yPosition + 25),
+      Offset(bounds.right, yPosition + 25),
+    );
+
+    yPosition += 35;
+
+    // Draw items
+    for (var item in widget.orderItems) {
+      graphics.drawString(
+        item['name'] ?? 'Unknown Product',
+        normalFont,
+        bounds: Rect.fromLTWH(bounds.left, yPosition, 200, 20),
+      );
+      graphics.drawString(
+        '${item['quantity'] ?? 1}',
+        normalFont,
+        bounds: Rect.fromLTWH(bounds.left + 210, yPosition, 50, 20),
+      );
+      graphics.drawString(
+        'Rs${(item['price'] ?? 0.0).toStringAsFixed(2)}',
+        normalFont,
+        bounds: Rect.fromLTWH(bounds.left + 270, yPosition, 80, 20),
+      );
+      graphics.drawString(
+        'Rs${((item['price'] ?? 0.0) * (item['quantity'] ?? 1)).toStringAsFixed(2)}',
+        normalFont,
+        bounds: Rect.fromLTWH(bounds.left + 360, yPosition, 80, 20),
+      );
+      yPosition += 25;
+    }
+
+    // Draw separator line
+    yPosition += 10;
+    graphics.drawLine(
+      PdfPen(PdfColor(0, 0, 0)),
+      Offset(bounds.left, yPosition),
+      Offset(bounds.right, yPosition),
+    );
+    yPosition += 20;
+
+    // Total
+    graphics.drawString(
+      'Total Amount: Rs${widget.totalAmount.toStringAsFixed(2)}',
+      headerFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+
+    // Footer
+    yPosition = bounds.bottom - 50;
+    graphics.drawString(
+      'Thank you for your business!',
+      normalFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+    yPosition += 20;
+    graphics.drawString(
+      'Generated by POS System',
+      normalFont,
+      bounds: Rect.fromLTWH(bounds.left, yPosition, bounds.width, 20),
+    );
+
+    // Save and print the document
+    final Uint8List bytes = Uint8List.fromList(await document.save());
+    document.dispose();
+
+    // Print the PDF
+    await Printing.layoutPdf(onLayout: (_) async => bytes);
   }
 
   void _showPrintDialog() {
@@ -1633,25 +1847,81 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                     const SizedBox(height: 24),
 
                     // Action Buttons
-                    Row(
+                    Column(
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded),
-                            label: const Text('Skip Print'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              side: const BorderSide(color: Colors.grey),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close_rounded),
+                                label: const Text('Skip Print'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  side: const BorderSide(color: Colors.grey),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final staffNote = staffNoteController.text
+                                      .trim();
+                                  final paymentNote = paymentNoteController.text
+                                      .trim();
+
+                                  try {
+                                    await _generateInvoicePdf();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Invoice generated and sent to printer!\n'
+                                          '${staffNote.isNotEmpty ? 'Staff Note: $staffNote\n' : ''}'
+                                          '${paymentNote.isNotEmpty ? 'Payment Note: $paymentNote' : ''}',
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                    Navigator.of(context).pop();
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Failed to generate invoice: $e',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.picture_as_pdf_rounded),
+                                label: const Text('Generate Invoice'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4CAF50),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
                             onPressed: () {
                               // TODO: Implement actual print functionality
                               final staffNote = staffNoteController.text.trim();
@@ -1672,11 +1942,11 @@ class _PosPaymentMethodsState extends State<PosPaymentMethods> {
                               Navigator.of(context).pop();
                             },
                             icon: const Icon(Icons.print_rounded),
-                            label: const Text('Print Receipt'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0D1845),
-                              foregroundColor: Colors.white,
+                            label: const Text('Print Receipt Only'),
+                            style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
+                              side: const BorderSide(color: Color(0xFF0D1845)),
+                              foregroundColor: const Color(0xFF0D1845),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),

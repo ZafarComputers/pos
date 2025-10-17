@@ -5,6 +5,9 @@ import 'dart:convert';
 import '../../models/product.dart';
 import '../../services/inventory_service.dart';
 import 'package:barcode_widget/barcode_widget.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class PrintBarcodePage extends StatefulWidget {
   const PrintBarcodePage({super.key});
@@ -34,6 +37,13 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   // Selection state
   Set<String> selectedProductCodes = {};
   bool selectAll = false;
+
+  // Pagination state for single product barcode/QR generation
+  int _barcodeQuantity = 1;
+  String _selectedPaperSize = 'A4';
+  int _currentBarcodePage = 1;
+  int _currentQRPage = 1;
+  final int _itemsPerPage = 9; // 3x3 grid per page
 
   @override
   void initState() {
@@ -94,6 +104,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       _applyFiltersClientSide();
     } catch (e) {
       print('❌ Critical error in _fetchAllProductsOnInit: $e');
+      if (!mounted) return;
       setState(() {
         errorMessage = 'Failed to load products. Please refresh the page.';
       });
@@ -107,6 +118,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
 
       // Set new timer for debounced search (500ms delay)
       _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
         print('🔍 Search triggered: "${_searchController.text}"');
         setState(() {
           currentPage = 1; // Reset to first page when search changes
@@ -138,6 +150,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
         '🎯 hasSearch: $hasSearch, hasCategoryFilter: $hasCategoryFilter, hasVendorFilter: $hasVendorFilter',
       );
 
+      if (!mounted) return;
       setState(() {
         _isFilterActive = hasSearch || hasCategoryFilter || hasVendorFilter;
       });
@@ -151,6 +164,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       print('👀 _filteredProducts.length: ${_filteredProducts.length}');
     } catch (e) {
       print('❌ Error in _applyFiltersClientSide: $e');
+      if (!mounted) return;
       setState(() {
         errorMessage = 'Search error: Please try a different search term';
       });
@@ -215,11 +229,13 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       // Apply local pagination to filtered results
       _paginateFilteredProducts();
 
+      if (!mounted) return;
       setState(() {
         errorMessage = null;
       });
     } catch (e) {
       print('❌ Critical error in _filterCachedProducts: $e');
+      if (!mounted) return;
       setState(() {
         errorMessage =
             'Search failed. Please try again with a simpler search term.';
@@ -235,6 +251,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
     try {
       // Handle empty results case
       if (_allFilteredProducts.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _filteredProducts = [];
           // Update productResponse meta for pagination controls
@@ -260,6 +277,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       // Ensure startIndex is not greater than the list length
       if (startIndex >= _allFilteredProducts.length) {
         // Reset to page 1 if current page is out of bounds
+        if (!mounted) return;
         setState(() {
           currentPage = 1;
         });
@@ -267,6 +285,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
         return;
       }
 
+      if (!mounted) return;
       setState(() {
         _filteredProducts = _allFilteredProducts.sublist(
           startIndex,
@@ -308,6 +327,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       });
     } catch (e) {
       print('❌ Error in _paginateFilteredProducts: $e');
+      if (!mounted) return;
       setState(() {
         _filteredProducts = [];
         currentPage = 1;
@@ -317,6 +337,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
 
   // Handle page changes for both filtered and normal pagination
   Future<void> _changePage(int newPage) async {
+    if (!mounted) return;
     setState(() {
       currentPage = newPage;
     });
@@ -364,12 +385,33 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   void toggleSelectAll(bool? value) {
     if (_filteredProducts.isEmpty) return;
 
+    if (!mounted) return;
     setState(() {
       if (value == true) {
-        selectedProductCodes = _filteredProducts
+        // Limit selection to maximum 10 products
+        final productsToSelect = _filteredProducts.take(10);
+        selectedProductCodes = productsToSelect
             .map((product) => product.designCode)
             .toSet();
-        selectAll = true;
+
+        // Show warning if there are more than 10 products
+        if (_filteredProducts.length > 10) {
+          Future.microtask(() {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Maximum 10 products can be selected for barcode generation. Only first 10 products were selected.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          });
+        }
+
+        selectAll = selectedProductCodes.length == _filteredProducts.length;
       } else {
         selectedProductCodes.clear();
         selectAll = false;
@@ -378,12 +420,26 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
   }
 
   void toggleProductSelection(String productCode, bool? value) {
+    if (!mounted) return;
     setState(() {
       if (value == true) {
+        // Check if adding this product would exceed the limit
+        if (selectedProductCodes.length >= 10) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Maximum 10 products can be selected for barcode generation.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
         selectedProductCodes.add(productCode);
       } else {
         selectedProductCodes.remove(productCode);
       }
+
       // Update selectAll based on current filtered products
       selectAll =
           _filteredProducts.isNotEmpty &&
@@ -415,73 +471,333 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       return;
     }
 
-    // Check if all products are selected
-    final isAllProductsSelected =
-        selectAll ||
-        selectedProductCodes.length == productResponse?.data.length;
+    // If only one product is selected, show quantity and paper size selection
+    if (selectedProducts.length == 1) {
+      _showQuantitySelectionDialog(selectedProducts.first, isBarcode: true);
+      return;
+    }
+
+    // For multiple products, show the regular dialog
+    _showMultiProductBarcodeDialog(selectedProducts);
+  }
+
+  void _showQuantitySelectionDialog(
+    Product product, {
+    required bool isBarcode,
+  }) {
+    final maxQuantity = int.tryParse(product.openingStockQuantity) ?? 1;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(
+                'Configure ${isBarcode ? 'Barcode' : 'QR Code'} Generation',
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Product: ${product.title}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text('Paper Size:'),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: _selectedPaperSize,
+                          isExpanded: true,
+                          items: ['A4', 'A5', 'Letter', 'Legal']
+                              .map(
+                                (size) => DropdownMenuItem<String>(
+                                  value: size,
+                                  child: Text(size),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedPaperSize = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Text('Quantity (1-${maxQuantity}):'),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'Enter quantity',
+                          ),
+                          onChanged: (value) {
+                            final quantity = int.tryParse(value) ?? 1;
+                            setState(() {
+                              _barcodeQuantity = quantity.clamp(1, maxQuantity);
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Available stock: ${product.openingStockQuantity}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    if (isBarcode) {
+                      _showSingleProductBarcodeDialog(product);
+                    } else {
+                      _showSingleProductQRDialog(product);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D1845),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Generate'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSingleProductBarcodeDialog(Product product) {
+    final totalItems = _barcodeQuantity;
+    final totalPages = (totalItems / _itemsPerPage).ceil();
+    _currentBarcodePage = 1;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final startIndex = (_currentBarcodePage - 1) * _itemsPerPage;
+            final endIndex = startIndex + _itemsPerPage;
+            final currentPageItems = List.generate(
+              endIndex > totalItems ? totalItems - startIndex : _itemsPerPage,
+              (index) => startIndex + index,
+            );
+
+            return AlertDialog(
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Barcodes for ${product.title}'),
+                  Text(
+                    'Page $_currentBarcodePage of $totalPages • Paper Size: $_selectedPaperSize',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 700,
+                height: 500,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
+                        itemCount: currentPageItems.length,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  product.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF17A2B8),
+                                    fontSize: 10,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                BarcodeWidget(
+                                  barcode: Barcode.code128(),
+                                  data: product.barcode,
+                                  width: 140,
+                                  height: 40,
+                                  drawText: true,
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Code: ${product.barcode}',
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    color: Color(0xFF6C757D),
+                                    fontFamily: 'monospace',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (totalPages > 1) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            onPressed: _currentBarcodePage > 1
+                                ? () {
+                                    setState(() {
+                                      _currentBarcodePage--;
+                                    });
+                                  }
+                                : null,
+                            icon: const Icon(Icons.chevron_left),
+                          ),
+                          Text('Page $_currentBarcodePage of $totalPages'),
+                          IconButton(
+                            onPressed: _currentBarcodePage < totalPages
+                                ? () {
+                                    setState(() {
+                                      _currentBarcodePage++;
+                                    });
+                                  }
+                                : null,
+                            icon: const Icon(Icons.chevron_right),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    try {
+                      await _generateBarcodePDF(
+                        [product],
+                        _barcodeQuantity,
+                        _selectedPaperSize,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'PDF generated successfully! Check your downloads.',
+                          ),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to generate PDF: $e'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D1845),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Generate & Print'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMultiProductBarcodeDialog(List<Product> selectedProducts) {
+    // Calculate dialog dimensions based on number of products
+    final int itemsPerRow = 3;
+    final int numberOfRows = (selectedProducts.length / itemsPerRow).ceil();
+    final double rowHeight = 120; // Approximate height per barcode row
+    final double headerHeight = 40; // Header text + spacing
+    final double footerHeight = 40; // Footer text + spacing
+    final double totalContentHeight =
+        headerHeight + (numberOfRows * rowHeight) + footerHeight;
+    final double dialogHeight = totalContentHeight.clamp(
+      300,
+      600,
+    ); // Min 300, Max 600
+    final double dialogWidth =
+        680; // Fixed width to fit 3 barcodes (3 * 200 + margins)
 
     // Show barcode generation dialog
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(
-            isAllProductsSelected
-                ? 'Generate Single Barcode (All Products)'
-                : 'Generate Barcodes',
-          ),
+          title: const Text('Generate Barcodes'),
           content: SizedBox(
-            width: double.maxFinite,
+            width: dialogWidth,
+            height: dialogHeight,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('${selectedProducts.length} product(s) selected'),
                 const SizedBox(height: 16),
-                if (isAllProductsSelected)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
+                Expanded(
+                  child: SingleChildScrollView(
                     child: Column(
-                      children: [
-                        Text(
-                          'Single Barcode for All Products',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF17A2B8),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        BarcodeWidget(
-                          barcode: Barcode.code128(),
-                          data: _generateAllProductsBarcodeData(
-                            selectedProducts,
-                          ),
-                          width: 250,
-                          height: 80,
-                          drawText: false,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Contains data for ${selectedProducts.length} products',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF6C757D),
-                          ),
-                        ),
-                      ],
+                      children: _buildBarcodeRows(selectedProducts),
                     ),
-                  )
-                else
-                  Column(children: _buildBarcodeRows(selectedProducts)),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Text(
-                  isAllProductsSelected
-                      ? 'This barcode contains information for all products in your inventory.'
-                      : 'Barcode generation and printing feature coming soon!',
+                  'Barcode generation and printing feature coming soon!',
                   style: TextStyle(color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
@@ -494,30 +810,205 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                final selectedProducts = getSelectedProducts();
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      isAllProductsSelected
-                          ? 'Generating single barcode for all ${selectedProducts.length} products...'
-                          : 'Generating barcodes for ${selectedProducts.length} products...',
+                try {
+                  await _generateBarcodePDF(
+                    selectedProducts,
+                    1,
+                    _selectedPaperSize,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'PDF generated successfully! Check your downloads.',
+                      ),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 3),
                     ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to generate PDF: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0D1845),
                 foregroundColor: Colors.white,
               ),
-              child: Text(
-                isAllProductsSelected
-                    ? 'Generate Single Barcode'
-                    : 'Generate & Print',
-              ),
+              child: const Text('Generate & Print'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showSingleProductQRDialog(Product product) {
+    final totalItems = _barcodeQuantity; // Reuse the same quantity variable
+    final totalPages = (totalItems / _itemsPerPage).ceil();
+    _currentQRPage = 1;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final startIndex = (_currentQRPage - 1) * _itemsPerPage;
+            final endIndex = startIndex + _itemsPerPage;
+            final currentPageItems = List.generate(
+              endIndex > totalItems ? totalItems - startIndex : _itemsPerPage,
+              (index) => startIndex + index,
+            );
+
+            return AlertDialog(
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('QR Codes for ${product.title}'),
+                  Text(
+                    'Page $_currentQRPage of $totalPages • Paper Size: $_selectedPaperSize',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 700,
+                height: 500,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
+                        itemCount: currentPageItems.length,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  product.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF17A2B8),
+                                    fontSize: 10,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                QrImageView(
+                                  data: _generateProductQRData(product),
+                                  size: 90,
+                                  backgroundColor: Colors.white,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Code: ${product.designCode}',
+                                  style: TextStyle(
+                                    fontSize: 7,
+                                    color: Color(0xFF6C757D),
+                                    fontFamily: 'monospace',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (totalPages > 1) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            onPressed: _currentQRPage > 1
+                                ? () {
+                                    setState(() {
+                                      _currentQRPage--;
+                                    });
+                                  }
+                                : null,
+                            icon: const Icon(Icons.chevron_left),
+                          ),
+                          Text('Page $_currentQRPage of $totalPages'),
+                          IconButton(
+                            onPressed: _currentQRPage < totalPages
+                                ? () {
+                                    setState(() {
+                                      _currentQRPage++;
+                                    });
+                                  }
+                                : null,
+                            icon: const Icon(Icons.chevron_right),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    try {
+                      await _generateQRCodePDF(
+                        [product],
+                        _barcodeQuantity,
+                        _selectedPaperSize,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'QR code PDF generated successfully! Check your downloads.',
+                          ),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to generate QR PDF: $e'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D1845),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Generate'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -539,49 +1030,48 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: rowProducts.map((product) {
-              return Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        product.title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF17A2B8),
-                          fontSize: 11,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+              return Container(
+                width: 200, // Fixed width instead of Expanded
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      product.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF17A2B8),
+                        fontSize: 11,
                       ),
-                      const SizedBox(height: 6),
-                      BarcodeWidget(
-                        barcode: Barcode.code128(),
-                        data: product.barcode,
-                        width: 160,
-                        height: 50,
-                        drawText: true,
-                        style: TextStyle(fontSize: 8, color: Colors.black),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    BarcodeWidget(
+                      barcode: Barcode.code128(),
+                      data: product.barcode,
+                      width: 160,
+                      height: 50,
+                      drawText: true,
+                      style: TextStyle(fontSize: 8, color: Colors.black),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Code: ${product.barcode}',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Color(0xFF6C757D),
+                        fontFamily: 'monospace',
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Code: ${product.barcode}',
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: Color(0xFF6C757D),
-                          fontFamily: 'monospace',
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               );
             }).toList(),
@@ -593,30 +1083,70 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
     return rows;
   }
 
-  String _generateAllProductsBarcodeData(List<Product> products) {
-    final productData = products
-        .map(
-          (product) => {
-            'id': product.id.toString(),
-            'code': product.designCode,
-            'name': product.title,
-            'price': product.salePrice,
-            'category': product.subCategoryId,
-            'vendor': product.vendor.name ?? 'Vendor ${product.vendorId}',
-            'quantity': product.openingStockQuantity,
-          },
-        )
-        .toList();
+  List<Widget> _buildQRCodeRows(List<Product> products) {
+    List<Widget> rows = [];
+    const int itemsPerRow = 3;
 
-    // Convert to JSON-like string that can be encoded in QR
-    final data = {
-      'type': 'all_products',
-      'total_products': products.length,
-      'timestamp': DateTime.now().toIso8601String(),
-      'products': productData,
-    };
+    for (int i = 0; i < products.length; i += itemsPerRow) {
+      final endIndex = (i + itemsPerRow < products.length)
+          ? i + itemsPerRow
+          : products.length;
+      final rowProducts = products.sublist(i, endIndex);
 
-    return data.toString();
+      rows.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: rowProducts.map((product) {
+              return Container(
+                width: 180, // Fixed width for QR codes
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      product.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF17A2B8),
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    QrImageView(
+                      data: _generateProductQRData(product),
+                      size: 100,
+                      backgroundColor: Colors.white,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Code: ${product.designCode}',
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Color(0xFF6C757D),
+                        fontFamily: 'monospace',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      );
+    }
+
+    return rows;
   }
 
   void generateQRCode() {
@@ -633,6 +1163,32 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
       return;
     }
 
+    // If only one product is selected, show quantity and paper size selection
+    if (selectedProducts.length == 1) {
+      _showQuantitySelectionDialog(selectedProducts.first, isBarcode: false);
+      return;
+    }
+
+    // For multiple products, show the regular dialog
+    _showMultiProductQRDialog(selectedProducts);
+  }
+
+  void _showMultiProductQRDialog(List<Product> selectedProducts) {
+    // Calculate dialog dimensions based on number of products
+    final int itemsPerRow = 3;
+    final int numberOfRows = (selectedProducts.length / itemsPerRow).ceil();
+    final double rowHeight = 140; // Approximate height per QR code row
+    final double headerHeight = 40; // Header text + spacing
+    final double footerHeight = 40; // Footer text + spacing
+    final double totalContentHeight =
+        headerHeight + (numberOfRows * rowHeight) + footerHeight;
+    final double dialogHeight = totalContentHeight.clamp(
+      300,
+      600,
+    ); // Min 300, Max 600
+    final double dialogWidth =
+        620; // Fixed width to fit 3 QR codes (3 * 180 + margins)
+
     // Show QR code generation dialog
     showDialog(
       context: context,
@@ -640,48 +1196,18 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
         return AlertDialog(
           title: const Text('Generate QR Codes'),
           content: SizedBox(
-            width: double.maxFinite,
+            width: dialogWidth,
+            height: dialogHeight,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('${selectedProducts.length} product(s) selected'),
                 const SizedBox(height: 16),
-                // Show QR code preview for first selected product
-                if (selectedProducts.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          selectedProducts[0].title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF17A2B8),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        QrImageView(
-                          data: _generateProductQRData(selectedProducts[0]),
-                          size: 120,
-                          backgroundColor: Colors.white,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Code: ${selectedProducts[0].designCode}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF6C757D),
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(children: _buildQRCodeRows(selectedProducts)),
                   ),
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'QR codes will be generated for ${selectedProducts.length} product(s)',
@@ -697,16 +1223,32 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Generating QR codes for ${selectedProducts.length} products...',
+                try {
+                  await _generateQRCodePDF(
+                    selectedProducts,
+                    1,
+                    _selectedPaperSize,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'QR code PDF generated successfully! Check your downloads.',
+                      ),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 3),
                     ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to generate QR PDF: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0D1845),
@@ -794,6 +1336,221 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
 
   TextStyle _cellStyle() {
     return const TextStyle(fontSize: 12, color: Color(0xFF6C757D));
+  }
+
+  Future<void> _generateBarcodePDF(
+    List<Product> products,
+    int quantity,
+    String paperSize,
+  ) async {
+    final pdf = pw.Document();
+
+    // Define paper sizes
+    final pageFormat = paperSize == 'A4'
+        ? PdfPageFormat.a4
+        : paperSize == 'A5'
+        ? PdfPageFormat.a5
+        : paperSize == 'Letter'
+        ? PdfPageFormat.letter
+        : PdfPageFormat.legal;
+
+    // Calculate grid layout based on paper size
+    int columns = paperSize == 'A4'
+        ? 4
+        : paperSize == 'A5'
+        ? 3
+        : 4;
+    int rows = paperSize == 'A4'
+        ? 6
+        : paperSize == 'A5'
+        ? 4
+        : 6;
+
+    double pageWidth = pageFormat.width;
+    double pageHeight = pageFormat.height;
+    double margin = 20;
+    double availableWidth = pageWidth - (2 * margin);
+    double availableHeight = pageHeight - (2 * margin);
+    double cellWidth = availableWidth / columns;
+    double cellHeight = availableHeight / rows;
+
+    List<pw.Widget> barcodeWidgets = [];
+
+    for (var product in products) {
+      for (int i = 0; i < quantity; i++) {
+        barcodeWidgets.add(
+          pw.Container(
+            width: cellWidth,
+            height: cellHeight,
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  product.title,
+                  style: pw.TextStyle(fontSize: 8),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 5),
+                pw.Container(
+                  width: 80,
+                  height: 30,
+                  child: pw.BarcodeWidget(
+                    barcode: pw.Barcode.code128(),
+                    data: product.barcode,
+                    width: 80,
+                    height: 30,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  product.barcode,
+                  style: pw.TextStyle(fontSize: 6),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+
+    // Create pages with grid layout
+    List<List<pw.Widget>> pages = [];
+    List<pw.Widget> currentPage = [];
+    int itemsPerPage = columns * rows;
+
+    for (int i = 0; i < barcodeWidgets.length; i++) {
+      currentPage.add(barcodeWidgets[i]);
+      if (currentPage.length == itemsPerPage ||
+          i == barcodeWidgets.length - 1) {
+        pages.add(List.from(currentPage));
+        currentPage.clear();
+      }
+    }
+
+    for (var pageWidgets in pages) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          build: (pw.Context context) {
+            return pw.GridView(crossAxisCount: columns, children: pageWidgets);
+          },
+        ),
+      );
+    }
+
+    // Save PDF to file
+    final bytes = await pdf.save();
+
+    // Use printing package to share/save the PDF
+    await Printing.sharePdf(bytes: bytes, filename: 'barcodes.pdf');
+  }
+
+  Future<void> _generateQRCodePDF(
+    List<Product> products,
+    int quantity,
+    String paperSize,
+  ) async {
+    final pdf = pw.Document();
+
+    // Define paper sizes
+    final pageFormat = paperSize == 'A4'
+        ? PdfPageFormat.a4
+        : paperSize == 'A5'
+        ? PdfPageFormat.a5
+        : paperSize == 'Letter'
+        ? PdfPageFormat.letter
+        : PdfPageFormat.legal;
+
+    // Calculate grid layout based on paper size
+    int columns = paperSize == 'A4'
+        ? 3
+        : paperSize == 'A5'
+        ? 2
+        : 3;
+    int rows = paperSize == 'A4'
+        ? 4
+        : paperSize == 'A5'
+        ? 3
+        : 4;
+
+    double pageWidth = pageFormat.width;
+    double pageHeight = pageFormat.height;
+    double margin = 20;
+    double availableWidth = pageWidth - (2 * margin);
+    double availableHeight = pageHeight - (2 * margin);
+    double cellWidth = availableWidth / columns;
+    double cellHeight = availableHeight / rows;
+
+    List<pw.Widget> qrWidgets = [];
+
+    for (var product in products) {
+      for (int i = 0; i < quantity; i++) {
+        qrWidgets.add(
+          pw.Container(
+            width: cellWidth,
+            height: cellHeight,
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  product.title,
+                  style: pw.TextStyle(fontSize: 8),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 5),
+                pw.Container(
+                  width: 60,
+                  height: 60,
+                  child: pw.BarcodeWidget(
+                    barcode: pw.Barcode.qrCode(),
+                    data: product.barcode,
+                    width: 60,
+                    height: 60,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  product.barcode,
+                  style: pw.TextStyle(fontSize: 6),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+
+    // Create pages with grid layout
+    List<List<pw.Widget>> pages = [];
+    List<pw.Widget> currentPage = [];
+    int itemsPerPage = columns * rows;
+
+    for (int i = 0; i < qrWidgets.length; i++) {
+      currentPage.add(qrWidgets[i]);
+      if (currentPage.length == itemsPerPage || i == qrWidgets.length - 1) {
+        pages.add(List.from(currentPage));
+        currentPage.clear();
+      }
+    }
+
+    for (var pageWidgets in pages) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          build: (pw.Context context) {
+            return pw.GridView(crossAxisCount: columns, children: pageWidgets);
+          },
+        ),
+      );
+    }
+
+    // Save PDF to file
+    final bytes = await pdf.save();
+
+    // Use printing package to share/save the PDF
+    await Printing.sharePdf(bytes: bytes, filename: 'qrcodes.pdf');
   }
 
   @override
@@ -999,6 +1756,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                           .toList(),
                                   onChanged: (value) {
                                     if (value != null) {
+                                      if (!mounted) return;
                                       setState(() {
                                         selectedCategory = value;
                                       });
@@ -1041,6 +1799,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                           .toList(),
                                   onChanged: (value) {
                                     if (value != null) {
+                                      if (!mounted) return;
                                       setState(() {
                                         selectedVendor = value;
                                       });
@@ -1071,14 +1830,34 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                             children: [
                               Checkbox(
                                 value: selectAll,
-                                onChanged: (value) => toggleSelectAll(value),
+                                onChanged: _filteredProducts.length > 10
+                                    ? null // Disable if more than 10 products available
+                                    : (value) => toggleSelectAll(value),
                                 activeColor: const Color(0xFF0D1845),
                               ),
-                              Text(
-                                'Select All',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF343A40),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Select All',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        color: _filteredProducts.length > 10
+                                            ? Colors.grey
+                                            : const Color(0xFF343A40),
+                                      ),
+                                    ),
+                                    if (_filteredProducts.length > 10)
+                                      Text(
+                                        'Limited to 10 products max',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(width: 16),
@@ -1088,21 +1867,29 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE3F2FD),
+                                  color: selectedProductCodes.length >= 10
+                                      ? const Color(0xFFFFF3CD)
+                                      : const Color(0xFFE3F2FD),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
-                                      Icons.check_circle,
-                                      color: const Color(0xFF1976D2),
+                                      selectedProductCodes.length >= 10
+                                          ? Icons.warning
+                                          : Icons.check_circle,
+                                      color: selectedProductCodes.length >= 10
+                                          ? const Color(0xFF856404)
+                                          : const Color(0xFF1976D2),
                                       size: 12,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      '${getSelectedProducts().length} product(s) selected',
+                                      '${getSelectedProducts().length}/10 product(s) selected',
                                       style: TextStyle(
-                                        color: const Color(0xFF1976D2),
+                                        color: selectedProductCodes.length >= 10
+                                            ? const Color(0xFF856404)
+                                            : const Color(0xFF1976D2),
                                         fontWeight: FontWeight.w500,
                                         fontSize: 12,
                                       ),
@@ -1234,6 +2021,7 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                     const SizedBox(height: 8),
                                     TextButton(
                                       onPressed: () {
+                                        if (!mounted) return;
                                         setState(() {
                                           _searchController.clear();
                                           selectedCategory = 'All';
@@ -1281,11 +2069,19 @@ class _PrintBarcodePageState extends State<PrintBarcodePage> {
                                           value: selectedProductCodes.contains(
                                             product.designCode,
                                           ),
-                                          onChanged: (value) =>
-                                              toggleProductSelection(
-                                                product.designCode,
-                                                value,
-                                              ),
+                                          onChanged:
+                                              selectedProductCodes.length >=
+                                                      10 &&
+                                                  !selectedProductCodes
+                                                      .contains(
+                                                        product.designCode,
+                                                      )
+                                              ? null // Disable if limit reached and this item isn't selected
+                                              : (value) =>
+                                                    toggleProductSelection(
+                                                      product.designCode,
+                                                      value,
+                                                    ),
                                           activeColor: const Color(0xFF0D1845),
                                         ),
                                       ),
